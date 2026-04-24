@@ -1,0 +1,11 @@
+data/app.db
+data/app.db-shm
+data/app.db-wal
+data/backups/
+data/telegram-tdlib/
+data/training-imports/
+bin/
+obj/
+*.user
+*.suo
+*.log
