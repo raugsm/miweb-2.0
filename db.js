@@ -2,7 +2,9 @@ const fs = require("fs");
 const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
 
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "app.db");
 const LEGACY_CASES_FILE = path.join(DATA_DIR, "cases.json");
 const LEGACY_STYLE_FILE = path.join(DATA_DIR, "style-profile.json");
@@ -95,7 +97,13 @@ db.exec(`
     agent_message_count INTEGER NOT NULL,
     first_client_message TEXT,
     last_agent_message TEXT,
-    notes TEXT
+    notes TEXT,
+    conversation_type TEXT,
+    service_line TEXT,
+    outcome TEXT,
+    requested_fields TEXT,
+    learned_pattern TEXT,
+    confidence REAL
   );
   CREATE TABLE IF NOT EXISTS training_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,6 +183,21 @@ try {
 } catch (error) {
   // column already exists
 }
+
+[
+  `ALTER TABLE training_conversations ADD COLUMN conversation_type TEXT`,
+  `ALTER TABLE training_conversations ADD COLUMN service_line TEXT`,
+  `ALTER TABLE training_conversations ADD COLUMN outcome TEXT`,
+  `ALTER TABLE training_conversations ADD COLUMN requested_fields TEXT`,
+  `ALTER TABLE training_conversations ADD COLUMN learned_pattern TEXT`,
+  `ALTER TABLE training_conversations ADD COLUMN confidence REAL`,
+].forEach((statement) => {
+  try {
+    db.exec(statement);
+  } catch (error) {
+    // column already exists
+  }
+});
 
 function readJsonIfExists(filePath, fallback) {
   if (!fs.existsSync(filePath)) {
@@ -479,8 +502,9 @@ function saveTrainingConversation(conversation) {
     `INSERT INTO training_conversations (
       source, contact_name, owner_aliases, imported_at, message_count,
       client_message_count, agent_message_count, first_client_message,
-      last_agent_message, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      last_agent_message, notes, conversation_type, service_line, outcome,
+      requested_fields, learned_pattern, confidence
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     conversation.source,
     conversation.contactName,
@@ -491,7 +515,13 @@ function saveTrainingConversation(conversation) {
     conversation.agentMessageCount,
     conversation.firstClientMessage || null,
     conversation.lastAgentMessage || null,
-    conversation.notes || null
+    conversation.notes || null,
+    conversation.conversationType || null,
+    conversation.serviceLine || null,
+    conversation.outcome || null,
+    JSON.stringify(conversation.requestedFields || []),
+    conversation.learnedPattern || null,
+    conversation.confidence ?? null
   );
 
   const conversationId = Number(result.lastInsertRowid);
@@ -536,6 +566,12 @@ function getTrainingConversations(limit = 12) {
     firstClientMessage: item.first_client_message,
     lastAgentMessage: item.last_agent_message,
     notes: item.notes,
+    conversationType: item.conversation_type,
+    serviceLine: item.service_line,
+    outcome: item.outcome,
+    requestedFields: JSON.parse(item.requested_fields || "[]"),
+    learnedPattern: item.learned_pattern,
+    confidence: item.confidence !== null ? Number(item.confidence) : null,
     messages: messages
       .filter((message) => message.conversation_id === item.id)
       .map((message) => ({
@@ -562,6 +598,35 @@ function getTrainingSummary() {
     totalMessages: row.total_messages,
     totalClientMessages: row.total_client_messages,
     totalAgentMessages: row.total_agent_messages,
+  };
+}
+
+function getTrainingInsights() {
+  const conversations = getTrainingConversations(200);
+  const byType = new Map();
+  const byOutcome = new Map();
+  const byField = new Map();
+
+  for (const item of conversations) {
+    const typeKey = item.conversationType || "general";
+    const outcomeKey = item.outcome || "abierto";
+    byType.set(typeKey, (byType.get(typeKey) || 0) + 1);
+    byOutcome.set(outcomeKey, (byOutcome.get(outcomeKey) || 0) + 1);
+
+    for (const field of item.requestedFields || []) {
+      byField.set(field, (byField.get(field) || 0) + 1);
+    }
+  }
+
+  const sortMap = (map) =>
+    [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, total]) => ({ label, total }));
+
+  return {
+    topConversationTypes: sortMap(byType).slice(0, 5),
+    topOutcomes: sortMap(byOutcome).slice(0, 5),
+    topRequestedFields: sortMap(byField).slice(0, 8),
   };
 }
 
@@ -752,6 +817,8 @@ function migrateLegacyData() {
 migrateLegacyData();
 
 module.exports = {
+  DATA_DIR,
+  DB_FILE,
   getCaseById,
   getCases,
   getMetadata,
@@ -763,6 +830,7 @@ module.exports = {
   getTelegramSources,
   getTelegramSummary,
   getTrainingConversations,
+  getTrainingInsights,
   getTrainingSummary,
   getUserByUsername,
   getUsers,
@@ -775,4 +843,4 @@ module.exports = {
   saveTrainingConversation,
   saveUser,
   upsertCase,
-}
+};
