@@ -1271,13 +1271,31 @@ trainingImportForm.addEventListener("submit", async (event) => {
   const file = formData.get("chatFile");
   const hasFile = file && typeof file === "object" && file.size > 0;
   const chatText = String(formData.get("chatText") || "").trim();
+  const contactName = String(formData.get("contactName") || "").trim();
+  const ownerAliases = String(formData.get("ownerAliases") || "").trim();
   const payload = {
-    contactName: formData.get("contactName"),
-    ownerAliases: formData.get("ownerAliases"),
+    contactName,
+    ownerAliases,
     source: formData.get("source"),
     notes: formData.get("notes"),
     anonymize: formData.get("anonymize") === "on",
   };
+
+  if (!contactName || !ownerAliases) {
+    renderTrainingImportResult(
+      null,
+      "Completa al menos el nombre del chat y tus nombres o aliases antes de procesar."
+    );
+    return;
+  }
+
+  if (!hasFile && !chatText) {
+    renderTrainingImportResult(
+      null,
+      "Sube un archivo .txt o .zip, o pega el chat en el modo avanzado antes de procesar."
+    );
+    return;
+  }
 
   if (hasFile) {
     payload.fileName = file.name;
