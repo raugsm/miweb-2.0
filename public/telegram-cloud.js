@@ -52,6 +52,66 @@
     return workspace;
   }
 
+  function ensureXiaomiFrpBoard() {
+    const pricingPanel = document.getElementById("pricingPanel");
+    if (!pricingPanel || document.getElementById("xiaomiFrpBoard")) return;
+
+    const card = document.createElement("section");
+    card.className = "form-card xiaomi-frp-card";
+    card.innerHTML = `
+      <p class="eyebrow">Motor Xiaomi FRP</p>
+      <h2>Mejor precio detectado</h2>
+      <p class="helper-copy">Leo las ofertas importadas desde Telegram y te dejo el costo mas bajo, proveedor, variante/herramienta y precio sugerido para vender.</p>
+      <div id="xiaomiFrpBoard" class="log-list">
+        <p class="muted">Aun no hay ofertas Xiaomi FRP importadas. Activa chats de proveedores y pulsa Sincronizar ahora.</p>
+      </div>
+    `;
+
+    const anchor = pricingPanel.querySelector(".panel-head")?.nextElementSibling;
+    pricingPanel.insertBefore(card, anchor || pricingPanel.firstChild);
+  }
+
+  function renderXiaomiFrpBoard(dashboard) {
+    const board = document.getElementById("xiaomiFrpBoard");
+    const rows = dashboard?.meta?.pricingSummary || [];
+    if (!board) return;
+
+    const xiaomiRows = rows.filter((item) =>
+      `${item.serviceName || ""} ${item.variant || ""}`.toLowerCase().includes("xiaomi frp")
+    );
+
+    board.innerHTML = xiaomiRows.length
+      ? xiaomiRows
+          .map(
+            (item) => `
+              <div class="log-item">
+                <div>
+                  <div class="timeline-title-row">
+                    <strong>${item.serviceName}</strong>
+                    <span class="chip">Mejor actual</span>
+                  </div>
+                  <p class="muted">Costo: ${item.bestCost} ${item.currency} con ${item.bestSupplier || "Proveedor sin nombre"}</p>
+                  <p class="muted">Variante: ${item.variant || "General"} - Ofertas leidas: ${item.offerCount}</p>
+                  <p class="muted">Ultimo visto: ${item.latestCost} ${item.currency} con ${item.latestSupplier || "Proveedor sin nombre"}</p>
+                </div>
+                <span class="muted">Vender desde ${item.suggestedSale} ${item.currency}</span>
+              </div>
+            `
+          )
+          .join("")
+      : '<p class="muted">Aun no hay ofertas Xiaomi FRP importadas. Activa chats de proveedores y pulsa Sincronizar ahora.</p>';
+  }
+
+  async function refreshXiaomiFrpBoard() {
+    try {
+      const response = await fetch("/api/dashboard", { cache: "no-store" });
+      if (!response.ok) return;
+      renderXiaomiFrpBoard(await response.json());
+    } catch (error) {
+      // El dashboard principal puede seguir funcionando aunque este bloque no refresque.
+    }
+  }
+
   function showTelegramWorkspace(workspace) {
     document.querySelectorAll(".workspace-panel").forEach((panel) => panel.classList.remove("active"));
     workspace?.classList.add("active");
@@ -75,6 +135,10 @@
   function init() {
     ensureBrandStyles();
     const workspace = ensureTelegramWorkspace();
+    ensureXiaomiFrpBoard();
+    refreshXiaomiFrpBoard();
+    window.setInterval(refreshXiaomiFrpBoard, 30000);
+
     const telegramTab = document.getElementById("telegramTab");
 
     telegramTab?.addEventListener("click", () => {
@@ -82,7 +146,10 @@
     });
 
     ["operationsTab", "pricingTab", "settingsTab"].forEach((id) => {
-      document.getElementById(id)?.addEventListener("click", () => hideTelegramWorkspace(workspace, false));
+      document.getElementById(id)?.addEventListener("click", () => {
+        hideTelegramWorkspace(workspace, false);
+        if (id === "pricingTab") window.setTimeout(refreshXiaomiFrpBoard, 0);
+      });
     });
 
     document.getElementById("trainingTab")?.addEventListener("click", () => {
