@@ -32,6 +32,68 @@
     hero.insertBefore(brandBlock, statsGrid);
   }
 
+  function moveTelegramToWorkspace() {
+    const dashboard = document.querySelector(".dashboard");
+    const sourcePanel = document.getElementById("telegramPanel");
+    const operationsWorkspace = document.getElementById("operationsWorkspace");
+    const trainingWorkspace = document.getElementById("trainingWorkspace");
+    if (!dashboard || !sourcePanel || document.getElementById("telegramWorkspace")) return;
+
+    const workspace = document.createElement("section");
+    workspace.id = "telegramWorkspace";
+    workspace.className = "panel workspace-panel telegram-workspace";
+    workspace.innerHTML = `
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Telegram</p>
+          <h2>Monitor de precios y chats</h2>
+          <p class="helper-copy">Conecta Telegram, descubre tus chats disponibles y activa solo los grupos o proveedores que quieras monitorear.</p>
+        </div>
+      </div>
+      <div class="telegram-layout"></div>
+    `;
+
+    const layout = workspace.querySelector(".telegram-layout");
+    const sections = [...sourcePanel.querySelectorAll(":scope > section")];
+    sections.forEach((section, index) => {
+      section.classList.remove("form-card");
+      section.classList.add("detail-card");
+      if (index === 0) section.classList.add("telegram-config-card");
+      if (index === 1) section.classList.add("telegram-security-card");
+      if (index === 2) section.classList.add("telegram-sources-card");
+      if (index === 3) section.classList.add("telegram-messages-card");
+      layout.appendChild(section);
+    });
+
+    sourcePanel.innerHTML = `
+      <section class="form-card">
+        <h2>Telegram listo</h2>
+        <p class="helper-copy">La configuracion ahora se abre en el espacio grande de la derecha para que no quede apretada.</p>
+        <p class="helper-copy">Desde ahi puedes guardar credenciales, revisar estado, descubrir chats y sincronizar mensajes.</p>
+      </section>
+    `;
+
+    dashboard.insertBefore(workspace, trainingWorkspace || operationsWorkspace?.nextSibling || null);
+
+    const telegramTab = document.getElementById("telegramTab");
+    const pageShell = document.querySelector(".page-shell");
+    const hideTelegramWorkspace = () => {
+      workspace.classList.remove("active");
+    };
+
+    ["operationsTab", "pricingTab", "trainingTab", "settingsTab"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("click", hideTelegramWorkspace);
+    });
+
+    telegramTab?.addEventListener("click", () => {
+      window.setTimeout(() => {
+        document.querySelectorAll(".workspace-panel").forEach((panel) => panel.classList.remove("active"));
+        workspace.classList.add("active");
+        pageShell?.classList.add("training-mode");
+      }, 0);
+    });
+  }
+
   function setFeedback(box, title, message, isError) {
     if (!box) return;
     box.classList.remove("is-hidden");
@@ -65,6 +127,7 @@
   function initTelegramCloudForm() {
     ensureBrandStyles();
     refreshBrandHeader();
+    moveTelegramToWorkspace();
 
     const form = document.getElementById("telegramConfigForm");
     const box = document.getElementById("telegramStatusBox");
