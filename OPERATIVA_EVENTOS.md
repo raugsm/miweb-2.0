@@ -9,7 +9,10 @@ La cabina no debe releer todo cada vez. El agente envia solo eventos nuevos y gu
 ```http
 POST /api/operativa-v2/events
 Content-Type: application/json
+Authorization: Bearer TU_OPERATIVA_AGENT_TOKEN
 ```
+
+La variable `OPERATIVA_AGENT_TOKEN` se configura en Railway. El agente visual local usa ese mismo token para enviar eventos sin depender de la sesion del navegador.
 
 ## Evento: mensaje de WhatsApp
 
