@@ -54,13 +54,14 @@ function readTelegramConfig() {
 }
 
 function updateTelegramConfig(input) {
+  const currentConfig = readTelegramConfig();
   const nextConfig = {
-    ...readTelegramConfig(),
+    ...currentConfig,
     runtimeMode: String(input.runtimeMode || "cloud").trim() || "cloud",
     apiId: String(input.apiId || "").trim(),
-    apiHash: String(input.apiHash || "").trim(),
+    apiHash: String(input.apiHash || "").trim() || currentConfig.apiHash,
     phoneNumber: String(input.phoneNumber || "").trim(),
-    sessionString: String(input.sessionString || "").trim(),
+    sessionString: String(input.sessionString || "").trim() || currentConfig.sessionString,
     syncIntervalMinutes: Number(input.syncIntervalMinutes || 15) || 15,
     tdjsonDllPath: String(input.tdjsonDllPath || DEFAULT_TELEGRAM_CONFIG.tdjsonDllPath).trim(),
     dataDir: String(input.dataDir || DEFAULT_TELEGRAM_CONFIG.dataDir).trim(),
@@ -88,6 +89,8 @@ function getTelegramUiConfig() {
   const config = readTelegramConfig();
   return {
     ...config,
+    apiHash: "",
+    sessionString: "",
     apiHashMasked: maskSecret(config.apiHash, 6),
     sessionStringMasked: maskSecret(config.sessionString, 8),
   };
