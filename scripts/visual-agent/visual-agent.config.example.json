@@ -1,0 +1,25 @@
+{
+  "cloudUrl": "https://ariadgsm.com",
+  "agentToken": "cambia-esto-por-un-token-largo",
+  "inboxDir": "./inbox",
+  "processedDir": "./processed",
+  "failedDir": "./failed",
+  "pollSeconds": 5,
+  "channels": [
+    {
+      "id": "wa-1",
+      "name": "WhatsApp 1",
+      "serviceScope": "Samsung, senal Claro y servicios remotos"
+    },
+    {
+      "id": "wa-2",
+      "name": "WhatsApp 2",
+      "serviceScope": "Motorola, Honor, FRP y Unlock"
+    },
+    {
+      "id": "wa-3",
+      "name": "WhatsApp 3",
+      "serviceScope": "Xiaomi, Tecno, Infinix, iPhone y creditos/licencias"
+    }
+  ]
+}
