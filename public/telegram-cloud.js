@@ -7,37 +7,13 @@
     document.head.appendChild(link);
   }
 
-  function refreshBrandHeader() {
-    const hero = document.querySelector(".hero-card");
-    const statsGrid = document.getElementById("statsGrid");
-    if (!hero || !statsGrid || hero.querySelector(".brand-block")) return;
+  function ensureTelegramWorkspace() {
+    const existing = document.getElementById("telegramWorkspace");
+    if (existing) return existing;
 
-    const brandBlock = document.createElement("div");
-    brandBlock.className = "brand-block";
-    brandBlock.innerHTML = `
-      <div class="brand-logo-card" aria-label="AriadGSM">
-        <span class="brand-pill">ARIAD</span><span class="brand-text">GSM</span>
-      </div>
-      <div>
-        <p class="eyebrow">Panel operativo</p>
-        <h1>Asistente inteligente AriadGSM</h1>
-        <p class="hero-copy">Gestiona casos, precios, entrenamiento y Telegram desde una sola cabina de control.</p>
-      </div>
-    `;
-
-    while (hero.firstElementChild && hero.firstElementChild !== statsGrid) {
-      hero.removeChild(hero.firstElementChild);
-    }
-
-    hero.insertBefore(brandBlock, statsGrid);
-  }
-
-  function moveTelegramToWorkspace() {
     const dashboard = document.querySelector(".dashboard");
     const sourcePanel = document.getElementById("telegramPanel");
-    const operationsWorkspace = document.getElementById("operationsWorkspace");
-    const trainingWorkspace = document.getElementById("trainingWorkspace");
-    if (!dashboard || !sourcePanel || document.getElementById("telegramWorkspace")) return;
+    if (!dashboard || !sourcePanel) return null;
 
     const workspace = document.createElement("section");
     workspace.id = "telegramWorkspace";
@@ -54,8 +30,7 @@
     `;
 
     const layout = workspace.querySelector(".telegram-layout");
-    const sections = [...sourcePanel.querySelectorAll(":scope > section")];
-    sections.forEach((section, index) => {
+    [...sourcePanel.querySelectorAll(":scope > section")].forEach((section, index) => {
       section.classList.remove("form-card");
       section.classList.add("detail-card");
       if (index === 0) section.classList.add("telegram-config-card");
@@ -73,25 +48,19 @@
       </section>
     `;
 
-    dashboard.insertBefore(workspace, trainingWorkspace || operationsWorkspace?.nextSibling || null);
+    dashboard.appendChild(workspace);
+    return workspace;
+  }
 
-    const telegramTab = document.getElementById("telegramTab");
-    const pageShell = document.querySelector(".page-shell");
-    const hideTelegramWorkspace = () => {
-      workspace.classList.remove("active");
-    };
+  function showTelegramWorkspace(workspace) {
+    document.querySelectorAll(".workspace-panel").forEach((panel) => panel.classList.remove("active"));
+    workspace?.classList.add("active");
+    document.querySelector(".page-shell")?.classList.add("training-mode");
+  }
 
-    ["operationsTab", "pricingTab", "trainingTab", "settingsTab"].forEach((id) => {
-      document.getElementById(id)?.addEventListener("click", hideTelegramWorkspace);
-    });
-
-    telegramTab?.addEventListener("click", () => {
-      window.setTimeout(() => {
-        document.querySelectorAll(".workspace-panel").forEach((panel) => panel.classList.remove("active"));
-        workspace.classList.add("active");
-        pageShell?.classList.add("training-mode");
-      }, 0);
-    });
+  function hideTelegramWorkspace(workspace, keepWide) {
+    workspace?.classList.remove("active");
+    if (!keepWide) document.querySelector(".page-shell")?.classList.remove("training-mode");
   }
 
   function setFeedback(box, title, message, isError) {
@@ -103,109 +72,65 @@
     `;
   }
 
-  async function postJson(url, payload) {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+  function init() {
+    ensureBrandStyles();
+    const workspace = ensureTelegramWorkspace();
+    const telegramTab = document.getElementById("telegramTab");
+
+    telegramTab?.addEventListener("click", () => {
+      window.setTimeout(() => showTelegramWorkspace(workspace), 0);
     });
 
-    let data = {};
-    try {
-      data = await response.json();
-    } catch (error) {
-      data = {};
-    }
+    ["operationsTab", "pricingTab", "settingsTab"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("click", () => hideTelegramWorkspace(workspace, false));
+    });
 
-    if (!response.ok) {
-      throw new Error(data.error || "No pude completar la accion.");
-    }
-
-    return data;
-  }
-
-  function initTelegramCloudForm() {
-    ensureBrandStyles();
-    refreshBrandHeader();
-    moveTelegramToWorkspace();
+    document.getElementById("trainingTab")?.addEventListener("click", () => {
+      hideTelegramWorkspace(workspace, true);
+    });
 
     const form = document.getElementById("telegramConfigForm");
     const box = document.getElementById("telegramStatusBox");
-    if (!form || !box) return;
+    if (!form) return;
 
     form.addEventListener(
       "submit",
-      async (event) => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-
+      (event) => {
         const formData = new FormData(form);
         const apiId = String(formData.get("apiId") || "").trim();
         const apiHash = String(formData.get("apiHash") || "").trim();
         const phoneNumber = String(formData.get("phoneNumber") || "").trim();
 
         if (!apiId || !apiHash || !phoneNumber) {
-          setFeedback(
-            box,
-            "Faltan datos",
-            "Completa API ID, API Hash y numero de telefono antes de guardar.",
-            true
-          );
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          setFeedback(box, "Faltan datos", "Completa API ID, API Hash y numero de telefono antes de guardar.", true);
           return;
         }
 
         if (!/^\d+$/.test(apiId)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
           setFeedback(box, "API ID invalido", "El API ID debe llevar solo numeros.", true);
           return;
         }
 
         if (!phoneNumber.startsWith("+")) {
-          setFeedback(
-            box,
-            "Telefono invalido",
-            "Escribe el telefono con prefijo internacional, por ejemplo +519...",
-            true
-          );
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          setFeedback(box, "Telefono invalido", "Escribe el telefono con prefijo internacional, por ejemplo +519...", true);
           return;
         }
 
-        setFeedback(box, "Guardando", "Estoy guardando tus datos de Telegram...");
-
-        try {
-          await postJson("/api/telegram/config", {
-            apiId,
-            apiHash,
-            phoneNumber,
-            sessionString: formData.get("sessionString"),
-            runtimeMode: formData.get("runtimeMode"),
-            syncIntervalMinutes: formData.get("syncIntervalMinutes"),
-            tdjsonDllPath: formData.get("tdjsonDllPath") || "",
-            dataDir: formData.get("dataDir") || "",
-            bridgeExePath: formData.get("bridgeExePath") || "",
-          });
-
-          const refresh = await postJson("/api/telegram/status/refresh", {});
-          setFeedback(
-            box,
-            "Datos guardados",
-            refresh.status?.message || "La configuracion de Telegram fue guardada correctamente."
-          );
-        } catch (error) {
-          setFeedback(
-            box,
-            "No pude guardar",
-            error.message || "No pude guardar la configuracion de Telegram.",
-            true
-          );
-        }
+        setFeedback(box, "Guardando", "Estoy validando y guardando los datos de Telegram...");
       },
       true
     );
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initTelegramCloudForm);
+    document.addEventListener("DOMContentLoaded", init);
   } else {
-    initTelegramCloudForm();
+    init();
   }
 })();
