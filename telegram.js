@@ -157,6 +157,19 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withTimeout(promise, ms, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function waitForAuthState() {
   for (let index = 0; index < 20; index += 1) {
     const status = readTelegramRuntimeStatus();
@@ -177,8 +190,16 @@ async function withCloudClient(callback) {
   const config = readTelegramConfig();
   const client = createCloudClient(config);
 
-  await client.connect();
-  const authorized = await client.isUserAuthorized();
+  await withTimeout(
+    client.connect(),
+    20000,
+    "Telegram tardo demasiado en conectar. Revisa API ID, API Hash, telefono o intenta de nuevo."
+  );
+  const authorized = await withTimeout(
+    client.isUserAuthorized(),
+    10000,
+    "No pude confirmar si Telegram esta autorizado. Pulsa Revisar estado e intenta otra vez."
+  );
   if (!authorized) {
     await client.disconnect();
     throw new Error("Telegram aun no esta autorizado. Pulsa Preparar conexion y envia el codigo recibido.");
@@ -460,14 +481,34 @@ async function discoverTelegramChats() {
     return saveDiscoveredChats(result.chats || [], result);
   }
 
-  return withCloudClient(async (client) => {
-    const dialogs = await client.getDialogs({ limit: 100 });
-    const chats = dialogs.map(normalizeChat).filter((chat) => chat.chatId);
-    return saveDiscoveredChats(chats, {
-      ok: true,
-      message: `Encontre ${chats.length} chats. Activa los que quieras monitorear.`,
+  try {
+    const result = await withCloudClient(async (client) => {
+      const dialogs = await withTimeout(
+        client.getDialogs({ limit: 100 }),
+        25000,
+        "Telegram no respondio a tiempo buscando chats. Intenta otra vez en unos segundos."
+      );
+      const chats = dialogs.map(normalizeChat).filter((chat) => chat.chatId);
+      return saveDiscoveredChats(chats, {
+        ok: true,
+        message: `Encontre ${chats.length} chats. Activa los que quieras monitorear.`,
+      });
     });
-  });
+
+    writeTelegramRuntimeStatus({
+      ok: true,
+      state: "ready",
+      message: result.message,
+    });
+    return result;
+  } catch (error) {
+    writeTelegramRuntimeStatus({
+      ok: false,
+      state: "error",
+      message: error.message || "No pude descubrir chats de Telegram.",
+    });
+    throw error;
+  }
 }
 
 function saveDiscoveredChats(chats, baseResult = {}) {
@@ -608,7 +649,11 @@ async function syncTelegramSources() {
 
     for (const source of sources) {
       const entityRef = source.username || source.chatId;
-      const messages = await client.getMessages(entityRef, { limit: 60 });
+      const messages = await withTimeout(
+        client.getMessages(entityRef, { limit: 60 }),
+        25000,
+        `Telegram no respondio a tiempo leyendo ${source.title}.`
+      );
       const plainMessages = messages.map((message) => messageToPlainObject(message, source, now));
       const result = importTelegramMessages(source, plainMessages, now);
       insertedMessages += result.insertedMessages;
@@ -774,15 +819,15 @@ function syncTelegramSourcesCompat() {
 }
 
 module.exports = {
-  discoverTelegramChats: discoverTelegramChatsCompat,
+  discoverTelegramChats,
   getTelegramUiConfig,
   readTelegramRuntimeStatus,
   readTelegramConfig,
-  refreshTelegramStatus: refreshTelegramStatusCompat,
-  startTelegramAuth: startTelegramAuthCompat,
-  submitTelegramCode: submitTelegramCodeCompat,
-  submitTelegramPassword: submitTelegramPasswordCompat,
-  syncTelegramSources: syncTelegramSourcesCompat,
+  refreshTelegramStatus,
+  startTelegramAuth,
+  submitTelegramCode,
+  submitTelegramPassword,
+  syncTelegramSources,
   updateTelegramConfig,
   updateTelegramSource,
 };
