@@ -710,6 +710,7 @@ const server = http.createServer(async (req, res) => {
     "/api/notifications-log",
     "/api/pricing",
     "/api/training",
+    "/api/telegram",
     "/api/team",
     "/api/admin",
   ];
@@ -965,7 +966,8 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await parseBody(req);
       const config = updateTelegramConfig(body);
-      sendJson(res, 200, { config: getTelegramUiConfig(config) });
+      const status = await refreshTelegramStatus();
+      sendJson(res, 200, { config: getTelegramUiConfig(config), status });
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude guardar la configuracion de Telegram" });
     }
@@ -974,7 +976,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && requestUrl.pathname === "/api/telegram/status/refresh") {
     try {
-      const status = refreshTelegramStatus();
+      const status = await refreshTelegramStatus();
       sendJson(res, 200, { status });
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude revisar el estado de Telegram" });
@@ -984,7 +986,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && requestUrl.pathname === "/api/telegram/auth/start") {
     try {
-      const status = startTelegramAuth();
+      const status = await startTelegramAuth();
       sendJson(res, 200, { status });
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude iniciar la autorizacion de Telegram" });
@@ -995,7 +997,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && requestUrl.pathname === "/api/telegram/auth/code") {
     try {
       const body = await parseBody(req);
-      const status = submitTelegramCode(body.code);
+      const status = await submitTelegramCode(body.code);
       sendJson(res, 200, { status });
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude enviar el codigo a Telegram" });
@@ -1006,7 +1008,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && requestUrl.pathname === "/api/telegram/auth/password") {
     try {
       const body = await parseBody(req);
-      const status = submitTelegramPassword(body.password);
+      const status = await submitTelegramPassword(body.password);
       sendJson(res, 200, { status });
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude enviar la contrasena de Telegram" });
@@ -1016,7 +1018,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && requestUrl.pathname === "/api/telegram/discover") {
     try {
-      const result = discoverTelegramChats();
+      const result = await discoverTelegramChats();
       sendJson(res, 200, result);
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude descubrir chats de Telegram" });
@@ -1037,7 +1039,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && requestUrl.pathname === "/api/telegram/sync") {
     try {
-      const result = syncTelegramSources();
+      const result = await syncTelegramSources();
       sendJson(res, 200, result);
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude sincronizar Telegram" });
