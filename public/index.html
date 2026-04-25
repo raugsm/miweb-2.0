@@ -168,10 +168,10 @@
 
         <div id="telegramPanel" class="side-panel">
           <section class="form-card">
-            <h2>Conexion TDLib</h2>
+            <h2>Telegram en la nube</h2>
             <p class="helper-copy">
-              Esta capa usa tu cuenta de Telegram con TDLib para leer chats reales y traerlos al
-              panel como fuente de mercado.
+              Aqui dejas listos los datos de tu cuenta para la nueva conexion de Telegram pensada
+              para servidor. Ya no hace falta rellenar rutas de Windows.
             </p>
             <form id="telegramConfigForm">
               <label>
@@ -187,23 +187,30 @@
                 <input name="phoneNumber" placeholder="+519..." />
               </label>
               <label>
-                Ruta a tdjson.dll
-                <input name="tdjsonDllPath" placeholder="C:\\ruta\\tdjson.dll" />
+                Session string opcional
+                <textarea
+                  name="sessionString"
+                  rows="3"
+                  placeholder="Dejalo vacio por ahora. Se usara cuando terminemos la migracion completa a nube."
+                ></textarea>
               </label>
               <label>
-                Carpeta de datos local
-                <input name="dataDir" placeholder="C:\\ruta\\telegram-tdlib" />
+                Modo de despliegue
+                <select name="runtimeMode">
+                  <option value="cloud">cloud</option>
+                  <option value="local">local</option>
+                </select>
               </label>
               <label>
-                Ruta del puente
-                <input name="bridgeExePath" placeholder="C:\\ruta\\TelegramTdlibBridge.exe" />
+                Frecuencia de sincronizacion
+                <input name="syncIntervalMinutes" type="number" min="1" step="1" placeholder="15" />
               </label>
-              <button type="submit">Guardar conexion</button>
+              <button type="submit">Guardar datos de Telegram</button>
             </form>
             <div id="telegramStatusBox" class="preview-box is-hidden"></div>
             <div class="action-stack">
               <button id="telegramRefreshStatusButton" type="button" class="ghost-button">Revisar estado</button>
-              <button id="telegramStartAuthButton" type="button" class="ghost-button">Iniciar autorizacion</button>
+              <button id="telegramStartAuthButton" type="button" class="ghost-button">Preparar conexion</button>
               <button id="telegramDiscoverButton" type="button" class="ghost-button">Descubrir chats</button>
               <button id="telegramSyncButton" type="button">Sincronizar ahora</button>
             </div>
@@ -212,7 +219,8 @@
           <section class="form-card">
             <h2>Codigo y seguridad</h2>
             <p class="helper-copy">
-              Si Telegram te pide codigo o contrasena de dos pasos, envialos desde aqui.
+              Esta parte se usara cuando terminemos la conexion 100% en nube. La dejamos lista para
+              el siguiente paso tecnico.
             </p>
             <form id="telegramCodeForm">
               <label>
