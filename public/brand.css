@@ -54,7 +54,7 @@ body {
 
 .brand-logo-card {
   width: 100%;
-  min-height: 96px;
+  min-height: 112px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -63,27 +63,33 @@ body {
   border: 1px solid rgba(36, 120, 242, 0.12);
   box-shadow: var(--soft-shadow);
   overflow: hidden;
-  gap: 4px;
+  gap: 0;
+  padding: 10px 12px;
 }
 
 .brand-pill,
 .brand-text {
+  font-family: "Arial Black", "Arial Narrow", Arial, sans-serif;
   font-weight: 900;
   font-style: italic;
-  letter-spacing: -0.07em;
-  line-height: 1;
-  font-size: clamp(2.1rem, 4.4vw, 3.5rem);
+  letter-spacing: -0.105em;
+  line-height: 0.86;
+  font-size: clamp(2.45rem, 4.9vw, 4.15rem);
+  transform: skew(-7deg);
+  text-transform: uppercase;
 }
 
 .brand-pill {
-  background: linear-gradient(135deg, #2385ff, #1468e8);
+  background: linear-gradient(135deg, #2387ff, #176fe9);
   color: #ffffff;
-  padding: 0.05em 0.22em 0.08em;
-  border-radius: 0.12em;
+  padding: 0.04em 0.26em 0.13em 0.14em;
+  border-radius: 0.13em;
+  margin-right: -0.03em;
 }
 
 .brand-text {
   color: #2478f2;
+  margin-left: 0.01em;
 }
 
 h1 {
@@ -173,6 +179,74 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
+.page-shell:has(#telegramTab.active) .dashboard {
+  min-height: calc(100vh - 44px);
+}
+
+.page-shell:has(#telegramTab.active) #telegramPanel.active {
+  position: fixed;
+  z-index: 20;
+  top: 96px;
+  right: 24px;
+  bottom: 24px;
+  left: clamp(420px, 36vw, 460px);
+  display: grid;
+  grid-template-columns: minmax(360px, 0.92fr) minmax(360px, 1.08fr);
+  gap: 20px;
+  align-content: start;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid rgba(217, 227, 243, 0.92);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(36, 120, 242, 0.13), transparent 32%),
+    rgba(255, 255, 255, 0.92);
+  box-shadow: 0 28px 80px rgba(19, 52, 102, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+.page-shell:has(#telegramTab.active) #telegramPanel.active::before {
+  content: "Telegram · Monitor de precios y chats";
+  grid-column: 1 / -1;
+  color: var(--accent-strong);
+  font-family: "Arial Black", Arial, sans-serif;
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  letter-spacing: -0.04em;
+}
+
+.page-shell:has(#telegramTab.active) #telegramPanel.active .form-card {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #ffffff, #f6f9ff);
+}
+
+.page-shell:has(#telegramTab.active) #telegramPanel.active form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.page-shell:has(#telegramTab.active) #telegramPanel.active textarea,
+.page-shell:has(#telegramTab.active) #telegramPanel.active .preview-box,
+.page-shell:has(#telegramTab.active) #telegramPanel.active .action-stack,
+.page-shell:has(#telegramTab.active) #telegramPanel.active button[type="submit"] {
+  grid-column: 1 / -1;
+}
+
+.page-shell:has(#telegramTab.active) #telegramPanel.active .action-stack {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.page-shell:has(#telegramTab.active) #telegramPanel.active #telegramSources,
+.page-shell:has(#telegramTab.active) #telegramPanel.active #telegramMessages {
+  max-height: 42vh;
+  overflow: auto;
+}
+
 #telegramWorkspace.active {
   display: block;
 }
@@ -250,7 +324,7 @@ select:focus {
 
 @media (max-width: 1560px) {
   .brand-logo-card {
-    min-height: 82px;
+    min-height: 88px;
   }
 
   .telegram-layout {
@@ -260,12 +334,23 @@ select:focus {
   .telegram-config-card {
     grid-row: auto;
   }
+
+  .page-shell:has(#telegramTab.active) #telegramPanel.active {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 920px) {
   .telegram-form-grid,
   .telegram-security-grid,
-  .telegram-actions {
+  .telegram-actions,
+  .page-shell:has(#telegramTab.active) #telegramPanel.active form,
+  .page-shell:has(#telegramTab.active) #telegramPanel.active .action-stack {
     grid-template-columns: 1fr;
+  }
+
+  .page-shell:has(#telegramTab.active) #telegramPanel.active {
+    position: static;
+    inset: auto;
   }
 }
