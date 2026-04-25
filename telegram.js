@@ -671,16 +671,115 @@ function syncLocalTelegramSources() {
   };
 }
 
+function rememberAsyncError(promise, fallbackMessage) {
+  Promise.resolve(promise).catch((error) => {
+    writeTelegramRuntimeStatus({
+      ok: false,
+      state: "error",
+      message: error.message || fallbackMessage,
+    });
+  });
+}
+
+function refreshTelegramStatusCompat() {
+  const config = readTelegramConfig();
+  if (config.runtimeMode === "local") {
+    return refreshTelegramStatus();
+  }
+
+  try {
+    validateCloudConfig(config);
+  } catch (error) {
+    return writeTelegramRuntimeStatus({
+      ok: false,
+      state: "cloud_pending",
+      message: error.message,
+    });
+  }
+
+  if (!config.sessionString || activeCloudAuth) {
+    rememberAsyncError(refreshTelegramStatus(), "No pude revisar la conexion de Telegram.");
+    return readTelegramRuntimeStatus();
+  }
+
+  writeTelegramRuntimeStatus({
+    ok: true,
+    state: "checking",
+    message: "Estoy revisando la sesion de Telegram en la nube.",
+  });
+  rememberAsyncError(refreshTelegramStatus(), "No pude revisar la conexion de Telegram.");
+  return readTelegramRuntimeStatus();
+}
+
+function startTelegramAuthCompat() {
+  writeTelegramRuntimeStatus({
+    ok: true,
+    state: "starting",
+    message: "Estoy pidiendo el codigo a Telegram. Espera unos segundos.",
+  });
+  rememberAsyncError(startTelegramAuth(), "No pude iniciar la autorizacion de Telegram.");
+  return readTelegramRuntimeStatus();
+}
+
+function submitTelegramCodeCompat(code) {
+  rememberAsyncError(submitTelegramCode(code), "No pude enviar el codigo a Telegram.");
+  return readTelegramRuntimeStatus();
+}
+
+function submitTelegramPasswordCompat(password) {
+  rememberAsyncError(submitTelegramPassword(password), "No pude enviar la contrasena de Telegram.");
+  return readTelegramRuntimeStatus();
+}
+
+function discoverTelegramChatsCompat() {
+  writeTelegramRuntimeStatus({
+    ok: true,
+    state: "discovering",
+    message: "Estoy buscando chats disponibles en Telegram.",
+  });
+  rememberAsyncError(
+    discoverTelegramChats().then((result) => {
+      writeTelegramRuntimeStatus({
+        ok: Boolean(result.ok),
+        state: result.ok ? "ready" : "error",
+        message: result.message || `Encontre ${(result.chats || []).length} chats.`,
+      });
+      return result;
+    }),
+    "No pude descubrir chats de Telegram."
+  );
+  return {
+    ok: true,
+    chats: [],
+    message: "Busqueda iniciada. Actualiza el panel en unos segundos.",
+  };
+}
+
+function syncTelegramSourcesCompat() {
+  writeTelegramRuntimeStatus({
+    ok: true,
+    state: "syncing",
+    message: "Estoy sincronizando mensajes de Telegram.",
+  });
+  rememberAsyncError(syncTelegramSources(), "No pude sincronizar Telegram.");
+  return {
+    ok: true,
+    insertedMessages: 0,
+    importedOffers: 0,
+    message: "Sincronizacion iniciada. Actualiza el panel en unos segundos.",
+  };
+}
+
 module.exports = {
-  discoverTelegramChats,
+  discoverTelegramChats: discoverTelegramChatsCompat,
   getTelegramUiConfig,
   readTelegramRuntimeStatus,
   readTelegramConfig,
-  refreshTelegramStatus,
-  startTelegramAuth,
-  submitTelegramCode,
-  submitTelegramPassword,
-  syncTelegramSources,
+  refreshTelegramStatus: refreshTelegramStatusCompat,
+  startTelegramAuth: startTelegramAuthCompat,
+  submitTelegramCode: submitTelegramCodeCompat,
+  submitTelegramPassword: submitTelegramPasswordCompat,
+  syncTelegramSources: syncTelegramSourcesCompat,
   updateTelegramConfig,
   updateTelegramSource,
 };
