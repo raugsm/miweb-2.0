@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
-const { execFileSync } = require("child_process");
+const AdmZip = require("adm-zip");
 const { nowTime, runCaseDiagnostics } = require("./agent");
 const {
   classifyCase,
@@ -13,11 +13,14 @@ const {
 } = require("./ai");
 const { readStyleProfile, updateStyleProfile } = require("./style-profile");
 const {
+  DATA_DIR,
+  DB_FILE,
   getCaseById,
   getCases,
   getNextCaseId,
   getProcedures,
   getTrainingConversations,
+  getTrainingInsights,
   getTrainingSummary,
   getPriceOffers,
   getTelegramMessages,
@@ -50,7 +53,7 @@ const {
   notifyCustomer,
   readNotificationLog,
 } = require("./notifications");
-const { parseWhatsAppChat } = require("./training-import");
+const { analyzeTrainingConversation, parseWhatsAppChat } = require("./training-import");
 const {
   discoverTelegramChats,
   getTelegramUiConfig,
@@ -74,7 +77,7 @@ const {
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
-const TRAINING_UPLOAD_DIR = path.join(__dirname, "data", "training-imports");
+const TRAINING_UPLOAD_DIR = path.join(DATA_DIR, "training-imports");
 
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -146,12 +149,6 @@ function ensureTrainingUploadDir() {
   }
 }
 
-function cleanupTempDir(tempDir) {
-  if (tempDir && fs.existsSync(tempDir)) {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-}
-
 function extractChatTextFromUpload(fileName, contentBase64) {
   ensureTrainingUploadDir();
   const safeName = path.basename(String(fileName || "chat.txt"));
@@ -174,44 +171,19 @@ function extractChatTextFromUpload(fileName, contentBase64) {
     throw new Error("Por ahora solo puedo importar archivos .txt o .zip");
   }
 
-  const tempDir = fs.mkdtempSync(path.join(TRAINING_UPLOAD_DIR, "upload-"));
-  const zipPath = path.join(tempDir, safeName);
-  const extractDir = path.join(tempDir, "unzipped");
-
   try {
-    fs.writeFileSync(zipPath, fileBuffer);
-    fs.mkdirSync(extractDir, { recursive: true });
-    execFileSync(
-      "powershell",
-      [
-        "-NoProfile",
-        "-Command",
-        `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${extractDir.replace(/'/g, "''")}' -Force`,
-      ],
-      { stdio: "pipe", windowsHide: true }
-    );
+    const zip = new AdmZip(fileBuffer);
+    const txtEntry = zip
+      .getEntries()
+      .find((entry) => !entry.isDirectory && path.extname(entry.entryName).toLowerCase() === ".txt");
 
-    const txtFiles = [];
-    const stack = [extractDir];
-    while (stack.length) {
-      const current = stack.pop();
-      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-        const entryPath = path.join(current, entry.name);
-        if (entry.isDirectory()) {
-          stack.push(entryPath);
-        } else if (path.extname(entry.name).toLowerCase() === ".txt") {
-          txtFiles.push(entryPath);
-        }
-      }
-    }
-
-    if (!txtFiles.length) {
+    if (!txtEntry) {
       throw new Error("No encontre un .txt dentro del .zip");
     }
 
-    return fs.readFileSync(txtFiles[0], "utf8");
-  } finally {
-    cleanupTempDir(tempDir);
+    return zip.readAsText(txtEntry, "utf8");
+  } catch (error) {
+    throw new Error("No pude abrir el archivo .zip. Prueba con el .txt directo o con otro .zip.");
   }
 }
 
@@ -228,14 +200,14 @@ function sanitizeImportedChatText(chatText) {
 }
 
 function createBackupSnapshot() {
-  const backupsDir = path.join(__dirname, "data", "backups");
+  const backupsDir = path.join(DATA_DIR, "backups");
   if (!fs.existsSync(backupsDir)) {
     fs.mkdirSync(backupsDir, { recursive: true });
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupFile = path.join(backupsDir, `app-${stamp}.db`);
-  fs.copyFileSync(path.join(__dirname, "data", "app.db"), backupFile);
+  fs.copyFileSync(DB_FILE, backupFile);
   return backupFile;
 }
 
@@ -690,7 +662,7 @@ async function assignCase(caseId, assignee) {
     : "Caso sin responsable asignado.";
   targetCase.logs.unshift({
     type: "manual",
-    text: `assign -> ${cleanAssignee || "Sin responsable"}`,
+    text: cleanAssignee ? `assignment -> ${cleanAssignee}` : "assignment -> sin responsable",
     time: nowTime(),
     details: "Asignacion manual desde el panel",
   });
@@ -771,11 +743,11 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await parseBody(req);
       if (hasAdminPassword()) {
-        sendJson(res, 409, { error: "La contraseña ya fue configurada" });
+        sendJson(res, 409, { error: "La contraseÃ±a ya fue configurada" });
         return;
       }
       if (!body.password || String(body.password).length < 8) {
-        sendJson(res, 400, { error: "La contraseña debe tener al menos 8 caracteres" });
+        sendJson(res, 400, { error: "La contraseÃ±a debe tener al menos 8 caracteres" });
         return;
       }
       setAdminPassword(
@@ -785,7 +757,7 @@ const server = http.createServer(async (req, res) => {
       );
       sendJson(res, 200, { ok: true });
     } catch (error) {
-      sendJson(res, 400, { error: "No pude guardar la contraseña" });
+      sendJson(res, 400, { error: "No pude guardar la contraseÃ±a" });
     }
     return;
   }
@@ -820,17 +792,17 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await parseBody(req);
       if (!verifyPassword(sessionUser.username, String(body.currentPassword || ""))) {
-        sendJson(res, 401, { error: "La contraseña actual no coincide" });
+        sendJson(res, 401, { error: "La contraseÃ±a actual no coincide" });
         return;
       }
       if (!body.newPassword || String(body.newPassword).length < 8) {
-        sendJson(res, 400, { error: "La nueva contraseña debe tener al menos 8 caracteres" });
+        sendJson(res, 400, { error: "La nueva contraseÃ±a debe tener al menos 8 caracteres" });
         return;
       }
       updateUserPassword(sessionUser.username, String(body.newPassword));
       sendJson(res, 200, { ok: true });
     } catch (error) {
-      sendJson(res, 400, { error: "No pude cambiar la contraseña" });
+      sendJson(res, 400, { error: "No pude cambiar la contraseÃ±a" });
     }
     return;
   }
@@ -912,6 +884,7 @@ const server = http.createServer(async (req, res) => {
         inboundChannelLabel: getInboundChannelLabel(),
         assigneeMetrics: buildAssigneeMetrics(cases),
         trainingSummary: getTrainingSummary(),
+        trainingInsights: getTrainingInsights(),
         trainingConversations: getTrainingConversations(8),
         pricingConfig,
         pricingOffers: priceOffers.slice(0, 20),
@@ -1127,6 +1100,7 @@ const server = http.createServer(async (req, res) => {
         notes: body.notes,
         anonymize: Boolean(body.anonymize),
       });
+      Object.assign(parsedConversation, analyzeTrainingConversation(parsedConversation));
 
       if (!parsedConversation.messageCount) {
         sendJson(res, 400, { error: "No pude detectar mensajes validos en el chat importado" });
@@ -1163,6 +1137,7 @@ const server = http.createServer(async (req, res) => {
         notes: body.notes,
         anonymize: Boolean(body.anonymize),
       });
+      Object.assign(parsedConversation, analyzeTrainingConversation(parsedConversation));
 
       if (!parsedConversation.messageCount) {
         sendJson(res, 400, { error: "No pude detectar mensajes validos en el archivo importado" });
