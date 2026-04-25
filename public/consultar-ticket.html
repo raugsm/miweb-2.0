@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Consultar Ticket</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="public-body">
+    <main class="public-shell ticket-shell">
+      <section class="public-hero">
+        <p class="eyebrow">Seguimiento</p>
+        <h1>Consulta el estado de tu caso</h1>
+        <p class="hero-copy">
+          Ingresa tu codigo de ticket para ver el ultimo avance, el estado actual y los mensajes
+          recientes del caso.
+        </p>
+        <div class="public-badges">
+          <span class="chip">Estado en tiempo real</span>
+          <span class="chip">Ultimo mensaje</span>
+          <span class="chip">Seguimiento simple</span>
+        </div>
+      </section>
+
+      <section class="public-card">
+        <form id="ticketLookupForm">
+          <label>
+            Codigo del ticket
+            <input name="ticketId" placeholder="Ejemplo: CASE-004" required />
+          </label>
+          <button type="submit">Consultar ticket</button>
+        </form>
+
+        <section id="ticketResult" class="public-result is-hidden"></section>
+      </section>
+    </main>
+
+    <script src="/ticket-status.js"></script>
+  </body>
+</html>
