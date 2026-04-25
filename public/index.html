@@ -5,26 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MVP Soporte Remoto</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/brand.css" />
   </head>
   <body>
     <div class="page-shell">
       <aside class="hero-card">
-        <p class="eyebrow">MVP operativo</p>
-        <h1>IA de soporte remoto con control humano en excepciones</h1>
-        <p class="hero-copy">
-          Este prototipo clasifica casos, asigna procedimientos y simula un agente local que
-          valida pasos permitidos antes de escalar.
-        </p>
+        <div class="brand-block">
+          <div class="brand-logo-card" aria-label="AriadGSM">
+            <span class="brand-pill">ARIAD</span><span class="brand-text">GSM</span>
+          </div>
+          <div>
+            <p class="eyebrow">Panel operativo</p>
+            <h1>Asistente inteligente AriadGSM</h1>
+            <p class="hero-copy">
+              Gestiona casos, precios, entrenamiento y Telegram desde una sola cabina de control.
+            </p>
+          </div>
+        </div>
 
         <div class="stats-grid" id="statsGrid"></div>
 
-        <div class="side-tabs">
+        <nav class="side-tabs" aria-label="Secciones del panel">
           <button id="operationsTab" class="side-tab active">Operacion</button>
           <button id="pricingTab" class="side-tab">Precios</button>
           <button id="telegramTab" class="side-tab">Telegram</button>
           <button id="trainingTab" class="side-tab">Entrenamiento</button>
           <button id="settingsTab" class="side-tab">Configuracion</button>
-        </div>
+        </nav>
 
         <div id="operationsPanel" class="side-panel active">
           <section class="form-card">
