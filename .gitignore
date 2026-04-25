@@ -9,3 +9,7 @@ obj/
 *.user
 *.suo
 *.log
+scripts/visual-agent/visual-agent.config.json
+scripts/visual-agent/inbox/
+scripts/visual-agent/processed/
+scripts/visual-agent/failed/
