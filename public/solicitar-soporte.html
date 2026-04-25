@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solicitar Soporte</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="public-body">
+    <main class="public-shell">
+      <section class="public-hero">
+        <p class="eyebrow">Canal publico</p>
+        <h1 id="publicTitle">Solicita tu soporte remoto</h1>
+        <p class="hero-copy" id="publicCopy">
+          Cuentanos el modelo del equipo y el problema. Te abrimos un caso y te damos una primera
+          respuesta de inmediato.
+        </p>
+        <div class="public-badges">
+          <span class="chip">Entrada real</span>
+          <span class="chip">Clasificacion automatica</span>
+          <span class="chip">Respuesta inicial</span>
+        </div>
+      </section>
+
+      <section class="public-card">
+        <div class="detail-header">
+          <div>
+            <p class="eyebrow">Formulario del cliente</p>
+            <h2 id="businessName">Soporte Remoto</h2>
+          </div>
+          <span class="chip" id="agentName">Asistente</span>
+        </div>
+
+        <form id="publicSupportForm">
+          <label>
+            Nombre
+            <input name="clientName" placeholder="Tu nombre" required />
+          </label>
+          <label>
+            Telefono o contacto
+            <input name="contact" placeholder="Numero o medio de contacto" required />
+          </label>
+          <label>
+            Modelo del equipo
+            <input name="deviceModel" placeholder="Ejemplo: Redmi Note 12" required />
+          </label>
+          <label>
+            Problema
+            <textarea
+              name="summary"
+              rows="5"
+              placeholder="Explica que esta pasando con el equipo"
+              required
+            ></textarea>
+          </label>
+          <button type="submit">Enviar solicitud</button>
+        </form>
+
+        <section id="publicResult" class="public-result is-hidden"></section>
+      </section>
+    </main>
+
+    <script src="/public-form.js"></script>
+  </body>
+</html>
