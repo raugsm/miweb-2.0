@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AriadGSM Operativa V2</title>
+    <link rel="stylesheet" href="/operativa-v2.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <section class="brand-card">
+          <div class="brand-logo" aria-label="AriadGSM"></div>
+          <p class="eyebrow">Cabina operativa</p>
+          <h1>AriadGSM Control</h1>
+          <p>WhatsApp, caja, pagos, revision y servicios activos desde una sola cabina.</p>
+        </section>
+        <nav class="nav-stack" aria-label="Secciones principales">
+          <a class="active" href="#ahora">Ahora</a>
+          <a href="#caja">Caja del dia</a>
+          <a href="#revision">Revision</a>
+          <a href="#servicios">Servicios</a>
+          <a href="#clientes">Clientes</a>
+          <a href="#semanal">Cuentas semanales</a>
+        </nav>
+        <section class="side-card">
+          <p class="eyebrow">Agente visual</p>
+          <h2 id="agentMode">Pendiente</h2>
+          <p id="agentMessage">Cargando estado...</p>
+          <div class="mini-status"><span></span><strong id="agentLevel">Nivel 1</strong></div>
+        </section>
+      </aside>
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Operacion en vivo</p>
+            <h2>Cabina simple para los 3 WhatsApp</h2>
+            <p id="lastUpdate">Preparando datos...</p>
+          </div>
+          <div class="top-actions">
+            <a class="ghost-button" href="/">Panel anterior</a>
+            <button id="refreshButton" type="button">Actualizar</button>
+          </div>
+        </header>
+        <section class="hero-grid" id="ahora">
+          <article class="metric-card accent"><span>Alertas altas</span><strong id="openAlerts">0</strong><p>Requieren mirada humana.</p></article>
+          <article class="metric-card"><span>En revision</span><strong id="reviewPending">0</strong><p>Pagos, saldos o clientes dudosos.</p></article>
+          <article class="metric-card"><span>Servicios activos</span><strong id="servicesInProgress">0</strong><p>Pagados o esperando proveedor.</p></article>
+          <article class="metric-card"><span>Receptores pendientes</span><strong id="receiverPendingCount">0</strong><p>Dinero por liquidar.</p></article>
+        </section>
+        <section class="main-grid">
+          <article class="panel large-panel"><div class="panel-head"><div><p class="eyebrow">Ahora</p><h3>Lo que necesita atencion</h3></div><span class="pill">Vivo</span></div><div id="nowQueue" class="event-list"></div></article>
+          <article class="panel" id="caja"><div class="panel-head"><div><p class="eyebrow">Caja del dia</p><h3>Resumen financiero</h3></div></div><div id="cashbox" class="cash-grid"></div></article>
+        </section>
+        <section class="main-grid three">
+          <article class="panel" id="revision"><div class="panel-head"><div><p class="eyebrow">Revision</p><h3>Dudas de la IA</h3></div></div><div id="reviewItems" class="compact-list"></div></article>
+          <article class="panel" id="servicios"><div class="panel-head"><div><p class="eyebrow">Servicios</p><h3>Procesos activos</h3></div></div><div id="serviceOrders" class="compact-list"></div></article>
+          <article class="panel" id="clientes"><div class="panel-head"><div><p class="eyebrow">Canales</p><h3>3 WhatsApp</h3></div></div><div id="channels" class="compact-list"></div></article>
+        </section>
+        <section class="main-grid">
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">Receptores</p><h3>Dinero por pais</h3></div></div><div id="receivers" class="receiver-grid"></div></article>
+          <article class="panel" id="semanal"><div class="panel-head"><div><p class="eyebrow">Semanal</p><h3>Cuentas acumuladas</h3></div></div><div id="weeklyAccounts" class="compact-list"></div></article>
+        </section>
+      </section>
+    </main>
+    <script src="/operativa-v2.js"></script>
+  </body>
+</html>
