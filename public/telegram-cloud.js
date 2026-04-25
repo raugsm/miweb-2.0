@@ -1,4 +1,37 @@
 (function () {
+  function ensureBrandStyles() {
+    if (document.querySelector('link[href="/brand.css"]')) return;
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/brand.css";
+    document.head.appendChild(link);
+  }
+
+  function refreshBrandHeader() {
+    const hero = document.querySelector(".hero-card");
+    const statsGrid = document.getElementById("statsGrid");
+    if (!hero || !statsGrid || hero.querySelector(".brand-block")) return;
+
+    const brandBlock = document.createElement("div");
+    brandBlock.className = "brand-block";
+    brandBlock.innerHTML = `
+      <div class="brand-logo-card" aria-label="AriadGSM">
+        <span class="brand-pill">ARIAD</span><span class="brand-text">GSM</span>
+      </div>
+      <div>
+        <p class="eyebrow">Panel operativo</p>
+        <h1>Asistente inteligente AriadGSM</h1>
+        <p class="hero-copy">Gestiona casos, precios, entrenamiento y Telegram desde una sola cabina de control.</p>
+      </div>
+    `;
+
+    while (hero.firstElementChild && hero.firstElementChild !== statsGrid) {
+      hero.removeChild(hero.firstElementChild);
+    }
+
+    hero.insertBefore(brandBlock, statsGrid);
+  }
+
   function setFeedback(box, title, message, isError) {
     if (!box) return;
     box.classList.remove("is-hidden");
@@ -30,6 +63,9 @@
   }
 
   function initTelegramCloudForm() {
+    ensureBrandStyles();
+    refreshBrandHeader();
+
     const form = document.getElementById("telegramConfigForm");
     const box = document.getElementById("telegramStatusBox");
     if (!form || !box) return;
