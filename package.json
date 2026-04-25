@@ -8,6 +8,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "adm-zip": "^0.5.16"
+    "adm-zip": "^0.5.16",
+    "telegram": "^2.26.22"
   }
 }
