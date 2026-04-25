@@ -367,6 +367,102 @@ button:hover {
   min-width: 0;
 }
 
+.workspace-panel {
+  display: none;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+#operationsWorkspace.active {
+  display: grid;
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+  gap: 24px;
+  min-width: 0;
+}
+
+#trainingWorkspace.active {
+  display: block;
+}
+
+.training-layout {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.15fr) minmax(320px, 0.85fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.training-upload-card {
+  display: grid;
+  gap: 18px;
+}
+
+.training-upload-form {
+  gap: 16px;
+}
+
+.training-upload-top {
+  display: grid;
+  gap: 12px;
+}
+
+.upload-dropzone-large {
+  min-height: 170px;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  padding: 22px;
+}
+
+.training-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.training-advanced {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.training-advanced summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+
+.training-progress {
+  display: grid;
+  gap: 10px;
+}
+
+.training-progress-track {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(13, 107, 92, 0.12);
+  border: 1px solid rgba(13, 107, 92, 0.14);
+}
+
+.training-progress-bar {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #45b5a3);
+  transition: width 180ms ease;
+}
+
+.training-action-row {
+  justify-content: flex-start;
+}
+
+.training-summary {
+  display: grid;
+  gap: 14px;
+}
+
 .notifications-panel {
   grid-column: 1 / -1;
 }
@@ -737,6 +833,10 @@ button:hover {
     grid-template-columns: 1fr;
   }
 
+  #operationsWorkspace.active {
+    grid-template-columns: 1fr;
+  }
+
   .detail-panel {
     position: static;
   }
@@ -746,6 +846,10 @@ button:hover {
   }
 
   .notifications-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .training-layout {
     grid-template-columns: 1fr;
   }
 }
@@ -786,6 +890,10 @@ button:hover {
   }
 
   .notifications-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .training-form-grid {
     grid-template-columns: 1fr;
   }
 }
