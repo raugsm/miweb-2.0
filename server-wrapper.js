@@ -1,4 +1,5 @@
 const http = require("http");
+const crypto = require("crypto");
 const { URL } = require("url");
 const { hasAdminPassword, isAuthenticated } = require("./admin-auth");
 const { buildOperativaSnapshot, ingestOperativaEvent } = require("./operativa-store");
@@ -41,8 +42,36 @@ function parseBody(req, options = {}) {
   });
 }
 
+function safeTokenEquals(left, right) {
+  const leftBuffer = Buffer.from(String(left || ""));
+  const rightBuffer = Buffer.from(String(right || ""));
+
+  if (!leftBuffer.length || leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function getAgentToken(req) {
+  const authHeader = String(req.headers.authorization || "");
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+  return String(req.headers["x-operativa-agent-token"] || "").trim();
+}
+
+function isAgentTokenAllowed(req) {
+  const expectedToken = String(process.env.OPERATIVA_AGENT_TOKEN || "").trim();
+  return Boolean(expectedToken && safeTokenEquals(getAgentToken(req), expectedToken));
+}
+
 function isSessionAllowed(req) {
   return hasAdminPassword() && isAuthenticated(req);
+}
+
+function isApiAllowed(req) {
+  return isSessionAllowed(req) || isAgentTokenAllowed(req);
 }
 
 function protectOperativaPage(req, res, requestUrl) {
@@ -64,7 +93,7 @@ async function handleOperativaApi(req, res, requestUrl) {
     return false;
   }
 
-  if (!isSessionAllowed(req)) {
+  if (!isApiAllowed(req)) {
     sendJson(res, 401, { error: "No autorizado" });
     return true;
   }
