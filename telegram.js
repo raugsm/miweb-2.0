@@ -12,6 +12,17 @@ const {
 } = require("./db");
 const { inferOfferDetails } = require("./pricing");
 
+let TelegramClient;
+let StringSession;
+
+try {
+  ({ TelegramClient } = require("telegram"));
+  ({ StringSession } = require("telegram/sessions"));
+} catch (error) {
+  TelegramClient = null;
+  StringSession = null;
+}
+
 const DEFAULT_TELEGRAM_CONFIG = {
   runtimeMode: "cloud",
   apiId: "",
@@ -31,6 +42,8 @@ const DEFAULT_TELEGRAM_CONFIG = {
     "TelegramTdlibBridge.exe"
   ),
 };
+
+let activeCloudAuth = null;
 
 function readTelegramConfig() {
   const stored = getMetadata("telegram_config", null) || {};
@@ -80,6 +93,101 @@ function getTelegramUiConfig() {
   };
 }
 
+function writeTelegramRuntimeStatus(status) {
+  const nextStatus = {
+    ...status,
+    updatedAt: status.updatedAt || new Date().toISOString(),
+  };
+  saveMetadata("telegram_runtime_status", nextStatus);
+  return nextStatus;
+}
+
+function readTelegramRuntimeStatus() {
+  return getMetadata("telegram_runtime_status", {
+    ok: false,
+    state: "cloud_pending",
+    message: "Telegram esta esperando credenciales para iniciar la conexion en nube.",
+  });
+}
+
+function validateCloudConfig(config) {
+  if (!config.apiId || !config.apiHash || !config.phoneNumber) {
+    throw new Error("Completa API ID, API Hash y numero de telefono antes de conectar Telegram.");
+  }
+
+  if (!String(config.phoneNumber).startsWith("+")) {
+    throw new Error("El numero de Telegram debe incluir prefijo internacional, por ejemplo +51...");
+  }
+
+  if (!TelegramClient || !StringSession) {
+    throw new Error(
+      "Falta instalar el cliente Telegram en el servidor. Railway lo instalara al redeplegar con la nueva dependencia."
+    );
+  }
+}
+
+function createCloudClient(config) {
+  validateCloudConfig(config);
+  return new TelegramClient(
+    new StringSession(config.sessionString || ""),
+    Number(config.apiId),
+    config.apiHash,
+    {
+      connectionRetries: 5,
+      useWSS: false,
+    }
+  );
+}
+
+function saveSessionFromClient(client) {
+  const sessionString = client.session.save();
+  const config = readTelegramConfig();
+  updateTelegramConfig({
+    ...config,
+    sessionString,
+    runtimeMode: "cloud",
+  });
+  return sessionString;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForAuthState() {
+  for (let index = 0; index < 20; index += 1) {
+    const status = readTelegramRuntimeStatus();
+    if (
+      status.state === "code_required" ||
+      status.state === "password_required" ||
+      status.state === "ready" ||
+      status.state === "error"
+    ) {
+      return status;
+    }
+    await wait(250);
+  }
+  return readTelegramRuntimeStatus();
+}
+
+async function withCloudClient(callback) {
+  const config = readTelegramConfig();
+  const client = createCloudClient(config);
+
+  await client.connect();
+  const authorized = await client.isUserAuthorized();
+  if (!authorized) {
+    await client.disconnect();
+    throw new Error("Telegram aun no esta autorizado. Pulsa Preparar conexion y envia el codigo recibido.");
+  }
+
+  try {
+    return await callback(client, config);
+  } finally {
+    await client.disconnect();
+  }
+}
+
 function ensureTelegramDataDir(config) {
   const dir = path.resolve(config.dataDir || DEFAULT_TELEGRAM_CONFIG.dataDir);
   if (!fs.existsSync(dir)) {
@@ -110,9 +218,7 @@ function runTelegramBridge(action, payload = {}) {
   const config = readTelegramConfig();
 
   if (config.runtimeMode !== "local") {
-    throw new Error(
-      "La conexion real de Telegram en nube esta en preparacion. Ya puedes guardar api_id, api_hash y telefono, pero la sincronizacion automatica todavia no esta activa en Railway."
-    );
+    throw new Error("El puente local solo se usa en modo local. En nube usa el conector cloud.");
   }
 
   ensureTelegramDataDir(config);
@@ -140,96 +246,229 @@ function runTelegramBridge(action, payload = {}) {
   return JSON.parse(String(output || "{}").trim() || "{}");
 }
 
-function readTelegramRuntimeStatus() {
-  return getMetadata("telegram_runtime_status", {
-    ok: false,
-    state: "cloud_pending",
-    message: "Telegram esta en preparacion para nube. Primero guardaremos credenciales y luego activaremos la conexion automatica.",
+async function refreshTelegramStatus() {
+  const config = readTelegramConfig();
+
+  if (config.runtimeMode === "local") {
+    const result = runTelegramBridge("status");
+    return writeTelegramRuntimeStatus(result);
+  }
+
+  try {
+    validateCloudConfig(config);
+  } catch (error) {
+    return writeTelegramRuntimeStatus({
+      ok: false,
+      state: "cloud_pending",
+      message: error.message,
+    });
+  }
+
+  if (activeCloudAuth) {
+    return readTelegramRuntimeStatus();
+  }
+
+  if (!config.sessionString) {
+    return writeTelegramRuntimeStatus({
+      ok: true,
+      state: "credentials_saved",
+      message: "Credenciales guardadas. Pulsa Preparar conexion para recibir el codigo de Telegram.",
+    });
+  }
+
+  try {
+    const client = createCloudClient(config);
+    await client.connect();
+    const authorized = await client.isUserAuthorized();
+    await client.disconnect();
+    return writeTelegramRuntimeStatus({
+      ok: authorized,
+      state: authorized ? "ready" : "code_required",
+      message: authorized
+        ? "Telegram esta conectado en la nube y listo para descubrir chats."
+        : "La sesion guardada no esta autorizada. Pulsa Preparar conexion otra vez.",
+    });
+  } catch (error) {
+    return writeTelegramRuntimeStatus({
+      ok: false,
+      state: "error",
+      message: error.message || "No pude revisar la conexion de Telegram.",
+    });
+  }
+}
+
+async function startTelegramAuth() {
+  const config = readTelegramConfig();
+
+  if (config.runtimeMode === "local") {
+    const result = runTelegramBridge("start-auth");
+    return writeTelegramRuntimeStatus(result);
+  }
+
+  validateCloudConfig(config);
+
+  if (activeCloudAuth) {
+    return readTelegramRuntimeStatus();
+  }
+
+  const client = createCloudClient({
+    ...config,
+    sessionString: config.sessionString || "",
+  });
+
+  activeCloudAuth = {
+    client,
+    codeResolver: null,
+    passwordResolver: null,
+    done: false,
+  };
+
+  writeTelegramRuntimeStatus({
+    ok: true,
+    state: "starting",
+    message: "Estoy pidiendo el codigo a Telegram. Espera unos segundos.",
+  });
+
+  activeCloudAuth.promise = client
+    .start({
+      phoneNumber: async () => config.phoneNumber,
+      phoneCode: async () => {
+        writeTelegramRuntimeStatus({
+          ok: true,
+          state: "code_required",
+          message: "Telegram envio un codigo. Escribelo en Codigo recibido y pulsa Enviar codigo.",
+        });
+        return new Promise((resolve) => {
+          activeCloudAuth.codeResolver = resolve;
+        });
+      },
+      password: async () => {
+        writeTelegramRuntimeStatus({
+          ok: true,
+          state: "password_required",
+          message: "Telegram pidio contrasena 2FA. Escribela y pulsa Enviar contrasena.",
+        });
+        return new Promise((resolve) => {
+          activeCloudAuth.passwordResolver = resolve;
+        });
+      },
+      onError: (error) => {
+        writeTelegramRuntimeStatus({
+          ok: false,
+          state: "error",
+          message: error.message || "Telegram devolvio un error durante la autorizacion.",
+        });
+      },
+    })
+    .then(async () => {
+      saveSessionFromClient(client);
+      await client.disconnect();
+      activeCloudAuth = null;
+      return writeTelegramRuntimeStatus({
+        ok: true,
+        state: "ready",
+        message: "Telegram quedo conectado. Ya puedes descubrir chats.",
+      });
+    })
+    .catch(async (error) => {
+      try {
+        await client.disconnect();
+      } catch (_) {
+        // ignore disconnect failures during auth cleanup
+      }
+      activeCloudAuth = null;
+      return writeTelegramRuntimeStatus({
+        ok: false,
+        state: "error",
+        message: error.message || "No pude completar la autorizacion de Telegram.",
+      });
+    });
+
+  return waitForAuthState();
+}
+
+async function submitTelegramCode(code) {
+  const safeCode = String(code || "").trim();
+  if (!safeCode) {
+    throw new Error("Escribe el codigo recibido en Telegram.");
+  }
+
+  const config = readTelegramConfig();
+  if (config.runtimeMode === "local") {
+    const result = runTelegramBridge("submit-code", { code: safeCode });
+    return writeTelegramRuntimeStatus(result);
+  }
+
+  if (!activeCloudAuth || !activeCloudAuth.codeResolver) {
+    throw new Error("Primero pulsa Preparar conexion para pedir un codigo nuevo.");
+  }
+
+  activeCloudAuth.codeResolver(safeCode);
+  activeCloudAuth.codeResolver = null;
+  await Promise.race([activeCloudAuth.promise, wait(2500)]);
+  return readTelegramRuntimeStatus();
+}
+
+async function submitTelegramPassword(password) {
+  const safePassword = String(password || "");
+  if (!safePassword) {
+    throw new Error("Escribe la contrasena 2FA de Telegram.");
+  }
+
+  const config = readTelegramConfig();
+  if (config.runtimeMode === "local") {
+    const result = runTelegramBridge("submit-password", { password: safePassword });
+    return writeTelegramRuntimeStatus(result);
+  }
+
+  if (!activeCloudAuth || !activeCloudAuth.passwordResolver) {
+    throw new Error("Telegram no esta esperando contrasena 2FA en este momento.");
+  }
+
+  activeCloudAuth.passwordResolver(safePassword);
+  activeCloudAuth.passwordResolver = null;
+  await Promise.race([activeCloudAuth.promise, wait(2500)]);
+  return readTelegramRuntimeStatus();
+}
+
+function normalizeChat(dialog) {
+  const entity = dialog.entity || {};
+  const chatId = String(dialog.id ?? entity.id ?? "");
+  const chatType = dialog.isChannel
+    ? "channel"
+    : dialog.isGroup
+      ? "group"
+      : dialog.isUser
+        ? "user"
+        : "unknown";
+
+  return {
+    chatId,
+    title: dialog.title || entity.title || entity.username || entity.firstName || `Chat ${chatId}`,
+    chatType,
+    username: entity.username || "",
+  };
+}
+
+async function discoverTelegramChats() {
+  const config = readTelegramConfig();
+  if (config.runtimeMode === "local") {
+    const result = runTelegramBridge("list-chats");
+    return saveDiscoveredChats(result.chats || [], result);
+  }
+
+  return withCloudClient(async (client) => {
+    const dialogs = await client.getDialogs({ limit: 100 });
+    const chats = dialogs.map(normalizeChat).filter((chat) => chat.chatId);
+    return saveDiscoveredChats(chats, {
+      ok: true,
+      message: `Encontre ${chats.length} chats. Activa los que quieras monitorear.`,
+    });
   });
 }
 
-function writeTelegramRuntimeStatus(status) {
-  saveMetadata("telegram_runtime_status", status);
-  return status;
-}
-
-function refreshTelegramStatus() {
-  const config = readTelegramConfig();
-  if (config.runtimeMode !== "local") {
-    return writeTelegramRuntimeStatus({
-      ok: Boolean(config.apiId && config.apiHash && config.phoneNumber),
-      state: config.apiId && config.apiHash && config.phoneNumber ? "cloud_ready" : "cloud_pending",
-      message:
-        config.apiId && config.apiHash && config.phoneNumber
-          ? "Credenciales guardadas. Falta activar el nuevo conector de Telegram para nube."
-          : "Completa api_id, api_hash y telefono para dejar Telegram listo para nube.",
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  const result = runTelegramBridge("status");
-  return writeTelegramRuntimeStatus(result);
-}
-
-function startTelegramAuth() {
-  const config = readTelegramConfig();
-  if (config.runtimeMode !== "local") {
-    return writeTelegramRuntimeStatus({
-      ok: false,
-      state: "cloud_pending",
-      message: "La autorizacion de Telegram en nube sera el siguiente paso. Por ahora solo estamos guardando la configuracion.",
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  const result = runTelegramBridge("start-auth");
-  return writeTelegramRuntimeStatus(result);
-}
-
-function submitTelegramCode(code) {
-  const config = readTelegramConfig();
-  if (config.runtimeMode !== "local") {
-    return writeTelegramRuntimeStatus({
-      ok: false,
-      state: "cloud_pending",
-      message: "El envio de codigo aun no esta activo en nube. Ya dejamos lista esta seccion para el siguiente paso.",
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  const result = runTelegramBridge("submit-code", { code: String(code || "").trim() });
-  return writeTelegramRuntimeStatus(result);
-}
-
-function submitTelegramPassword(password) {
-  const config = readTelegramConfig();
-  if (config.runtimeMode !== "local") {
-    return writeTelegramRuntimeStatus({
-      ok: false,
-      state: "cloud_pending",
-      message: "La contrasena 2FA se activara junto con el nuevo conector cloud de Telegram.",
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  const result = runTelegramBridge("submit-password", { password: String(password || "") });
-  return writeTelegramRuntimeStatus(result);
-}
-
-function discoverTelegramChats() {
-  const config = readTelegramConfig();
-  if (config.runtimeMode !== "local") {
-    return {
-      ok: false,
-      chats: [],
-      message:
-        "Todavia no puedo descubrir chats desde Railway. Primero terminaremos la nueva capa de Telegram para nube.",
-    };
-  }
-
-  const result = runTelegramBridge("list-chats");
+function saveDiscoveredChats(chats, baseResult = {}) {
   const now = new Date().toISOString();
-  const chats = result.chats || [];
   const existing = new Map(getTelegramSources().map((item) => [String(item.chatId), item]));
 
   chats.forEach((chat) => {
@@ -249,7 +488,8 @@ function discoverTelegramChats() {
   });
 
   return {
-    ...result,
+    ...baseResult,
+    ok: baseResult.ok ?? true,
     chats,
   };
 }
@@ -272,17 +512,85 @@ function updateTelegramSource(input) {
   });
 }
 
-function syncTelegramSources() {
+function messageToPlainObject(message, source, now) {
+  const sentAt = message.date
+    ? new Date(Number(message.date) * 1000).toISOString()
+    : now;
+
+  return {
+    chatId: String(source.chatId),
+    messageId: String(message.id),
+    chatTitle: source.title,
+    senderName: message.senderId ? String(message.senderId) : "",
+    text: message.message || "",
+    sentAt,
+  };
+}
+
+function importTelegramMessages(source, messages, now) {
+  let insertedMessages = 0;
+  let importedOffers = 0;
+
+  for (const message of messages) {
+    const text = message.text || "";
+    if (!text.trim()) {
+      continue;
+    }
+
+    const preview = inferOfferDetails(text, "USD");
+    const saved = saveTelegramMessage({
+      ...message,
+      importedAt: now,
+      detectedSupplier: preview.supplierName || "",
+      detectedService: preview.serviceName || "",
+      detectedVariant: preview.variant || "",
+      detectedCurrency: preview.currency || "",
+      detectedCost: preview.cost ?? null,
+      importedOfferId: null,
+    });
+
+    if (!saved.inserted) {
+      continue;
+    }
+
+    insertedMessages += 1;
+
+    if (source.autoImport && preview.cost && preview.serviceName) {
+      const importedOfferId = savePriceOffer({
+        source: `Telegram cloud - ${source.title}`,
+        supplierName: preview.supplierName || source.title,
+        serviceName: preview.serviceName,
+        variant: preview.variant || "",
+        currency: preview.currency || "USD",
+        cost: preview.cost,
+        rawText: text,
+        notes: `Chat ${source.title} (${source.chatId})`,
+        importedAt: now,
+      });
+      attachOfferToTelegramMessage(source.chatId, message.messageId, importedOfferId);
+      importedOffers += 1;
+    }
+  }
+
+  return {
+    insertedMessages,
+    importedOffers,
+  };
+}
+
+async function syncTelegramSources() {
   const config = readTelegramConfig();
-  if (config.runtimeMode !== "local") {
-    const status = {
-      ok: false,
-      state: "cloud_pending",
-      message:
-        "La sincronizacion automatica de Telegram en nube sigue en preparacion. El panel ya quedo listo para esa migracion.",
-      updatedAt: new Date().toISOString(),
-    };
-    writeTelegramRuntimeStatus(status);
+  if (config.runtimeMode === "local") {
+    return syncLocalTelegramSources();
+  }
+
+  const sources = getTelegramSources().filter((item) => item.enabled);
+  if (!sources.length) {
+    const status = writeTelegramRuntimeStatus({
+      ok: true,
+      state: "ready",
+      message: "No hay fuentes activas. Primero descubre chats y activa al menos uno.",
+    });
     return {
       ...status,
       insertedMessages: 0,
@@ -290,6 +598,39 @@ function syncTelegramSources() {
     };
   }
 
+  return withCloudClient(async (client) => {
+    const now = new Date().toISOString();
+    let insertedMessages = 0;
+    let importedOffers = 0;
+
+    for (const source of sources) {
+      const entityRef = source.username || source.chatId;
+      const messages = await client.getMessages(entityRef, { limit: 60 });
+      const plainMessages = messages.map((message) => messageToPlainObject(message, source, now));
+      const result = importTelegramMessages(source, plainMessages, now);
+      insertedMessages += result.insertedMessages;
+      importedOffers += result.importedOffers;
+      updateTelegramSource({
+        ...source,
+        lastSyncedAt: now,
+      });
+    }
+
+    const status = writeTelegramRuntimeStatus({
+      ok: true,
+      state: "ready",
+      message: `Sincronizacion completada. ${insertedMessages} mensajes nuevos y ${importedOffers} ofertas importadas.`,
+    });
+
+    return {
+      ...status,
+      insertedMessages,
+      importedOffers,
+    };
+  });
+}
+
+function syncLocalTelegramSources() {
   const sources = getTelegramSources().filter((item) => item.enabled);
   const now = new Date().toISOString();
   let insertedMessages = 0;
@@ -300,60 +641,28 @@ function syncTelegramSources() {
       chatId: String(source.chatId),
       limit: 60,
     });
-    const messages = result.messages || [];
-
-    for (const message of messages) {
-      const preview = inferOfferDetails(message.text || "", "USD");
-      const saved = saveTelegramMessage({
-        chatId: String(source.chatId),
-        messageId: String(message.messageId),
-        chatTitle: source.title,
-        senderName: message.senderName || "",
-        text: message.text || "",
-        sentAt: message.sentAt || now,
-        importedAt: now,
-        detectedSupplier: preview.supplierName || "",
-        detectedService: preview.serviceName || "",
-        detectedVariant: preview.variant || "",
-        detectedCurrency: preview.currency || "",
-        detectedCost: preview.cost ?? null,
-        importedOfferId: null,
-      });
-
-      if (saved.inserted) {
-        insertedMessages += 1;
-
-        if (source.autoImport && preview.cost && preview.serviceName) {
-          const importedOfferId = savePriceOffer({
-            source: `Telegram TDLib · ${source.title}`,
-            supplierName: preview.supplierName || source.title,
-            serviceName: preview.serviceName,
-            variant: preview.variant || "",
-            currency: preview.currency || "USD",
-            cost: preview.cost,
-            rawText: message.text || "",
-            notes: `Chat ${source.title} (${source.chatId})`,
-            importedAt: now,
-          });
-          attachOfferToTelegramMessage(source.chatId, message.messageId, importedOfferId);
-          importedOffers += 1;
-        }
-      }
-    }
-
+    const messages = (result.messages || []).map((message) => ({
+      chatId: String(source.chatId),
+      messageId: String(message.messageId),
+      chatTitle: source.title,
+      senderName: message.senderName || "",
+      text: message.text || "",
+      sentAt: message.sentAt || now,
+    }));
+    const imported = importTelegramMessages(source, messages, now);
+    insertedMessages += imported.insertedMessages;
+    importedOffers += imported.importedOffers;
     updateTelegramSource({
       ...source,
       lastSyncedAt: now,
     });
   }
 
-  const status = {
+  const status = writeTelegramRuntimeStatus({
     ok: true,
     state: "ready",
     message: `Sincronizacion completada. ${insertedMessages} mensajes nuevos y ${importedOffers} ofertas importadas.`,
-    updatedAt: now,
-  };
-  writeTelegramRuntimeStatus(status);
+  });
 
   return {
     ...status,
