@@ -1,0 +1,199 @@
+:root {
+  --bg: #eef4ff;
+  --surface: #ffffff;
+  --surface-strong: #f4f8ff;
+  --ink: #101827;
+  --muted: #61708a;
+  --line: #d9e3f3;
+  --accent: #2478f2;
+  --accent-strong: #0f5fd4;
+  --accent-soft: #e7f0ff;
+  --warning: #c75b12;
+  --warning-soft: #fff0e3;
+  --shadow: 0 24px 70px rgba(29, 75, 150, 0.13);
+  --soft-shadow: 0 10px 30px rgba(19, 52, 102, 0.09);
+}
+
+body {
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 8% 6%, rgba(36, 120, 242, 0.22), transparent 28%),
+    radial-gradient(circle at 92% 2%, rgba(50, 205, 255, 0.18), transparent 24%),
+    linear-gradient(135deg, #f7fbff 0%, #edf4ff 42%, #f9fbff 100%);
+}
+
+.page-shell {
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  gap: 28px;
+  padding: 22px;
+}
+
+.hero-card,
+.panel {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(217, 227, 243, 0.88);
+  border-radius: 30px;
+  backdrop-filter: blur(18px);
+}
+
+.hero-card {
+  padding: 18px;
+}
+
+.brand-block {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border-radius: 26px;
+  background:
+    linear-gradient(135deg, rgba(36, 120, 242, 0.12), rgba(255, 255, 255, 0.82)),
+    radial-gradient(circle at top right, rgba(64, 180, 255, 0.22), transparent 36%);
+  border: 1px solid rgba(36, 120, 242, 0.14);
+  margin-bottom: 18px;
+}
+
+.brand-logo-card {
+  width: 100%;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  background: #ffffff;
+  border: 1px solid rgba(36, 120, 242, 0.12);
+  box-shadow: var(--soft-shadow);
+  overflow: hidden;
+  gap: 4px;
+}
+
+.brand-pill,
+.brand-text {
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.07em;
+  line-height: 1;
+  font-size: clamp(2.1rem, 4.4vw, 3.5rem);
+}
+
+.brand-pill {
+  background: linear-gradient(135deg, #2385ff, #1468e8);
+  color: #ffffff;
+  padding: 0.05em 0.22em 0.08em;
+  border-radius: 0.12em;
+}
+
+.brand-text {
+  color: #2478f2;
+}
+
+h1 {
+  font-size: clamp(1.65rem, 2vw, 2.35rem);
+  letter-spacing: -0.045em;
+  margin-bottom: 12px;
+}
+
+.stat-card,
+.case-card {
+  background: linear-gradient(180deg, #ffffff, var(--surface-strong));
+  border-color: var(--line);
+  box-shadow: var(--soft-shadow);
+}
+
+.stat-card strong {
+  color: var(--accent-strong);
+  letter-spacing: -0.04em;
+}
+
+.form-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 248, 255, 0.96));
+  border-color: rgba(36, 120, 242, 0.12);
+  box-shadow: var(--soft-shadow);
+}
+
+.side-tabs {
+  gap: 8px;
+  padding: 8px;
+  border-radius: 24px;
+  background: rgba(244, 248, 255, 0.8);
+  border: 1px solid rgba(217, 227, 243, 0.88);
+}
+
+.side-tab {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: transparent;
+  text-align: left;
+  padding: 13px 16px;
+}
+
+.side-tab.active,
+button {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 10px 24px rgba(36, 120, 242, 0.22);
+  font-weight: 700;
+}
+
+.ghost-button {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: none;
+}
+
+input,
+textarea,
+select,
+.filter-field select,
+.filter-field input {
+  border-color: var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(36, 120, 242, 0.72);
+  box-shadow: 0 0 0 4px rgba(36, 120, 242, 0.12);
+  background: #ffffff;
+}
+
+.preview-box {
+  border-color: rgba(36, 120, 242, 0.14);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(231, 240, 255, 0.84), rgba(255, 255, 255, 0.92));
+  overflow: hidden;
+}
+
+#telegramStatusBox .preview-grid {
+  grid-template-columns: 1fr;
+}
+
+#telegramStatusBox .muted {
+  overflow-wrap: anywhere;
+}
+
+.case-card {
+  border-radius: 22px;
+  transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.case-card:hover {
+  transform: translateY(-2px);
+}
+
+.case-card.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(36, 120, 242, 0.22), var(--soft-shadow);
+}
+
+.detail-card {
+  border-radius: 24px;
+  box-shadow: var(--soft-shadow);
+}
+
+@media (max-width: 1560px) {
+  .brand-logo-card {
+    min-height: 82px;
+  }
+}
