@@ -1,18 +1,315 @@
-const state={data:null};
-function fallback(){return{generatedAt:new Date().toISOString(),channels:[{name:"WhatsApp 1",serviceScope:"Samsung, senal Claro y servicios remotos",status:"esperando_agente",unread:7},{name:"WhatsApp 2",serviceScope:"Motorola, Honor, FRP y Unlock",status:"esperando_agente",unread:4},{name:"WhatsApp 3",serviceScope:"Xiaomi, Tecno, Infinix, iPhone y creditos/licencias",status:"esperando_agente",unread:12}],summary:{openAlerts:1,reviewPending:3,servicesInProgress:2,receiverPendingCount:4},agent:{mode:"observador",autonomyLevel:2,connected:false,message:"Agente visual pendiente. La cabina ya esta preparada para recibir eventos desde los 3 WhatsApp."},nowQueue:[{title:"Posible comprobante repetido",customer:"Luis Medina",channel:"WhatsApp 3",detail:"Mismo monto y hora que un pago enviado por otro chat.",confidence:.91,priority:"alta",action:"Revisar antes de procesar"},{title:"Cliente pide usar pago de otro WhatsApp",customer:"Juan Peru",channel:"WhatsApp 1 -> WhatsApp 3",detail:"El cliente dice que pago ayer y quiere aplicar saldo a otro servicio.",confidence:.76,priority:"media",action:"Confirmar saldo"},{title:"Cliente esperando respuesta",customer:"Andrea Soto",channel:"WhatsApp 2",detail:"Pidio confirmacion de proceso y aun no se cerro el servicio.",confidence:.88,priority:"media",action:"Revisar chat"}],cashbox:{receivedUsd:742,providerCostsUsd:286,realizedProfitUsd:318,projectedProfitUsd:124,refundsUsd:35,pendingValidationUsd:96,retainedUsd:138},reviewItems:[{title:"Pago por texto sin comprobante",detail:"Cliente indica 'ya te mande 70 por Yape', pero no hay imagen.",confidence:.64,status:"pendiente"},{title:"Comprobante de ayer",detail:"Puede ser saldo a favor por servicio fallido o comprobante ya consumido.",confidence:.72,status:"pendiente"},{title:"Posible mismo cliente en dos WhatsApp",detail:"Mismo modelo y referencia de pago entre WhatsApp 1 y WhatsApp 3.",confidence:.81,status:"pendiente"}],serviceOrders:[{customer:"Cliente Mexico",service:"Xiaomi FRP",channel:"WhatsApp 3",charged:"350 MXN",cost:"8 USDT",status:"in_process",financialState:"ganancia_proyectada"},{customer:"Cliente Peru",service:"FRP remoto",channel:"WhatsApp 1",charged:"70 PEN",cost:"0 USD",status:"completed",financialState:"ganancia_realizada"},{customer:"Cliente Colombia",service:"Unlock por proveedor",channel:"WhatsApp 2",charged:"90000 COP",cost:"6 USDT",status:"pending_provider",financialState:"dinero_retenido"}],receivers:[{name:"Receptor Peru",country:"Peru",currency:"PEN",received:920,sentToOwner:300,pending:620,status:"pendiente"},{name:"Receptor Chile",country:"Chile",currency:"CLP",received:87000,sentToOwner:0,pending:87000,status:"pendiente"},{name:"Receptor Colombia",country:"Colombia",currency:"COP",received:410000,sentToOwner:120000,pending:290000,status:"parcial"},{name:"Receptor Mexico",country:"Mexico",currency:"MXN",received:2600,sentToOwner:0,pending:2600,status:"pendiente"}],weeklyAccounts:[{customer:"Grupo Cliente Mexico",completed:8,pending:2,failed:1,total:"112 USD",status:"acumulando"},{customer:"Grupo Cliente Peru",completed:5,pending:0,failed:0,total:"340 PEN",status:"lista_para_revisar"}]}}
-const moneyLabels=[["receivedUsd","Ingresos recibidos","USD"],["providerCostsUsd","Costos proveedor","USD"],["realizedProfitUsd","Ganancia realizada","USD"],["projectedProfitUsd","Ganancia proyectada","USD"],["refundsUsd","Devoluciones","USD"],["pendingValidationUsd","Pagos por validar","USD"],["retainedUsd","Dinero retenido","USD"]];
-const $=id=>document.getElementById(id);const esc=v=>String(v??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m]));
-function priorityClass(p){return p==="alta"?"high":p==="media"?"medium":""}function confidence(v){return `${Math.round(Number(v||0)*100)}% confianza`}function date(v){if(!v)return"Sin actualizar";return new Date(v).toLocaleString("es-PE",{dateStyle:"short",timeStyle:"short"})}function set(id,v){const el=$(id);if(el)el.textContent=v}
-function renderSummary(){const s=state.data?.summary||{};set("openAlerts",s.openAlerts??0);set("reviewPending",s.reviewPending??0);set("servicesInProgress",s.servicesInProgress??0);set("receiverPendingCount",s.receiverPendingCount??0);set("lastUpdate",`Ultima lectura: ${date(state.data?.generatedAt)}`)}
-function renderAgent(){const a=state.data?.agent||{};set("agentMode",a.connected?"Conectado":"Pendiente");set("agentMessage",a.message||"Sin novedades.");set("agentLevel",`Nivel ${a.autonomyLevel||1} - ${a.mode||"observador"}`)}
-function renderNowQueue(){const c=$("nowQueue"),rows=state.data?.nowQueue||[];if(!c)return;c.innerHTML=rows.length?rows.map(i=>`<article class="event-card"><div><h4>${esc(i.title)}</h4><p>${esc(i.detail)}</p><div class="event-meta"><span class="tag">${esc(i.customer)}</span><span class="tag">${esc(i.channel)}</span><span class="tag ${priorityClass(i.priority)}">${esc(i.priority)}</span><span class="tag">${confidence(i.confidence)}</span></div></div><span class="chip">${esc(i.action)}</span></article>`).join(""):"<p>No hay alertas por ahora.</p>"}
-function renderCashbox(){const c=$("cashbox"),box=state.data?.cashbox||{};if(!c)return;c.innerHTML=moneyLabels.map(([k,l,cur])=>`<div class="cash-item"><span>${l}</span><strong>${Number(box[k]||0).toLocaleString("es-PE")} ${cur}</strong></div>`).join("")}
-function renderList(id,rows,empty,mapper){const c=$(id);if(!c)return;c.innerHTML=rows.length?rows.map(mapper).join(""):`<p>${empty}</p>`}
-function renderReview(){renderList("reviewItems",state.data?.reviewItems||[],"No hay dudas pendientes.",i=>`<article class="list-row"><h4>${esc(i.title)}</h4><p>${esc(i.detail)}</p><div class="row-meta"><span class="tag">${esc(i.status)}</span><span class="tag medium">${confidence(i.confidence)}</span></div></article>`)}
-function renderServices(){renderList("serviceOrders",state.data?.serviceOrders||[],"No hay servicios activos.",i=>`<article class="list-row"><h4>${esc(i.customer)} - ${esc(i.service)}</h4><p>${esc(i.channel)} | Cobrado ${esc(i.charged)} | Costo ${esc(i.cost)}</p><div class="row-meta"><span class="tag">${esc(i.status)}</span><span class="tag">${esc(i.financialState)}</span></div></article>`)}
-function renderChannels(){renderList("channels",state.data?.channels||[],"No hay canales.",i=>`<article class="list-row"><h4>${esc(i.name)}</h4><p>${esc(i.serviceScope)}</p><div class="row-meta"><span class="tag">${esc(i.status)}</span><span class="tag">${Number(i.unread||0)} no leidos</span></div></article>`)}
-function renderReceivers(){const c=$("receivers"),rows=state.data?.receivers||[];if(!c)return;c.innerHTML=rows.map(i=>`<article class="receiver-card"><span>${esc(i.country)} | ${esc(i.name)}</span><strong>${Number(i.pending||0).toLocaleString("es-PE")} ${esc(i.currency)}</strong><p>Recibido ${Number(i.received||0).toLocaleString("es-PE")} | Enviado ${Number(i.sentToOwner||0).toLocaleString("es-PE")}</p><span class="tag">${esc(i.status)}</span></article>`).join("")}
-function renderWeekly(){renderList("weeklyAccounts",state.data?.weeklyAccounts||[],"No hay cuentas semanales abiertas.",i=>`<article class="list-row"><h4>${esc(i.customer)}</h4><p>${Number(i.completed||0)} completados | ${Number(i.pending||0)} pendientes | ${Number(i.failed||0)} fallidos</p><div class="row-meta"><span class="tag">${esc(i.total)}</span><span class="tag">${esc(i.status)}</span></div></article>`)}
-function renderAll(){renderSummary();renderAgent();renderNowQueue();renderCashbox();renderReview();renderServices();renderChannels();renderReceivers();renderWeekly()}
-async function load(){const b=$("refreshButton");if(b)b.disabled=true;try{const r=await fetch("/api/operativa-v2",{cache:"no-store"});if(!r.ok)throw new Error("sin api");state.data=await r.json();renderAll()}catch(e){state.data=fallback();renderAll();set("lastUpdate","Vista de diseno con datos de muestra. Falta conectar datos reales.")}finally{if(b)b.disabled=false}}
-$("refreshButton")?.addEventListener("click",load);load();window.setInterval(load,30000);
+const state = { data: null };
+
+const moneyLabels = [
+  ["receivedUsd", "Ingresos recibidos", "USD"],
+  ["providerCostsUsd", "Costos proveedor", "USD"],
+  ["realizedProfitUsd", "Ganancia realizada", "USD"],
+  ["projectedProfitUsd", "Ganancia proyectada", "USD"],
+  ["refundsUsd", "Devoluciones", "USD"],
+  ["pendingValidationUsd", "Pagos por validar", "USD"],
+  ["retainedUsd", "Dinero retenido", "USD"],
+];
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"]/g, (match) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+  }[match]));
+}
+
+function createEmptyData(message) {
+  const generatedAt = new Date().toISOString();
+  return {
+    generatedAt,
+    channels: [
+      { name: "WhatsApp 1", serviceScope: "Samsung, senal Claro y servicios remotos", status: "sin_conexion", unread: 0 },
+      { name: "WhatsApp 2", serviceScope: "Motorola, Honor, FRP y Unlock", status: "sin_conexion", unread: 0 },
+      { name: "WhatsApp 3", serviceScope: "Xiaomi, Tecno, Infinix, iPhone y creditos/licencias", status: "sin_conexion", unread: 0 },
+    ],
+    summary: { openAlerts: 0, reviewPending: 0, servicesInProgress: 0, receiverPendingCount: 0 },
+    agent: {
+      mode: "observador",
+      autonomyLevel: 1,
+      connected: false,
+      message: message || "Cabina lista. Esperando datos reales del agente visual.",
+    },
+    nowQueue: [],
+    cashbox: {},
+    reviewItems: [],
+    serviceOrders: [],
+    receivers: [
+      { name: "Receptor Peru", country: "Peru", currency: "PEN", received: 0, sentToOwner: 0, pending: 0, status: "cerrado" },
+      { name: "Receptor Chile", country: "Chile", currency: "CLP", received: 0, sentToOwner: 0, pending: 0, status: "cerrado" },
+      { name: "Receptor Colombia", country: "Colombia", currency: "COP", received: 0, sentToOwner: 0, pending: 0, status: "cerrado" },
+      { name: "Receptor Mexico", country: "Mexico", currency: "MXN", received: 0, sentToOwner: 0, pending: 0, status: "cerrado" },
+    ],
+    weeklyAccounts: [],
+  };
+}
+
+function priorityClass(priority) {
+  if (priority === "alta") return "high";
+  if (priority === "media") return "medium";
+  return "";
+}
+
+function formatConfidence(value) {
+  return `${Math.round(Number(value || 0) * 100)}% confianza`;
+}
+
+function formatDate(value) {
+  if (!value) return "Sin actualizar";
+  return new Date(value).toLocaleString("es-PE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString("es-PE");
+}
+
+function setText(id, value) {
+  const element = $(id);
+  if (element) element.textContent = value;
+}
+
+function renderSummary() {
+  const summary = state.data?.summary || {};
+  setText("openAlerts", summary.openAlerts ?? 0);
+  setText("reviewPending", summary.reviewPending ?? 0);
+  setText("servicesInProgress", summary.servicesInProgress ?? 0);
+  setText("receiverPendingCount", summary.receiverPendingCount ?? 0);
+  setText("lastUpdate", `Ultima lectura: ${formatDate(state.data?.generatedAt)}`);
+}
+
+function renderAgent() {
+  const agent = state.data?.agent || {};
+  setText("agentMode", agent.connected ? "Conectado" : "Pendiente");
+  setText("agentMessage", agent.message || "Sin novedades.");
+  setText("agentLevel", `Nivel ${agent.autonomyLevel || 1} - ${agent.mode || "observador"}`);
+}
+
+function renderNowQueue() {
+  const container = $("nowQueue");
+  const rows = state.data?.nowQueue || [];
+  if (!container) return;
+
+  container.innerHTML = rows.length
+    ? rows.map((item) => `
+      <article class="event-card">
+        <div>
+          <h4>${escapeHtml(item.title)}</h4>
+          <p>${escapeHtml(item.detail || item.description)}</p>
+          <div class="event-meta">
+            <span class="tag">${escapeHtml(item.customer || item.relatedEntityType || "Sistema")}</span>
+            <span class="tag">${escapeHtml(item.channel || "Cabina")}</span>
+            <span class="tag ${priorityClass(item.priority)}">${escapeHtml(item.priority || "media")}</span>
+            <span class="tag">${formatConfidence(item.confidence)}</span>
+          </div>
+        </div>
+        <span class="chip">${escapeHtml(item.action || "Revisar")}</span>
+      </article>
+    `).join("")
+    : "<p>No hay alertas por ahora. Cuando el agente visual envie eventos, apareceran aqui.</p>";
+}
+
+function renderCashbox() {
+  const container = $("cashbox");
+  const cashbox = state.data?.cashbox || {};
+  if (!container) return;
+
+  container.innerHTML = moneyLabels.map(([key, label, currency]) => `
+    <div class="cash-item">
+      <span>${label}</span>
+      <strong>${formatNumber(cashbox[key])} ${currency}</strong>
+    </div>
+  `).join("");
+}
+
+function renderList(id, rows, emptyMessage, mapper) {
+  const container = $(id);
+  if (!container) return;
+  container.innerHTML = rows.length ? rows.map(mapper).join("") : `<p>${emptyMessage}</p>`;
+}
+
+function renderReviewItems() {
+  renderList("reviewItems", state.data?.reviewItems || [], "No hay dudas pendientes.", (item) => `
+    <article class="list-row">
+      <h4>${escapeHtml(item.title)}</h4>
+      <p>${escapeHtml(item.detail || item.description)}</p>
+      <div class="row-meta">
+        <span class="tag">${escapeHtml(item.status || "pendiente")}</span>
+        <span class="tag medium">${formatConfidence(item.confidence)}</span>
+      </div>
+    </article>
+  `);
+}
+
+function renderServices() {
+  renderList("serviceOrders", state.data?.serviceOrders || [], "No hay servicios activos.", (item) => `
+    <article class="list-row">
+      <h4>${escapeHtml(item.customer || item.customerId)} - ${escapeHtml(item.service || item.serviceName)}</h4>
+      <p>${escapeHtml(item.channel || item.channelId)} | Cobrado ${escapeHtml(item.charged)} | Costo ${escapeHtml(item.cost)}</p>
+      <div class="row-meta">
+        <span class="tag">${escapeHtml(item.status)}</span>
+        <span class="tag">${escapeHtml(item.financialState || "pendiente")}</span>
+      </div>
+    </article>
+  `);
+}
+
+function renderChannels() {
+  renderList("channels", state.data?.channels || [], "No hay canales configurados.", (item) => `
+    <article class="list-row">
+      <h4>${escapeHtml(item.name)}</h4>
+      <p>${escapeHtml(item.serviceScope)}</p>
+      <div class="row-meta">
+        <span class="tag">${escapeHtml(item.status)}</span>
+        <span class="tag">${formatNumber(item.unread)} no leidos</span>
+      </div>
+    </article>
+  `);
+}
+
+function renderReceivers() {
+  const container = $("receivers");
+  const rows = state.data?.receivers || [];
+  if (!container) return;
+
+  container.innerHTML = rows.length
+    ? rows.map((item) => `
+      <article class="receiver-card">
+        <span>${escapeHtml(item.country)} | ${escapeHtml(item.name)}</span>
+        <strong>${formatNumber(item.pending)} ${escapeHtml(item.currency)}</strong>
+        <p>Recibido ${formatNumber(item.received)} | Enviado ${formatNumber(item.sentToOwner)}</p>
+        <span class="tag">${escapeHtml(item.status)}</span>
+      </article>
+    `).join("")
+    : "<p>No hay receptores configurados.</p>";
+}
+
+function renderWeeklyAccounts() {
+  renderList("weeklyAccounts", state.data?.weeklyAccounts || [], "No hay cuentas semanales abiertas.", (item) => `
+    <article class="list-row">
+      <h4>${escapeHtml(item.customer)}</h4>
+      <p>${formatNumber(item.completed)} completados | ${formatNumber(item.pending)} pendientes | ${formatNumber(item.failed)} fallidos</p>
+      <div class="row-meta">
+        <span class="tag">${escapeHtml(item.total)}</span>
+        <span class="tag">${escapeHtml(item.status)}</span>
+      </div>
+    </article>
+  `);
+}
+
+function buildDataFromDashboard(payload) {
+  const cases = payload?.cases || [];
+  const meta = payload?.meta || {};
+  const training = meta.trainingSummary || {};
+  const escalated = cases.filter((item) => item.status === "Escalado");
+  const active = cases.filter((item) => item.status !== "Cerrado");
+
+  return {
+    generatedAt: new Date().toISOString(),
+    channels: [
+      { name: "WhatsApp 1", serviceScope: "Canal pendiente de conectar al agente visual", status: "panel_actual", unread: 0 },
+      { name: "WhatsApp 2", serviceScope: "Canal pendiente de conectar al agente visual", status: "panel_actual", unread: 0 },
+      { name: "WhatsApp 3", serviceScope: "Canal pendiente de conectar al agente visual", status: "panel_actual", unread: 0 },
+    ],
+    summary: {
+      openAlerts: escalated.length,
+      reviewPending: escalated.length,
+      servicesInProgress: active.length,
+      receiverPendingCount: 0,
+    },
+    agent: {
+      mode: "puente_panel_actual",
+      autonomyLevel: 1,
+      connected: false,
+      message: "Mostrando datos reales del panel actual. Falta conectar el agente visual de WhatsApp para pagos y comprobantes.",
+    },
+    nowQueue: escalated.slice(0, 8).map((item) => ({
+      title: `Caso escalado: ${item.clientName}`,
+      detail: item.lastUpdate || item.summary,
+      customer: item.clientName,
+      channel: item.contact || "Panel actual",
+      confidence: 0.7,
+      priority: "alta",
+      action: "Revisar caso",
+    })),
+    cashbox: {},
+    reviewItems: escalated.map((item) => ({
+      title: item.clientName,
+      description: item.lastUpdate || item.summary,
+      confidence: 0.7,
+      status: "pendiente",
+    })),
+    serviceOrders: active.map((item) => ({
+      customer: item.clientName,
+      service: item.category || "Soporte",
+      channel: item.contact || "Panel actual",
+      charged: "Sin dato",
+      cost: "Sin dato",
+      status: item.status,
+      financialState: "pendiente_contabilidad",
+    })),
+    receivers: createEmptyData().receivers,
+    weeklyAccounts: [
+      {
+        customer: "Entrenamiento importado",
+        completed: Number(training.totalConversations || 0),
+        pending: 0,
+        failed: 0,
+        total: `${Number(training.totalMessages || 0)} mensajes`,
+        status: "base_aprendizaje",
+      },
+    ],
+  };
+}
+
+function renderAll() {
+  renderSummary();
+  renderAgent();
+  renderNowQueue();
+  renderCashbox();
+  renderReviewItems();
+  renderServices();
+  renderChannels();
+  renderReceivers();
+  renderWeeklyAccounts();
+}
+
+async function loadOperativa() {
+  const button = $("refreshButton");
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch("/api/operativa-v2", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("No pude cargar la cabina operativa");
+    }
+    state.data = await response.json();
+  } catch (error) {
+    try {
+      const fallbackResponse = await fetch("/api/dashboard", { cache: "no-store" });
+      if (!fallbackResponse.ok) {
+        throw new Error("dashboard no disponible");
+      }
+      state.data = buildDataFromDashboard(await fallbackResponse.json());
+    } catch (fallbackError) {
+      state.data = createEmptyData("No pude conectar con el motor de datos. Si acabas de desplegar, espera un momento y actualiza.");
+    }
+  } finally {
+    renderAll();
+    if (button) button.disabled = false;
+  }
+}
+
+$("refreshButton")?.addEventListener("click", loadOperativa);
+loadOperativa();
+window.setInterval(loadOperativa, 30000);
