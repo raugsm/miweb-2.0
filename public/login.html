@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acceso al Panel</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="public-body">
+    <main class="public-shell ticket-shell">
+      <section class="public-hero">
+        <p class="eyebrow">Panel interno</p>
+        <h1>Acceso del equipo</h1>
+        <p class="hero-copy">
+          Este acceso protege el panel operativo. Configura el usuario inicial o inicia sesion con
+          tu cuenta del equipo.
+        </p>
+      </section>
+
+      <section class="public-card">
+        <div id="authStatus" class="helper-copy"></div>
+
+        <form id="setupForm" class="auth-form is-hidden">
+          <p class="eyebrow">Configuracion inicial</p>
+          <label>
+            Usuario inicial
+            <input name="username" placeholder="owner" required />
+          </label>
+          <label>
+            Nombre visible
+            <input name="displayName" placeholder="Propietario" required />
+          </label>
+          <label>
+            Nueva contrasena
+            <input type="password" name="password" minlength="8" required />
+          </label>
+          <button type="submit">Guardar usuario inicial</button>
+        </form>
+
+        <form id="loginForm" class="auth-form is-hidden">
+          <p class="eyebrow">Iniciar sesion</p>
+          <label>
+            Usuario
+            <input name="username" required />
+          </label>
+          <label>
+            Contrasena
+            <input type="password" name="password" required />
+          </label>
+          <button type="submit">Entrar al panel</button>
+        </form>
+
+        <section id="authResult" class="public-result is-hidden"></section>
+      </section>
+    </main>
+
+    <script src="/login.js"></script>
+  </body>
+</html>
