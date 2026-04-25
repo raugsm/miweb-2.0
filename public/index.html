@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MVP Soporte Remoto</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="hero-card">
+        <p class="eyebrow">MVP operativo</p>
+        <h1>IA de soporte remoto con control humano en excepciones</h1>
+        <p class="hero-copy">
+          Este prototipo clasifica casos, asigna procedimientos y simula un agente local que
+          valida pasos permitidos antes de escalar.
+        </p>
+
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="side-tabs">
+          <button id="operationsTab" class="side-tab active">Operacion</button>
+          <button id="pricingTab" class="side-tab">Precios</button>
+          <button id="telegramTab" class="side-tab">Telegram</button>
+          <button id="trainingTab" class="side-tab">Entrenamiento</button>
+          <button id="settingsTab" class="side-tab">Configuracion</button>
+        </div>
+
+        <div id="operationsPanel" class="side-panel active">
+          <section class="form-card">
+            <h2>Nuevo caso</h2>
+            <p class="helper-copy">
+              Antes de validar con el agente, actualiza el reporte local ejecutando el script de
+              diagnostico en Windows.
+            </p>
+            <p class="helper-copy">
+              Si agregas `OPENAI_API_KEY`, el panel usara OpenAI para clasificar casos y redactar
+              respuestas sugeridas.
+            </p>
+            <form id="newCaseForm">
+              <label>
+                Cliente
+                <input name="clientName" placeholder="Nombre del cliente" required />
+              </label>
+              <label>
+                Contacto
+                <input name="contact" placeholder="Canal o referencia" required />
+              </label>
+              <label>
+                Modelo
+                <input name="deviceModel" placeholder="Equipo o modelo" required />
+              </label>
+              <label>
+                Resumen del problema
+                <textarea
+                  name="summary"
+                  rows="4"
+                  placeholder="Describe el problema del cliente"
+                  required
+                ></textarea>
+              </label>
+              <button type="submit">Crear caso</button>
+            </form>
+          </section>
+        </div>
+
+        <div id="trainingPanel" class="side-panel">
+          <section class="form-card">
+            <h2>Entrenar con chats reales</h2>
+            <p class="helper-copy">
+              Puedes subir un archivo exportado en `txt` o `zip`, o pegar el texto manualmente.
+              La idea es ensenarle como preguntas, respondes y cierras casos con ejemplos reales.
+            </p>
+            <form id="trainingImportForm">
+              <label>
+                Nombre del contacto o chat
+                <input name="contactName" placeholder="Ejemplo: Cliente Peru o Grupo Soporte" required />
+              </label>
+              <label>
+                Tus nombres o aliases
+                <input
+                  name="ownerAliases"
+                  placeholder="Ejemplo: Ariad, Luis, Mesa 1"
+                  required
+                />
+              </label>
+              <label>
+                Fuente
+                <input name="source" placeholder="Ejemplo: WhatsApp 1" value="WhatsApp export" />
+              </label>
+              <label>
+                Nota interna
+                <input name="notes" placeholder="Que quieres recordar de este chat" />
+              </label>
+              <label>
+                Archivo exportado
+                <input
+                  type="file"
+                  name="chatFile"
+                  id="chatFileInput"
+                  accept=".txt,.zip"
+                  hidden
+                />
+                <div id="chatDropzone" class="upload-dropzone" role="button" tabindex="0">
+                  <strong>Arrastra tu archivo aqui</strong>
+                  <span class="muted">o toca para elegir un .txt o .zip</span>
+                  <span id="chatFileName" class="upload-file-name">Ningun archivo seleccionado</span>
+                </div>
+              </label>
+              <label class="inline-check">
+                <input type="checkbox" name="anonymize" checked />
+                Anonimizar telefonos, correos, seriales y enlaces al importar
+              </label>
+              <label>
+                Chat exportado opcional
+                <textarea
+                  name="chatText"
+                  rows="10"
+                  placeholder="Pega aqui el chat exportado en texto o usa el archivo de arriba"
+                ></textarea>
+              </label>
+              <button type="submit">Importar chat</button>
+            </form>
+          </section>
+
+          <section class="form-card">
+            <h2>Como usarlo</h2>
+            <p class="helper-copy">
+              Empieza con 20 a 50 conversaciones representativas. Mezcla ventas, soporte, cobros,
+              seguimiento y cierres. Eso le da a la IA una base mucho mas real que un canal vacio.
+            </p>
+            <div id="trainingSummary" class="training-summary"></div>
+          </section>
+        </div>
+
+        <div id="pricingPanel" class="side-panel">
+          <section class="form-card">
+            <h2>Capturar precio</h2>
+            <p class="helper-copy">
+              Pega aqui una oferta vista en Telegram. El sistema toma el costo, la agrupa por
+              servicio y te calcula un precio sugerido.
+            </p>
+            <form id="pricingOfferForm">
+              <label>
+                Proveedor
+                <input name="supplierName" placeholder="Ejemplo: Proveedor A" required />
+              </label>
+              <label>
+                Servicio
+                <input name="serviceName" placeholder="Ejemplo: Xiaomi Sideload remoto" required />
+              </label>
+              <label>
+                Variante
+                <input name="variant" placeholder="Ejemplo: Slot B o Tool X" />
+              </label>
+              <label>
+                Fuente
+                <input name="source" value="Telegram manual" />
+              </label>
+              <label>
+                Texto u oferta
+                <textarea
+                  name="rawText"
+                  id="pricingRawText"
+                  rows="5"
+                  placeholder="Pega el mensaje con el precio. Ejemplo: Xiaomi remoto 12 USD con Tool X"
+                  required
+                ></textarea>
+              </label>
+              <div id="pricingPreview" class="preview-box is-hidden"></div>
+              <label>
+                Nota interna
+                <input name="notes" placeholder="Algo que quieras recordar de esta oferta" />
+              </label>
+              <button type="submit">Guardar oferta</button>
+            </form>
+          </section>
+
+          <section class="form-card">
+            <h2>Margen comercial</h2>
+            <p class="helper-copy">
+              Define tu regla de venta para que el sistema te diga desde cuanto conviene ofrecer.
+            </p>
+            <form id="pricingConfigForm">
+              <label>
+                Moneda por defecto
+                <input name="defaultCurrency" placeholder="USD" required />
+              </label>
+              <label>
+                Margen %
+                <input name="marginPercent" type="number" step="0.01" required />
+              </label>
+              <label>
+                Margen fijo
+                <input name="fixedMargin" type="number" step="0.01" required />
+              </label>
+              <label>
+                Precio minimo de venta
+                <input name="minimumSalePrice" type="number" step="0.01" required />
+              </label>
+              <label>
+                Redondeo
+                <input name="roundingStep" type="number" step="0.01" required />
+              </label>
+              <button type="submit" class="ghost-button">Guardar margen</button>
+            </form>
+          </section>
+
+          <section class="form-card">
+            <h2>Resumen de precios</h2>
+            <div id="pricingSummary" class="log-list"></div>
+          </section>
+
+          <section class="form-card">
+            <h2>Cambios recientes</h2>
+            <p class="helper-copy">
+              Aqui ves si el ultimo precio que cargaste para un servicio subio, bajo o se mantuvo
+              frente al registro anterior.
+            </p>
+            <div id="pricingMovements" class="log-list"></div>
+          </section>
+        </div>
+
+        <div id="telegramPanel" class="side-panel">
+          <section class="form-card">
+            <h2>Conexion TDLib</h2>
+            <p class="helper-copy">
+              Esta capa usa tu cuenta de Telegram con TDLib para leer chats reales y traerlos al
+              panel como fuente de mercado.
+            </p>
+            <form id="telegramConfigForm">
+              <label>
+                API ID
+                <input name="apiId" placeholder="Tu api_id de Telegram" />
+              </label>
+              <label>
+                API Hash
+                <input name="apiHash" placeholder="Tu api_hash de Telegram" />
+              </label>
+              <label>
+                Numero de telefono
+                <input name="phoneNumber" placeholder="+519..." />
+              </label>
+              <label>
+                Ruta a tdjson.dll
+                <input name="tdjsonDllPath" placeholder="C:\\ruta\\tdjson.dll" />
+              </label>
+              <label>
+                Carpeta de datos local
+                <input name="dataDir" placeholder="C:\\ruta\\telegram-tdlib" />
+              </label>
+              <label>
+                Ruta del puente
+                <input name="bridgeExePath" placeholder="C:\\ruta\\TelegramTdlibBridge.exe" />
+              </label>
+              <button type="submit">Guardar conexion</button>
+            </form>
+            <div id="telegramStatusBox" class="preview-box is-hidden"></div>
+            <div class="action-stack">
+              <button id="telegramRefreshStatusButton" type="button" class="ghost-button">Revisar estado</button>
+              <button id="telegramStartAuthButton" type="button" class="ghost-button">Iniciar autorizacion</button>
+              <button id="telegramDiscoverButton" type="button" class="ghost-button">Descubrir chats</button>
+              <button id="telegramSyncButton" type="button">Sincronizar ahora</button>
+            </div>
+          </section>
+
+          <section class="form-card">
+            <h2>Codigo y seguridad</h2>
+            <p class="helper-copy">
+              Si Telegram te pide codigo o contrasena de dos pasos, envialos desde aqui.
+            </p>
+            <form id="telegramCodeForm">
+              <label>
+                Codigo recibido
+                <input name="code" placeholder="12345" />
+              </label>
+              <button type="submit" class="ghost-button">Enviar codigo</button>
+            </form>
+            <form id="telegramPasswordForm">
+              <label>
+                Contrasena 2FA
+                <input type="password" name="password" placeholder="Tu contrasena de Telegram" />
+              </label>
+              <button type="submit" class="ghost-button">Enviar contrasena</button>
+            </form>
+          </section>
+
+          <section class="form-card">
+            <h2>Fuentes monitoreadas</h2>
+            <div id="telegramSources" class="log-list"></div>
+          </section>
+
+          <section class="form-card">
+            <h2>Mensajes recientes</h2>
+            <div id="telegramMessages" class="log-list"></div>
+          </section>
+        </div>
+
+        <div id="settingsPanel" class="side-panel">
+          <section class="form-card">
+            <h2>Seguridad</h2>
+            <p class="helper-copy">Cambia la contrasena del panel cuando lo necesites.</p>
+            <form id="passwordForm">
+              <label>
+                Contrasena actual
+                <input type="password" name="currentPassword" required />
+              </label>
+              <label>
+                Nueva contrasena
+                <input type="password" name="newPassword" minlength="8" required />
+              </label>
+              <button type="submit" class="ghost-button">Cambiar contrasena</button>
+            </form>
+          </section>
+
+          <section class="form-card">
+            <h2>Equipo</h2>
+            <p class="helper-copy">
+              Crea accesos separados para ti y tu ayudante. Evita compartir una sola contrasena.
+            </p>
+            <form id="teamUserForm">
+              <label>
+                Usuario
+                <input name="username" placeholder="ejemplo: apoyo1" required />
+              </label>
+              <label>
+                Nombre visible
+                <input name="displayName" placeholder="Nombre del miembro" required />
+              </label>
+              <label>
+                Rol
+                <select name="role">
+                  <option value="agent">agent</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              <label>
+                Contrasena inicial
+                <input type="password" name="password" minlength="8" required />
+              </label>
+              <button type="submit" class="ghost-button">Crear usuario</button>
+            </form>
+            <div id="teamUsersList" class="log-list"></div>
+          </section>
+
+          <section class="form-card">
+            <h2>Respaldo</h2>
+            <p class="helper-copy">
+              Crea una copia de la base antes de subir cambios grandes o antes de moverlo a la nube.
+            </p>
+            <button id="createBackupButton" class="ghost-button">Crear respaldo ahora</button>
+            <div id="backupResult" class="helper-copy"></div>
+          </section>
+
+          <section class="form-card">
+            <h2>Perfil de atencion</h2>
+            <p class="helper-copy">
+              Ajusta aqui el tono y las frases base para que la IA responda mas parecido a tu forma
+              de atender.
+            </p>
+            <form id="styleProfileForm">
+              <label>
+                Nombre del negocio
+                <input name="businessName" placeholder="Tu negocio o marca" required />
+              </label>
+              <label>
+                Nombre visible del asistente
+                <input name="agentDisplayName" placeholder="Ejemplo: Soporte Xiaomi" required />
+              </label>
+              <label>
+                Tono
+                <input name="tone" placeholder="Ejemplo: claro, confiable y directo" required />
+              </label>
+              <label>
+                Longitud de respuesta
+                <input name="responseLength" placeholder="breve, media o detallada" required />
+              </label>
+              <label>
+                Frases preferidas
+                <textarea
+                  name="preferredPhrases"
+                  rows="3"
+                  placeholder="Una frase por linea"
+                ></textarea>
+              </label>
+              <label>
+                Frases prohibidas
+                <textarea
+                  name="forbiddenPhrases"
+                  rows="3"
+                  placeholder="Una frase por linea"
+                ></textarea>
+              </label>
+              <label>
+                Responsables disponibles
+                <textarea
+                  name="assignees"
+                  rows="3"
+                  placeholder="Un responsable por linea"
+                ></textarea>
+              </label>
+              <label>
+                Motivos de cierre
+                <textarea
+                  name="closureReasons"
+                  rows="3"
+                  placeholder="Un motivo por linea"
+                ></textarea>
+              </label>
+              <label>
+                Mensaje al recibir caso
+                <textarea name="receivedReply" rows="2" placeholder="Respuesta automatica para caso recibido"></textarea>
+              </label>
+              <label>
+                Mensaje en proceso
+                <textarea name="inProgressReply" rows="2" placeholder="Respuesta automatica cuando el caso avanza"></textarea>
+              </label>
+              <label>
+                Mensaje escalado
+                <textarea name="escalatedReply" rows="2" placeholder="Respuesta automatica cuando se escala"></textarea>
+              </label>
+              <label>
+                Mensaje pendiente del cliente
+                <textarea name="pendingCustomerReply" rows="2" placeholder="Respuesta para pedir dato faltante"></textarea>
+              </label>
+              <label>
+                Mensaje de cierre
+                <textarea name="closedReply" rows="2" placeholder="Respuesta automatica de cierre"></textarea>
+              </label>
+              <label>
+                Nota operativa
+                <textarea
+                  name="notes"
+                  rows="3"
+                  placeholder="Regla clave que la IA siempre debe respetar"
+                ></textarea>
+              </label>
+              <button type="submit" class="ghost-button">Guardar estilo</button>
+            </form>
+          </section>
+        </div>
+      </aside>
+
+      <main class="dashboard">
+        <section class="panel case-column">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Bandeja activa</p>
+              <h2>Casos del dia</h2>
+            </div>
+            <div class="panel-actions">
+              <button id="logoutButton" class="ghost-button">Salir</button>
+              <button id="refreshButton" class="ghost-button">Actualizar</button>
+            </div>
+          </div>
+
+          <section class="filter-bar">
+            <label class="filter-field">
+              Buscar
+              <input id="searchInput" placeholder="Cliente, ticket, modelo o resumen" />
+            </label>
+            <label class="filter-field">
+              Estado
+              <select id="statusFilter">
+                <option value="">Todos</option>
+                <option value="Nuevo">Nuevo</option>
+                <option value="En proceso">En proceso</option>
+                <option value="Escalado">Escalado</option>
+                <option value="Cerrado">Cerrado</option>
+              </select>
+            </label>
+            <label class="filter-field">
+              Categoria
+              <select id="categoryFilter">
+                <option value="">Todas</option>
+                <option value="conexion">conexion</option>
+                <option value="adb">adb</option>
+                <option value="fastboot">fastboot</option>
+              </select>
+            </label>
+            <label class="filter-field">
+              Prioridad
+              <select id="priorityFilter">
+                <option value="">Todas</option>
+                <option value="alta">alta</option>
+                <option value="media">media</option>
+                <option value="baja">baja</option>
+              </select>
+            </label>
+          </section>
+
+          <div id="resultsMeta" class="results-meta"></div>
+          <div id="caseList" class="case-list"></div>
+        </section>
+
+        <section class="panel detail-panel">
+          <div id="caseDetail" class="detail-empty">
+            Selecciona un caso para ver el procedimiento, los mensajes y la evidencia del agente.
+          </div>
+        </section>
+      </main>
+
+      <section id="notificationList" class="notifications-panel"></section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
