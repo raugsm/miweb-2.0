@@ -66,70 +66,15 @@
 
         <div id="trainingPanel" class="side-panel">
           <section class="form-card">
-            <h2>Entrenar con chats reales</h2>
+            <h2>Entrenamiento guiado</h2>
             <p class="helper-copy">
-              Puedes subir un archivo exportado en `txt` o `zip`, o pegar el texto manualmente.
-              La idea es ensenarle como preguntas, respondes y cierras casos con ejemplos reales.
+              Usa el espacio grande de la derecha para subir chats, ver el progreso y revisar lo
+              que el sistema va aprendiendo de tu forma de atender.
             </p>
-            <form id="trainingImportForm">
-              <label>
-                Nombre del contacto o chat
-                <input name="contactName" placeholder="Ejemplo: Cliente Peru o Grupo Soporte" required />
-              </label>
-              <label>
-                Tus nombres o aliases
-                <input
-                  name="ownerAliases"
-                  placeholder="Ejemplo: Ariad, Luis, Mesa 1"
-                  required
-                />
-              </label>
-              <label>
-                Fuente
-                <input name="source" placeholder="Ejemplo: WhatsApp 1" value="WhatsApp export" />
-              </label>
-              <label>
-                Nota interna
-                <input name="notes" placeholder="Que quieres recordar de este chat" />
-              </label>
-              <label>
-                Archivo exportado
-                <input
-                  type="file"
-                  name="chatFile"
-                  id="chatFileInput"
-                  accept=".txt,.zip"
-                  hidden
-                />
-                <div id="chatDropzone" class="upload-dropzone" role="button" tabindex="0">
-                  <strong>Arrastra tu archivo aqui</strong>
-                  <span class="muted">o toca para elegir un .txt o .zip</span>
-                  <span id="chatFileName" class="upload-file-name">Ningun archivo seleccionado</span>
-                </div>
-              </label>
-              <label class="inline-check">
-                <input type="checkbox" name="anonymize" checked />
-                Anonimizar telefonos, correos, seriales y enlaces al importar
-              </label>
-              <label>
-                Chat exportado opcional
-                <textarea
-                  name="chatText"
-                  rows="10"
-                  placeholder="Pega aqui el chat exportado en texto o usa el archivo de arriba"
-                ></textarea>
-              </label>
-              <button type="submit">Importar chat</button>
-            </form>
-          </section>
-
-          <section class="form-card">
-            <h2>Como usarlo</h2>
             <p class="helper-copy">
-              Empieza con 20 a 50 conversaciones representativas. Mezcla ventas, soporte, cobros,
-              seguimiento y cierres. Eso le da a la IA una base mucho mas real que un canal vacio.
+              Empieza con 10 a 20 conversaciones buenas. El sistema detectara patrones, datos que
+              sueles pedir y resultados frecuentes.
             </p>
-            <div id="trainingSummary" class="training-summary"></div>
           </section>
         </div>
 
@@ -442,6 +387,7 @@
       </aside>
 
       <main class="dashboard">
+        <div id="operationsWorkspace" class="workspace-panel active">
         <section class="panel case-column">
           <div class="panel-head">
             <div>
@@ -496,6 +442,99 @@
         <section class="panel detail-panel">
           <div id="caseDetail" class="detail-empty">
             Selecciona un caso para ver el procedimiento, los mensajes y la evidencia del agente.
+          </div>
+        </section>
+        </div>
+
+        <section id="trainingWorkspace" class="panel workspace-panel training-workspace">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Entrenamiento</p>
+              <h2>Ensenarle a la IA con tus chats reales</h2>
+              <p class="helper-copy">
+                Sube una conversacion exportada y deja que el sistema la procese. Cuando termine,
+                veras que tipo de chat detecto, que datos acostumbras pedir y el patron aprendido.
+              </p>
+            </div>
+          </div>
+
+          <div class="training-layout">
+            <section class="detail-card training-upload-card">
+              <form id="trainingImportForm" class="training-upload-form">
+                <div class="training-upload-top">
+                  <input
+                    type="file"
+                    name="chatFile"
+                    id="chatFileInput"
+                    accept=".txt,.zip"
+                    hidden
+                  />
+                  <div id="chatDropzone" class="upload-dropzone upload-dropzone-large" role="button" tabindex="0">
+                    <strong>Arrastra tu archivo aqui</strong>
+                    <span class="muted">o toca para elegir un .txt o .zip</span>
+                    <span id="chatFileName" class="upload-file-name">Ningun archivo seleccionado</span>
+                  </div>
+                </div>
+
+                <div class="training-form-grid">
+                  <label>
+                    Nombre del contacto o chat
+                    <input name="contactName" placeholder="Ejemplo: Cliente Peru o Grupo Soporte" required />
+                  </label>
+                  <label>
+                    Tus nombres o aliases
+                    <input
+                      name="ownerAliases"
+                      placeholder="Ejemplo: Ariad, Luis, Mesa 1"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Fuente
+                    <input name="source" placeholder="Ejemplo: WhatsApp 1" value="WhatsApp export" />
+                  </label>
+                  <label>
+                    Nota interna
+                    <input name="notes" placeholder="Que quieres recordar de este chat" />
+                  </label>
+                </div>
+
+                <label class="inline-check">
+                  <input type="checkbox" name="anonymize" checked />
+                  Anonimizar telefonos, correos, seriales y enlaces al importar
+                </label>
+
+                <details class="training-advanced">
+                  <summary>Modo avanzado: pegar chat manualmente</summary>
+                  <label>
+                    Chat exportado opcional
+                    <textarea
+                      name="chatText"
+                      rows="8"
+                      placeholder="Pega aqui el chat exportado si no quieres subir archivo"
+                    ></textarea>
+                  </label>
+                </details>
+
+                <div id="trainingProgressWrap" class="training-progress is-hidden">
+                  <div class="training-progress-track">
+                    <div id="trainingProgressBar" class="training-progress-bar"></div>
+                  </div>
+                  <p id="trainingStatusText" class="muted">Preparando importacion...</p>
+                </div>
+
+                <div class="action-row training-action-row">
+                  <button type="submit">Procesar conversacion</button>
+                </div>
+              </form>
+
+              <div id="trainingResultBox" class="preview-box is-hidden"></div>
+            </section>
+
+            <section class="detail-card">
+              <h3>Lo que la IA ya esta aprendiendo</h3>
+              <div id="trainingSummary" class="training-summary"></div>
+            </section>
           </div>
         </section>
       </main>
