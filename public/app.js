@@ -47,6 +47,10 @@ const telegramPanel = document.getElementById("telegramPanel");
 const trainingPanel = document.getElementById("trainingPanel");
 const settingsPanel = document.getElementById("settingsPanel");
 const trainingSummary = document.getElementById("trainingSummary");
+const trainingResultBox = document.getElementById("trainingResultBox");
+const trainingProgressWrap = document.getElementById("trainingProgressWrap");
+const trainingProgressBar = document.getElementById("trainingProgressBar");
+const trainingStatusText = document.getElementById("trainingStatusText");
 const refreshButton = document.getElementById("refreshButton");
 const logoutButton = document.getElementById("logoutButton");
 const notificationList = document.getElementById("notificationList");
@@ -54,6 +58,9 @@ const searchInput = document.getElementById("searchInput");
 const statusFilter = document.getElementById("statusFilter");
 const categoryFilter = document.getElementById("categoryFilter");
 const priorityFilter = document.getElementById("priorityFilter");
+const operationsWorkspace = document.getElementById("operationsWorkspace");
+const trainingWorkspace = document.getElementById("trainingWorkspace");
+const pageShell = document.querySelector(".page-shell");
 
 function normalizeChip(value) {
   return String(value || "").replace(/\s+/g, "");
@@ -92,6 +99,119 @@ function setSidebarTab(tab) {
   telegramPanel.classList.toggle("active", showTelegram);
   trainingPanel.classList.toggle("active", showTraining);
   settingsPanel.classList.toggle("active", showSettings);
+  operationsWorkspace?.classList.toggle("active", showOperations);
+  trainingWorkspace?.classList.toggle("active", showTraining);
+  pageShell?.classList.toggle("training-mode", showTraining);
+}
+
+function updateTrainingProgress(percent, message) {
+  if (!trainingProgressWrap || !trainingProgressBar || !trainingStatusText) {
+    return;
+  }
+
+  trainingProgressWrap.classList.remove("is-hidden");
+  trainingProgressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  trainingStatusText.textContent = message || "Procesando...";
+}
+
+function resetTrainingProgress() {
+  if (!trainingProgressWrap || !trainingProgressBar || !trainingStatusText) {
+    return;
+  }
+
+  trainingProgressWrap.classList.add("is-hidden");
+  trainingProgressBar.style.width = "0%";
+  trainingStatusText.textContent = "Preparando importacion...";
+}
+
+function renderTrainingImportResult(data, errorMessage) {
+  if (!trainingResultBox) {
+    return;
+  }
+
+  if (!data && !errorMessage) {
+    trainingResultBox.classList.add("is-hidden");
+    trainingResultBox.innerHTML = "";
+    return;
+  }
+
+  if (errorMessage) {
+    trainingResultBox.classList.remove("is-hidden");
+    trainingResultBox.innerHTML = `
+      <p class="eyebrow">Importacion fallida</p>
+      <p class="muted">${errorMessage}</p>
+    `;
+    return;
+  }
+
+  const summary = data?.summary || {};
+  trainingResultBox.classList.remove("is-hidden");
+  trainingResultBox.innerHTML = `
+    <p class="eyebrow">Conversacion lista</p>
+    <div class="preview-grid">
+      <div>
+        <strong>Contacto</strong>
+        <p class="muted">${summary.contactName || "Sin dato"}</p>
+      </div>
+      <div>
+        <strong>Mensajes</strong>
+        <p class="muted">${summary.messageCount || 0}</p>
+      </div>
+      <div>
+        <strong>Cliente</strong>
+        <p class="muted">${summary.clientMessageCount || 0}</p>
+      </div>
+      <div>
+        <strong>Agente</strong>
+        <p class="muted">${summary.agentMessageCount || 0}</p>
+      </div>
+    </div>
+    <p class="muted">La conversacion ya fue guardada y sumada al aprendizaje del sistema.</p>
+  `;
+}
+
+function uploadJsonWithProgress(url, payload) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Content-Type", "application/json");
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) {
+        updateTrainingProgress(55, "Subiendo archivo...");
+        return;
+      }
+      const ratio = event.total ? event.loaded / event.total : 0;
+      const percent = 12 + Math.round(ratio * 76);
+      updateTrainingProgress(percent, "Subiendo archivo...");
+    };
+
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        updateTrainingProgress(92, "Analizando conversacion...");
+      }
+    };
+
+    xhr.onload = () => {
+      let data = {};
+      try {
+        data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+      } catch (error) {
+        reject(new Error("No pude leer la respuesta del servidor"));
+        return;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        updateTrainingProgress(100, "Conversacion lista");
+        resolve(data);
+      } else {
+        reject(new Error(data.error || "No pude procesar la conversacion"));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("No pude subir el archivo"));
+    xhr.send(JSON.stringify(payload));
+  });
 }
 
 function getFilteredCases() {
@@ -189,7 +309,11 @@ function renderTrainingSummary() {
   }
 
   const summary = state.data.meta?.trainingSummary || {};
+  const insights = state.data.meta?.trainingInsights || {};
   const conversations = state.data.meta?.trainingConversations || [];
+  const topConversationTypes = insights.topConversationTypes || [];
+  const topOutcomes = insights.topOutcomes || [];
+  const topRequestedFields = insights.topRequestedFields || [];
 
   trainingSummary.innerHTML = `
     <div class="training-metrics">
@@ -202,6 +326,36 @@ function renderTrainingSummary() {
         <span>Mensajes guardados</span>
       </article>
     </div>
+    <div class="preview-grid">
+      <div class="preview-card">
+        <p class="eyebrow">Tipos detectados</p>
+        ${
+          topConversationTypes.length
+            ? topConversationTypes
+                .map((item) => `<p><strong>${item.label}</strong> Â· ${item.total}</p>`)
+                .join("")
+            : '<p class="muted">Aun no hay suficientes chats para detectar tipos.</p>'
+        }
+      </div>
+      <div class="preview-card">
+        <p class="eyebrow">Resultados frecuentes</p>
+        ${
+          topOutcomes.length
+            ? topOutcomes.map((item) => `<p><strong>${item.label}</strong> Â· ${item.total}</p>`).join("")
+            : '<p class="muted">Aun no hay suficientes chats para detectar resultados.</p>'
+        }
+      </div>
+      <div class="preview-card">
+        <p class="eyebrow">Datos que sueles pedir</p>
+        ${
+          topRequestedFields.length
+            ? topRequestedFields
+                .map((item) => `<span class="chip chip-soft">${item.label} Â· ${item.total}</span>`)
+                .join("")
+            : '<p class="muted">Todavia no se detectan campos repetidos.</p>'
+        }
+      </div>
+    </div>
     <div class="log-list">
       ${
         conversations.length
@@ -211,6 +365,17 @@ function renderTrainingSummary() {
                   <div class="log-item">
                     <div>
                       <strong>${item.contactName}</strong>
+                      <p class="muted">Tipo: ${item.conversationType || "sin clasificar"} Â· Resultado: ${item.outcome || "sin detectar"} Â· Confianza: ${Math.round((Number(item.confidence || 0) || 0) * 100)}%</p>
+                      ${
+                        item.requestedFields?.length
+                          ? `<p class="muted">Datos pedidos: ${item.requestedFields.join(", ")}</p>`
+                          : ""
+                      }
+                      ${
+                        item.learnedPattern
+                          ? `<p class="muted">Patron detectado: ${item.learnedPattern}</p>`
+                          : ""
+                      }
                       <p class="muted">${item.source} Â· ${item.messageCount} mensajes Â· cliente ${item.clientMessageCount} Â· agente ${item.agentMessageCount}</p>
                       ${
                         item.firstClientMessage
@@ -1116,20 +1281,30 @@ trainingImportForm.addEventListener("submit", async (event) => {
 
   if (hasFile) {
     payload.fileName = file.name;
+    updateTrainingProgress(8, "Preparando archivo...");
     payload.contentBase64 = await readFileAsBase64(file);
   } else {
     payload.chatText = chatText;
   }
 
-  await fetch(hasFile ? "/api/training/import-file" : "/api/training/import", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  trainingImportForm.reset();
-  updateTrainingFileLabel(null);
-  await loadDashboard();
+  try {
+    renderTrainingImportResult(null, null);
+    updateTrainingProgress(hasFile ? 12 : 20, hasFile ? "Subiendo archivo..." : "Enviando conversacion...");
+    const data = await uploadJsonWithProgress(
+      hasFile ? "/api/training/import-file" : "/api/training/import",
+      payload
+    );
+    renderTrainingImportResult(data, null);
+    trainingImportForm.reset();
+    updateTrainingFileLabel(null);
+    await loadDashboard();
+  } catch (error) {
+    renderTrainingImportResult(null, error.message || "No pude importar la conversacion");
+  } finally {
+    window.setTimeout(() => {
+      resetTrainingProgress();
+    }, 900);
+  }
 });
 
 createBackupButton?.addEventListener("click", async () => {
