@@ -167,7 +167,7 @@ function buildPricingMovements(offers = getPriceOffers(200)) {
 function parsePriceText(rawText, fallbackCurrency = "USD") {
   const safeText = String(rawText || "").replace(/,/g, ".");
   const patterns = [
-    /(?:\b(usd|usdt|eur|mxn|cop|clp|pen)\b|\$|s\/|â‚¬)\s*([\d.,]+)/gi,
+    /(?:\b(usd|usdt|eur|mxn|cop|clp|pen)\b|\$|s\/|€)\s*([\d.,]+)/gi,
     /([\d.,]+)\s*(usd|usdt|eur|mxn|cop|clp|pen)\b/gi,
   ];
   const candidates = [];
@@ -186,7 +186,7 @@ function parsePriceText(rawText, fallbackCurrency = "USD") {
           cost,
           currency: String(currency || fallbackCurrency)
             .replace("$", "USD")
-            .replace("â‚¬", "EUR")
+            .replace("€", "EUR")
             .replace(/^S\/$/i, "PEN")
             .toUpperCase(),
         });
@@ -232,8 +232,11 @@ function cleanOfferLine(text) {
 function extractVariant(text) {
   const safeText = String(text || "");
   const patterns = [
+    /\b(?:frp\s*)?(?:sideload|side\s*load)\b/i,
+    /\b(?:auth|autorizaci[oó]n|autorizacion)\b/i,
     /\bslot\s+[a-z0-9]+\b/i,
     /\btool\s+[a-z0-9._-]+\b/i,
+    /\b(?:unlocktool|unlock\s*tool|umt|chimera|hydra|pandora|dft|miko|miflash|mi\s*flash|xiaomi\s*tool)\b/i,
     /\bserver\s+[a-z0-9._-]+\b/i,
     /\bmodalidad\s+[a-z0-9._-]+\b/i,
   ];
@@ -246,6 +249,74 @@ function extractVariant(text) {
   }
 
   return "";
+}
+
+function normalizeSearchText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function hasExplicitPrice(rawText) {
+  return (
+    /(?:\b(usd|usdt|eur|mxn|cop|clp|pen)\b|\$|s\/)\s*[\d.,]+/i.test(rawText) ||
+    /[\d.,]+\s*(?:usd|usdt|eur|mxn|cop|clp|pen)\b/i.test(rawText)
+  );
+}
+
+function isXiaomiFrpOffer(rawText) {
+  const text = normalizeSearchText(rawText);
+  if (!text) {
+    return false;
+  }
+
+  const hasXiaomiContext =
+    /\b(xiaomi|redmi|poco|hyperos|miui)\b/.test(text) ||
+    /\b(sideload|side load|auth|autorizacion|unlocktool|unlock tool|mi flash|xiaomi tool)\b/.test(text);
+  const hasServiceIntent =
+    /\b(frp|sideload|side load|auth|autorizacion|remove|remover|bypass|servicio|creditos?)\b/.test(text);
+  const negativeHints = /\b(no stock|sin stock|agotado|no hay|consulta|pregunta|busco|necesito|quien)\b/.test(text);
+
+  return hasXiaomiContext && hasServiceIntent && hasExplicitPrice(rawText) && !negativeHints;
+}
+
+function detectXiaomiFrpTool(rawText) {
+  const safeText = String(rawText || "");
+  const patterns = [
+    /\bunlock\s*tool\b/i,
+    /\bunlocktool\b/i,
+    /\bumt\b/i,
+    /\bchimera\b/i,
+    /\bhydra\b/i,
+    /\bpandora\b/i,
+    /\bdft\b/i,
+    /\bmiko\b/i,
+    /\bmi\s*flash\b/i,
+    /\bxiaomi\s*tool\b/i,
+    /\bserver\s+[a-z0-9._-]+\b/i,
+    /\btool\s+[a-z0-9._-]+\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = safeText.match(pattern);
+    if (match) {
+      return cleanOfferLine(match[0]).replace(/\s+/g, " ");
+    }
+  }
+
+  return "";
+}
+
+function detectXiaomiFrpService(rawText) {
+  const text = normalizeSearchText(rawText);
+  if (/\bsideload|side load\b/.test(text)) {
+    return "Xiaomi FRP Sideload";
+  }
+  if (/\bauth|autorizacion\b/.test(text)) {
+    return "Xiaomi FRP Auth";
+  }
+  return "Xiaomi FRP";
 }
 
 function inferOfferDetails(rawText, fallbackCurrency = "USD") {
@@ -268,9 +339,11 @@ function inferOfferDetails(rawText, fallbackCurrency = "USD") {
   const firstLine = lines[0] || "";
   const secondLine = lines[1] || "";
   const priceInfo = parsePriceText(safeText, fallbackCurrency);
+  const xiaomiFrp = isXiaomiFrpOffer(safeText);
 
   const supplierMatch =
     safeText.match(/(?:proveedor|supplier|vendor)\s*[:\-]\s*([^\n]+)/i) ||
+    safeText.match(/(?:by|seller|vendedor)\s*[:\-]\s*([^\n]+)/i) ||
     safeText.match(/@([a-z0-9._]+)/i);
 
   const supplierName = supplierMatch
@@ -283,24 +356,46 @@ function inferOfferDetails(rawText, fallbackCurrency = "USD") {
   const serviceName = cleanOfferLine(
     String(serviceBaseLine || "")
       .replace(/\b(usd|usdt|eur|mxn|cop|clp|pen)\b/gi, "")
-      .replace(/[$â‚¬]/g, "")
+      .replace(/[$€]/g, "")
       .replace(/\b\d+([.,]\d+)?\b/g, "")
   );
 
   return {
     supplierName,
-    serviceName,
-    variant: extractVariant(safeText),
+    serviceName: xiaomiFrp ? detectXiaomiFrpService(safeText) : serviceName,
+    variant: xiaomiFrp
+      ? [detectXiaomiFrpTool(safeText), extractVariant(safeText)]
+          .filter(Boolean)
+          .filter((value, index, array) => array.indexOf(value) === index)
+          .join(" - ")
+      : extractVariant(safeText),
     cost: priceInfo.cost,
     currency: priceInfo.currency,
+    serviceFamily: xiaomiFrp ? "xiaomi_frp" : "generic",
+    confidence: xiaomiFrp ? 0.9 : serviceName ? 0.55 : 0.25,
   };
 }
 
+function buildXiaomiFrpPricingBoard(offers = getPriceOffers(300), config = readPricingConfig()) {
+  return buildPricingSummary(
+    offers.filter((offer) => {
+      const text = `${offer.serviceName} ${offer.variant || ""} ${offer.rawText || ""}`;
+      return isXiaomiFrpOffer(text) || normalizeSearchText(offer.serviceName).includes("xiaomi frp");
+    }),
+    config
+  ).map((item) => ({
+    ...item,
+    serviceFamily: "xiaomi_frp",
+  }));
+}
+
 module.exports = {
+  buildXiaomiFrpPricingBoard,
   buildPricingMovements,
   buildPricingSummary,
   calculateSuggestedSale,
   inferOfferDetails,
+  isXiaomiFrpOffer,
   parsePriceText,
   readPricingConfig,
   updatePricingConfig,
