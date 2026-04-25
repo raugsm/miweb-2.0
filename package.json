@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Panel local de soporte, entrenamiento comercial y monitor de precios con integracion preparada para Telegram TDLib.",
-  "main": "server.js",
+  "main": "server-wrapper.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server-wrapper.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
