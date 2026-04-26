@@ -21,6 +21,30 @@ if (-not $ConfigPath) {
   $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
 }
 
+$DefaultSkipLearningChatPatterns = @(
+  "^Pagos?\s+(Mexico|M\.xico|M.xico|Chile|Colombia|Peru|Per.)\b.*$",
+  "^Pagos?\s+(MX|CL|CO|PE)\b.*$"
+)
+
+function Read-LearningConfig {
+  if (Test-Path -LiteralPath $ConfigPath) {
+    try {
+      return Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    } catch {
+      return $null
+    }
+  }
+  return $null
+}
+
+$learningConfig = Read-LearningConfig
+$script:SkipLearningChatPatterns = @($DefaultSkipLearningChatPatterns)
+foreach ($pattern in @($learningConfig.autopilot.skipLearningChats)) {
+  if ($pattern) {
+    $script:SkipLearningChatPatterns += [string]$pattern
+  }
+}
+
 Add-Type -AssemblyName System.Windows.Forms
 
 $mouseApi = @"
@@ -58,6 +82,8 @@ function Test-LearningCandidate {
 
   $blocked = @(
     "^WhatsApp( Business)?$",
+    "^WhatsApp\s+\d+:?$",
+    "^ARIADGSM\s+WhatsApp\b",
     "^Buscar",
     "^Todos$",
     "^Archivados$",
@@ -98,6 +124,10 @@ function Test-LearningCandidate {
 
   foreach ($pattern in $blocked) {
     if ($text -match $pattern) { return $false }
+  }
+
+  foreach ($pattern in @($script:SkipLearningChatPatterns)) {
+    if ($pattern -and $text -match $pattern) { return $false }
   }
 
   return $true

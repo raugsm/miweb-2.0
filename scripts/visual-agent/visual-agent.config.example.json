@@ -11,6 +11,10 @@
         "name": "WhatsApp",
         "command": "whatsapp:"
       }
+    ],
+    "skipLearningChats": [
+      "^Pagos?\\s+(Mexico|M\\.xico|M.xico|Chile|Colombia|Peru|Per.)\\b.*$",
+      "^Pagos?\\s+(MX|CL|CO|PE)\\b.*$"
     ]
   },
   "channels": [

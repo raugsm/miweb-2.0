@@ -76,6 +76,8 @@ Por seguridad, el nivel actual sigue siendo de lectura. El autopiloto puede move
 
 Por defecto, el boton **Autopiloto** ya no abre una pestana nueva de Chrome ni reacomoda ventanas. Las opciones `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
+El aprendizaje profundo excluye grupos contables repetitivos como `Pagos Mexico`, `Pagos Chile` y `Pagos Colombia`. Pueden aparecer como señales contables en capturas normales, pero el mouse no los abre para entrenar estilo de cliente/servicio.
+
 Para una prueba sin mover mouse ni enviar datos:
 
 ```powershell

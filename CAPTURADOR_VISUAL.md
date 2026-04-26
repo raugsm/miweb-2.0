@@ -41,6 +41,8 @@ En cada ciclo respeta los WhatsApp que ya dejaste alineados, captura pantalla, a
 
 El boton **Autopiloto** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
+El aprendizaje profundo no abre grupos como `Pagos Mexico`, `Pagos Chile` o `Pagos Colombia`, porque aportan poco al estilo de clientes y servicios. Se dejan fuera por reglas configurables en `autopilot.skipLearningChats`.
+
 Preview seguro:
 
 ```powershell
