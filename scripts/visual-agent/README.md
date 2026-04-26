@@ -13,8 +13,8 @@ En esta fase el agente no responde clientes, no mueve procesos y no toma decisio
 ## Preparacion
 
 1. Copia `visual-agent.config.example.json` como `visual-agent.config.json`.
-2. En Railway agrega una variable llamada `OPERATIVA_AGENT_TOKEN`.
-3. Usa el mismo token en `visual-agent.config.json`.
+2. En Railway agrega una variable llamada `OPERATIVA_AGENT_KEY`.
+3. Usa el mismo valor como `agentToken` en `visual-agent.config.json`.
 4. Coloca archivos `.json` dentro de `inbox`.
 5. Ejecuta el agente con Node.
 
