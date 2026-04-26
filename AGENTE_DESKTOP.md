@@ -61,18 +61,19 @@ Todavia no escribe mensajes ni envia respuestas a clientes.
 El boton **Modo vivo** inicia un proceso local oculto:
 
 ```text
-scripts\visual-agent\visual-autopilot.ps1
+scripts\visual-agent\agent-local.py
 ```
 
 El flujo del modo vivo es:
 
 1. respeta los 3 WhatsApp que ya dejaste alineados;
-2. captura pantalla y lee OCR;
-3. toma una decision local rapida sobre pago/deuda/precio sin esperar a la nube;
-4. si encuentra una accion, busca el chat visible y lo abre;
-5. sube eventos a `ariadgsm.com` para historial y cabina;
-6. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
-7. repite el ciclo cada 3 a 5 segundos por defecto.
+2. ejecuta el motor local Python `scripts/visual-agent/agent-local.py`;
+3. captura pantalla y lee OCR;
+4. toma una decision local rapida sobre pago/deuda/precio sin esperar a la nube;
+5. si encuentra una accion, busca el chat visible y lo abre;
+6. sube eventos a `ariadgsm.com` para historial y cabina;
+7. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
+8. repite el ciclo cada 3 a 5 segundos por defecto.
 
 Por seguridad, el nivel actual sigue siendo de lectura. El modo vivo puede mover el mouse y abrir chats, pero no escribe ni envia mensajes.
 
@@ -86,20 +87,22 @@ El modo vivo no hace scroll de aprendizaje. Cuando necesitas entrenar la IA con 
 
 La ventana principal muestra una seccion **Que paso**. Ahi explica si el modo vivo detecto algo localmente, que texto uso, que busquedas intento y por que no movio el mouse cuando no encontro una fila visible.
 
-La decision local usa reglas rapidas primero para no perder velocidad. Si esta PC tiene `OPENAI_API_KEY` configurada, el modo vivo tambien puede pedir una decision OpenAI directa sobre el OCR reciente cuando las reglas no ven una accion clara, sin esperar a que la nube procese la captura.
+La decision local usa reglas rapidas en Python primero para no perder velocidad. Si esta PC tiene `OPENAI_API_KEY` configurada, el modo vivo tambien puede pedir una decision OpenAI directa sobre el OCR reciente cuando las reglas no ven una accion clara, sin esperar a que la nube procese la captura.
+
+PowerShell queda como lanzador y puente de Windows. El ciclo vivo, el estado y la decision principal ya viven en Python.
 
 El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.
 
 Para una prueba sin mover mouse ni enviar datos:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1
+python .\scripts\visual-agent\agent-local.py --mode Live --max-cycles 1
 ```
 
 Para correr un ciclo real manual:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send
+python .\scripts\visual-agent\agent-local.py --mode Live --max-cycles 1 --execute --send
 ```
 
 El boton **Detener** apaga tanto el observador como el modo vivo.

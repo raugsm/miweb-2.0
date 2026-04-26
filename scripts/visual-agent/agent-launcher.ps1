@@ -13,6 +13,7 @@ $CaptureScript = Join-Path $ScriptDir "visual-screen-capture.ps1"
 $IntentBridgeScript = Join-Path $ScriptDir "visual-intent-bridge.ps1"
 $LearningPassScript = Join-Path $ScriptDir "visual-chat-learning-pass.ps1"
 $AutopilotScript = Join-Path $ScriptDir "visual-autopilot.ps1"
+$PythonAgentScript = Join-Path $ScriptDir "agent-local.py"
 $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
 $PidFile = Join-Path $RuntimeDir "agent-watch.pid"
@@ -33,6 +34,24 @@ function Get-PowerShellPath {
     return $systemPath
   }
   return (Get-Command powershell.exe -ErrorAction Stop).Source
+}
+
+function Get-PythonPath {
+  if ($env:ARIADGSM_PYTHON -and (Test-Path -LiteralPath $env:ARIADGSM_PYTHON)) {
+    return $env:ARIADGSM_PYTHON
+  }
+
+  $codexPython = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+  if (Test-Path -LiteralPath $codexPython) {
+    return $codexPython
+  }
+
+  $python = Get-Command python.exe -ErrorAction SilentlyContinue
+  if ($python) {
+    return $python.Source
+  }
+
+  throw "No encontre Python. Instala Python o define ARIADGSM_PYTHON con la ruta de python.exe."
 }
 
 function Quote-ProcessArgument {
@@ -180,6 +199,7 @@ function Get-AgentStatus {
     LatestError = $latestError
     LatestAutopilotError = $latestAutopilotError
     LatestAutopilotMode = if ($latestAutopilotState) { $latestAutopilotState.Mode } else { $null }
+    LatestAutopilotEngine = if ($latestAutopilotState -and $latestAutopilotState.Engine) { $latestAutopilotState.Engine } else { "powershell" }
     LatestAutopilotCycle = if ($latestAutopilotState) { $latestAutopilotState.Cycle } else { $null }
     LatestAutopilotStatus = if ($latestAutopilotState) { $latestAutopilotState.Status } else { $null }
     LatestAutopilotFinishedAt = if ($latestAutopilotState) { $latestAutopilotState.FinishedAt } else { $null }
@@ -222,13 +242,13 @@ function Get-AgentDiagnosisText {
     return ($lines -join "`r`n")
   }
 
-  $lines += "Ultimo ciclo: modo $($Status.LatestAutopilotMode), estado $($Status.LatestAutopilotStatus), lineas utiles $($Status.LatestAutopilotLines)."
+  $lines += "Ultimo ciclo: motor $($Status.LatestAutopilotEngine), modo $($Status.LatestAutopilotMode), estado $($Status.LatestAutopilotStatus), lineas utiles $($Status.LatestAutopilotLines)."
   if ($null -ne $Status.LatestBasePublished) {
     $lines += "Publicacion nube: " + $(if ($Status.LatestBasePublished) { "completada despues de decidir localmente." } else { "fallo o quedo pendiente." })
   }
 
   if ($Status.LatestLocalDecision -eq "local_match") {
-    $sourceLabel = if ($Status.LatestLocalSource -eq "openai_local") { "OpenAI local" } else { "reglas rapidas" }
+    $sourceLabel = if ($Status.LatestLocalSource -in @("openai_local", "python_openai")) { "OpenAI local" } elseif ($Status.LatestLocalSource -eq "python_rules") { "Python reglas rapidas" } else { "reglas rapidas" }
     $lines += "Decision local ($sourceLabel): detecte $($Status.LatestLocalLabel) en $($Status.LatestLocalChannel)."
     if ($Status.LatestLocalText) {
       $lines += "Texto: $($Status.LatestLocalText)"
@@ -334,15 +354,16 @@ function Start-Autopilot {
     throw $configStatus.Message
   }
 
-  if (-not (Test-Path -LiteralPath $AutopilotScript)) {
-    throw "No encontre visual-autopilot.ps1"
+  if (-not (Test-Path -LiteralPath $PythonAgentScript)) {
+    throw "No encontre agent-local.py"
   }
 
+  $pythonPath = Get-PythonPath
   $runner = Join-Path $RuntimeDir "agent-autopilot-runner.ps1"
   $livePollSeconds = [Math]::Max(3, [Math]::Min(5, $PollSeconds))
   @(
     '$ErrorActionPreference = "Continue"',
-    "& '$AutopilotScript' -Mode Live -Watch -MaxCycles 0 -PollSeconds $livePollSeconds -LiveMinPollSeconds 3 -Execute -Send -LearningEveryCycles 0 -IntentMaxQueries 2 -IntentWaitSeconds 0.35 -MaxLinesPerCapture 16 *>> '$AutopilotOutLog'"
+    "& '$pythonPath' '$PythonAgentScript' --mode Live --watch --max-cycles 0 --poll-seconds $livePollSeconds --live-min-poll-seconds 3 --execute --send --learning-every-cycles 0 --intent-max-queries 2 --intent-wait-seconds 0.35 --max-lines-per-capture 16 *>> '$AutopilotOutLog'"
   ) | Set-Content -LiteralPath $runner -Encoding UTF8
 
   $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
@@ -487,13 +508,15 @@ function Invoke-AutopilotOnce {
   if (-not $configStatus.Configured) {
     throw $configStatus.Message
   }
-  if (-not (Test-Path -LiteralPath $AutopilotScript)) {
-    throw "No encontre visual-autopilot.ps1"
+  if (-not (Test-Path -LiteralPath $PythonAgentScript)) {
+    throw "No encontre agent-local.py"
   }
 
   $autoOut = Join-Path $RuntimeDir ("autopilot-once-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
   $autoErr = Join-Path $RuntimeDir ("autopilot-once-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
-  $process = Start-HiddenProcess -Arguments @("-File", $AutopilotScript, "-Mode", "Live", "-MaxCycles", "1", "-Execute", "-Send", "-LearningEveryCycles", "0", "-IntentMaxQueries", "2", "-IntentWaitSeconds", "0.35", "-MaxLinesPerCapture", "16") -CaptureOutput
+  $pythonPath = Get-PythonPath
+  $command = "& '$pythonPath' '$PythonAgentScript' --mode Live --max-cycles 1 --execute --send --learning-every-cycles 0 --intent-max-queries 2 --intent-wait-seconds 0.35 --max-lines-per-capture 16"
+  $process = Start-HiddenProcess -Arguments @("-Command", $command) -CaptureOutput
   $stdout = $process.StandardOutput.ReadToEnd()
   $stderr = $process.StandardError.ReadToEnd()
   $process.WaitForExit()
@@ -751,7 +774,7 @@ function Start-AgentGui {
         "Nube: $($status.CloudUrl)",
         "Ultima captura: $($status.LatestCapture)",
         "Ultimo envio procesado: $($status.LatestProcessed)",
-        "Ultimo modo: $($status.LatestAutopilotMode) ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
+        "Ultimo modo: $($status.LatestAutopilotMode) motor $($status.LatestAutopilotEngine) ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
         "Publicacion nube: $($status.LatestBasePublished)",
         "Decision local: $($status.LatestLocalDecision) $($status.LatestLocalSource) $($status.LatestLocalLabel) $($status.LatestLocalChannel)",
         "Logs: $($status.RuntimeDir)"

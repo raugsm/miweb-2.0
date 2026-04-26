@@ -2,7 +2,7 @@
 
 Esta carpeta es el primer puente entre la PC que observa WhatsApp y la cabina en la nube.
 
-En esta fase el agente no responde clientes, no mueve procesos y no toma decisiones finales. Solo envia eventos nuevos a la cabina:
+En esta fase el agente no responde clientes ni toma decisiones finales de negocio. El modo vivo si puede decidir localmente que chat conviene abrir y envia eventos nuevos a la cabina:
 
 - mensajes detectados
 - pagos o comprobantes detectados
@@ -23,6 +23,16 @@ En esta fase el agente no responde clientes, no mueve procesos y no toma decisio
 ```powershell
 node .\scripts\visual-agent\visual-agent.js --once
 ```
+
+## Modo vivo local
+
+El modo vivo nuevo usa Python como cerebro del ciclo local:
+
+```powershell
+python .\scripts\visual-agent\agent-local.py --mode Live --max-cycles 1 --send
+```
+
+El launcher busca Python en este orden: `ARIADGSM_PYTHON`, runtime local de Codex y luego `python.exe` del sistema. PowerShell se mantiene como puente para OCR/mouse de Windows mientras esas piezas se migran.
 
 ## Ejecutar en observacion continua
 

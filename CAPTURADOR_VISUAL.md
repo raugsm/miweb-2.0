@@ -34,12 +34,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\install-agent-la
 El modo vivo coordina las piezas locales en ciclos rapidos:
 
 ```text
-scripts\visual-agent\visual-autopilot.ps1
+scripts\visual-agent\agent-local.py
 ```
 
-En cada ciclo respeta los WhatsApp que ya dejaste alineados, captura pantalla, toma una decision local rapida sobre pago/deuda/precio y atiende alertas clasificadas. No hace aprendizaje profundo ni scroll largo mientras trabaja en vivo. No escribe mensajes al cliente.
+En cada ciclo el motor Python respeta los WhatsApp que ya dejaste alineados, captura pantalla, toma una decision local rapida sobre pago/deuda/precio y atiende alertas clasificadas. No hace aprendizaje profundo ni scroll largo mientras trabaja en vivo. No escribe mensajes al cliente.
 
-La decision local usa el OCR recien capturado, antes de esperar la ida y vuelta con la nube. Primero aplica reglas rapidas; si `OPENAI_API_KEY` existe en esta PC, puede usar OpenAI como segundo escalon cuando no hay senal clara. Si detecta algo pero no encuentra una fila visible para abrir, el launcher lo muestra en **Que paso** con el texto y las busquedas intentadas.
+La decision local usa el OCR recien capturado, antes de esperar la ida y vuelta con la nube. Primero aplica reglas rapidas en `agent-local.py`; si `OPENAI_API_KEY` existe en esta PC, puede usar OpenAI como segundo escalon cuando no hay senal clara. Si detecta algo pero no encuentra una fila visible para abrir, el launcher lo muestra en **Que paso** con el texto y las busquedas intentadas.
 
 El boton **Modo vivo** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
@@ -50,13 +50,13 @@ El aprendizaje de conversaciones queda separado en el boton **Aprender chats**. 
 Preview seguro:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1
+python .\scripts\visual-agent\agent-local.py --mode Live --max-cycles 1
 ```
 
 Ciclo real:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send
+python .\scripts\visual-agent\agent-local.py --mode Live --max-cycles 1 --execute --send
 ```
 
 El launcher tiene el boton **Modo vivo** para dejarlo corriendo en segundo plano. **Detener** lo apaga.
