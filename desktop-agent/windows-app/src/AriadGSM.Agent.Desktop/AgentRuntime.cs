@@ -1,16 +1,19 @@
 using System.Diagnostics;
+using System.Drawing;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Windows.Forms;
 
 namespace AriadGSM.Agent.Desktop;
 
 internal sealed class AgentRuntime : IDisposable
 {
     private const string DefaultUpdateManifestUrl = "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/ariadgsm-update.json";
+    private const int ShowWindowRestore = 9;
     private static readonly TimeSpan ToolResolveTtl = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan RunningStateStaleAfter = TimeSpan.FromSeconds(45);
     private readonly List<ManagedProcess> _processes = [];
@@ -444,6 +447,84 @@ internal sealed class AgentRuntime : IDisposable
         }
     }
 
+    public async Task<PreflightReport> PrepareWhatsAppWorkspaceAsync(TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.Now + timeout;
+        WriteLog("Autonomous bootstrap: preparing WhatsApp 1/2/3.");
+
+        while (DateTimeOffset.Now < deadline)
+        {
+            var windows = VisibleWindows();
+            var missing = ReadChannelMappings()
+                .Where(mapping => !FindMatchingWindows(windows, mapping).Any())
+                .Select(mapping => mapping.ChannelId)
+                .ToArray();
+
+            if (missing.Length == 0)
+            {
+                ArrangeWhatsAppWorkspace();
+                WriteLog("Autonomous bootstrap: all WhatsApp channels are visible and arranged.");
+                return Preflight();
+            }
+
+            WriteLog($"Autonomous bootstrap: missing {string.Join(", ", missing)}. Opening required browsers.");
+            OpenMissingWhatsApps();
+            await Task.Delay(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
+        }
+
+        ArrangeWhatsAppWorkspace();
+        var finalReport = Preflight();
+        var stillMissing = finalReport.Items
+            .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase)
+                && item.Severity == HealthSeverity.Warning)
+            .Select(item => item.Name)
+            .ToArray();
+        WriteLog(stillMissing.Length == 0
+            ? "Autonomous bootstrap: WhatsApp workspace ready after wait."
+            : $"Autonomous bootstrap: still needs attention: {string.Join(", ", stillMissing)}.");
+        return finalReport;
+    }
+
+    public void ArrangeWhatsAppWorkspace()
+    {
+        var mappings = ReadChannelMappings().ToArray();
+        var windows = VisibleWindows();
+        var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1600, 900);
+        var columnWidth = Math.Max(500, area.Width / Math.Max(1, mappings.Length));
+        var arranged = 0;
+
+        for (var index = 0; index < mappings.Length; index++)
+        {
+            var mapping = mappings[index];
+            var window = FindMatchingWindows(windows, mapping).FirstOrDefault();
+            if (window is null)
+            {
+                continue;
+            }
+
+            var left = area.Left + (index * columnWidth);
+            var width = index == mappings.Length - 1
+                ? area.Right - left
+                : columnWidth;
+            try
+            {
+                ShowWindow(window.Handle, ShowWindowRestore);
+                MoveWindow(window.Handle, left, area.Top, width, area.Height, repaint: true);
+                arranged++;
+                WriteLog($"{mapping.ChannelId}: arranged {window.ProcessName} #{window.ProcessId} at column {index + 1}.");
+            }
+            catch (Exception exception)
+            {
+                WriteLog($"{mapping.ChannelId}: could not arrange window: {exception.Message}");
+            }
+        }
+
+        if (arranged == 0)
+        {
+            WriteLog("Autonomous bootstrap: no WhatsApp windows available to arrange.");
+        }
+    }
+
     public void OpenPanel()
     {
         Process.Start(new ProcessStartInfo
@@ -729,7 +810,7 @@ internal sealed class AgentRuntime : IDisposable
     private ProcessSpec? ResolveWorker(string packagedExe, string projectPath, string configPath, bool once)
     {
         var exePath = ResolvePackagedPath(packagedExe);
-        var config = Path.Combine(_repoRoot, configPath);
+        var config = ResolveConfigPath(configPath);
         if (File.Exists(exePath))
         {
             var args = once ? new[] { config, "--once" } : new[] { config };
@@ -750,6 +831,15 @@ internal sealed class AgentRuntime : IDisposable
         }
 
         return new ProcessSpec(dotnet, arguments, _repoRoot);
+    }
+
+    private string ResolveConfigPath(string configPath)
+    {
+        var fileName = Path.GetFileName(configPath).Replace(".example", string.Empty, StringComparison.OrdinalIgnoreCase);
+        var packagedConfig = Path.Combine(AppContext.BaseDirectory, "config", fileName);
+        return File.Exists(packagedConfig)
+            ? packagedConfig
+            : Path.Combine(_repoRoot, configPath);
     }
 
     private string ResolvePackagedPath(string packagedPath)
@@ -1353,7 +1443,7 @@ internal sealed class AgentRuntime : IDisposable
 
     private IReadOnlyList<ChannelMapping> ReadChannelMappings()
     {
-        var path = Path.Combine(_repoRoot, "desktop-agent", "perception-engine", "config", "perception.example.json");
+        var path = ResolveConfigPath(Path.Combine("desktop-agent", "perception-engine", "config", "perception.example.json"));
         if (!File.Exists(path))
         {
             return DefaultChannelMappings();
@@ -1428,11 +1518,11 @@ internal sealed class AgentRuntime : IDisposable
             try
             {
                 using var process = Process.GetProcessById((int)processId);
-                windows.Add(new WindowInfo((int)processId, process.ProcessName, title));
+                windows.Add(new WindowInfo(handle, (int)processId, process.ProcessName, title));
             }
             catch
             {
-                windows.Add(new WindowInfo((int)processId, "unknown", title));
+                windows.Add(new WindowInfo(handle, (int)processId, "unknown", title));
             }
 
             return true;
@@ -1661,13 +1751,19 @@ internal sealed class AgentRuntime : IDisposable
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
+    [DllImport("user32.dll")]
+    private static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int command);
+
     private sealed record ManagedProcess(string Name, Process Process);
 
     private sealed record ProcessSpec(string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory);
 
     private sealed record ChannelMapping(string ChannelId, string BrowserProcess, string TitleContains);
 
-    private sealed record WindowInfo(int ProcessId, string ProcessName, string Title);
+    private sealed record WindowInfo(IntPtr Handle, int ProcessId, string ProcessName, string Title);
 }
 
 internal enum HealthSeverity

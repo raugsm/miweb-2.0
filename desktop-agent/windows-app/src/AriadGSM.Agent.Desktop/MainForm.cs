@@ -272,18 +272,16 @@ internal sealed class MainForm : Form
             return;
         }
 
-        if (autonomous && HasMissingWhatsApps(report))
+        if (autonomous)
         {
-            AppendLog("Faltan uno o mas WhatsApp visibles. Intento prepararlos automaticamente.");
-            _runtime.OpenMissingWhatsApps();
-            await Task.Delay(TimeSpan.FromSeconds(6)).ConfigureAwait(true);
-            report = _runtime.Preflight();
+            AppendLog("Bootstrap autonomo: preparo WhatsApp 1/2/3 antes de arrancar motores.");
+            report = await _runtime.PrepareWhatsAppWorkspaceAsync(TimeSpan.FromSeconds(35)).ConfigureAwait(true);
             RefreshStatus(report);
         }
 
-        if (report.HasBlockingErrors)
+        if (report.HasBlockingErrors || (autonomous && HasMissingWhatsApps(report)))
         {
-            AppendLog("Arranque bloqueado despues de preparar entorno. Revisa el panel amarillo.");
+            AppendLog("Arranque bloqueado despues de preparar entorno. Revisa el panel amarillo; puede faltar login QR o navegador.");
             BringControlCenterToFront();
             return;
         }

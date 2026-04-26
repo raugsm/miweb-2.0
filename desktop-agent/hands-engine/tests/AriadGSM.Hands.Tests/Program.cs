@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AriadGSM.Hands.Config;
 using AriadGSM.Hands.Events;
+using AriadGSM.Hands.Execution;
 using AriadGSM.Hands.Pipeline;
 using AriadGSM.Hands.Planning;
 using AriadGSM.Hands.Safety;
@@ -175,6 +176,28 @@ static async Task TestPipelineWritesAndDedupes()
         var second = await pipeline.RunOnceAsync();
         Assert(second.Status == "idle", "second pipeline run should dedupe existing actions");
         Assert(second.ActionsSkipped >= first.ActionsWritten, "second run should skip known action ids");
+
+        var executor = new RecordingExecutor();
+        var executeOptions = new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            ActionEventsFile = actions,
+            StateFile = state,
+            AutonomyLevel = 3,
+            ExecuteActions = true,
+            DecisionLimit = 10,
+            PerceptionLimit = 10
+        };
+
+        var executePipeline = new HandsPipeline(executeOptions, executor);
+        var execute = await executePipeline.RunOnceAsync();
+        Assert(execute.Status == "ok", "execute mode should not be deduped by previous dry-run events");
+        Assert(executor.Count > 0, "execute mode should call the executor");
+        var executeLines = await File.ReadAllLinesAsync(actions);
+        Assert(executeLines.Any(line => line.Contains("\"executionMode\":\"execute\"", StringComparison.Ordinal)),
+            "execute events should be audited with executionMode=execute");
     }
     finally
     {
@@ -203,5 +226,16 @@ static void Assert(bool condition, string message)
     if (!condition)
     {
         throw new InvalidOperationException(message);
+    }
+}
+
+internal sealed class RecordingExecutor : IHandsExecutor
+{
+    public int Count { get; private set; }
+
+    public ValueTask<ExecutionResult> ExecuteAsync(ActionPlan plan, CancellationToken cancellationToken = default)
+    {
+        Count++;
+        return ValueTask.FromResult(new ExecutionResult("executed", $"Recorded {plan.ActionType}.", 0.95));
     }
 }

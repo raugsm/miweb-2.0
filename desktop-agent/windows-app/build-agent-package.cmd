@@ -29,6 +29,7 @@ mkdir "%DIST%" >nul 2>&1
 mkdir "%DIST%\engines\vision" >nul 2>&1
 mkdir "%DIST%\engines\perception" >nul 2>&1
 mkdir "%DIST%\engines\hands" >nul 2>&1
+mkdir "%DIST%\config" >nul 2>&1
 mkdir "%DIST%\updater" >nul 2>&1
 
 echo Building AriadGSM Agent Desktop...
@@ -61,6 +62,10 @@ dotnet restore "%ROOT%\desktop-agent\hands-engine\src\AriadGSM.Hands.Worker\Aria
 if errorlevel 1 exit /b 1
 dotnet publish "%ROOT%\desktop-agent\hands-engine\src\AriadGSM.Hands.Worker\AriadGSM.Hands.Worker.csproj" -c Release -r win-x64 --self-contained false -o "%DIST%\engines\hands" /p:Version=%AGENT_VERSION% /p:AssemblyVersion=%AGENT_FILE_VERSION% /p:FileVersion=%AGENT_FILE_VERSION% /p:InformationalVersion=%AGENT_VERSION%+%GIT_COMMIT%
 if errorlevel 1 exit /b 1
+
+copy /y "%ROOT%\desktop-agent\vision-engine\config\vision.example.json" "%DIST%\config\vision.json" >nul
+copy /y "%ROOT%\desktop-agent\perception-engine\config\perception.example.json" "%DIST%\config\perception.json" >nul
+copy /y "%ROOT%\desktop-agent\hands-engine\config\hands.example.json" "%DIST%\config\hands.json" >nul
 
 >"%DIST%\ariadgsm-version.json" echo {
 >>"%DIST%\ariadgsm-version.json" echo   "appId": "ariadgsm-agent",

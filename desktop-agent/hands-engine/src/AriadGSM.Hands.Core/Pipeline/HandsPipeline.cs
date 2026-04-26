@@ -67,8 +67,9 @@ public sealed class HandsPipeline
                 foreach (var plan in _planner.Plan(decision))
                 {
                     var enrichedPlan = EnrichPlanWithPerception(plan, perception);
+                    var scopedActionId = ScopedActionId(enrichedPlan.ActionId);
                     _actionsPlanned++;
-                    if (existingIds.Contains(enrichedPlan.ActionId))
+                    if (existingIds.Contains(scopedActionId))
                     {
                         _actionsSkipped++;
                         continue;
@@ -81,6 +82,7 @@ public sealed class HandsPipeline
                         _actionsBlocked++;
                         actionEvent = CreateActionEvent(
                             enrichedPlan,
+                            scopedActionId,
                             "blocked",
                             new ActionVerification(false, safety.Reason, 0),
                             safety.Reason,
@@ -105,6 +107,7 @@ public sealed class HandsPipeline
 
                         actionEvent = CreateActionEvent(
                             enrichedPlan,
+                            scopedActionId,
                             finalStatus,
                             verification,
                             safety.Reason,
@@ -234,6 +237,7 @@ public sealed class HandsPipeline
 
     private ActionEvent CreateActionEvent(
         ActionPlan plan,
+        string actionId,
         string status,
         ActionVerification verification,
         string safetyReason,
@@ -241,6 +245,8 @@ public sealed class HandsPipeline
     {
         var target = new Dictionary<string, object?>(plan.Target, StringComparer.OrdinalIgnoreCase)
         {
+            ["baseActionId"] = plan.ActionId,
+            ["executionMode"] = _options.ExecuteActions ? "execute" : "plan",
             ["requiredAutonomyLevel"] = plan.RequiredAutonomyLevel,
             ["handsAutonomyLevel"] = _options.AutonomyLevel,
             ["executeActions"] = _options.ExecuteActions,
@@ -250,12 +256,17 @@ public sealed class HandsPipeline
 
         return new ActionEvent(
             "action_event",
-            plan.ActionId,
+            actionId,
             DateTimeOffset.UtcNow,
             plan.ActionType,
             target,
             status,
             verification);
+    }
+
+    private string ScopedActionId(string baseActionId)
+    {
+        return $"{baseActionId}-{(_options.ExecuteActions ? "exec" : "plan")}";
     }
 
     private HandsHealthState CreateState(string status, string summary, string error)
