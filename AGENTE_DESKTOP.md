@@ -4,7 +4,19 @@ Aplicacion local para controlar el observador visual de los 3 WhatsApp sin escri
 
 ## Abrir el launcher
 
-Ejecuta:
+La forma nueva es abrir el ejecutable:
+
+```text
+desktop-agent\dist\AriadGSMAgent\AriadGSM Agent.exe
+```
+
+Si todavia no existe, generarlo con:
+
+```text
+desktop-agent\windows-app\build-agent-package.cmd
+```
+
+El acceso antiguo queda como compatibilidad y ahora solo apunta al `.exe`:
 
 ```text
 AriadGSM-Agent.cmd
@@ -25,19 +37,10 @@ Cuando se presiona **Iniciar observador**, la ventana se minimiza sola para deja
 
 ## Instalar acceso directo
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\install-agent-launcher.ps1
-```
+El instalador real vendra en el siguiente bloque. Por ahora usa un acceso directo hacia:
 
-Esto crea:
-
-- acceso directo en el escritorio;
-- acceso directo en el menu Inicio.
-
-Para iniciar el observador automaticamente con Windows:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\install-agent-launcher.ps1 -WithWindowsStartup
+```text
+desktop-agent\dist\AriadGSMAgent\AriadGSM Agent.exe
 ```
 
 ## Seguridad
@@ -80,7 +83,7 @@ La parte C#/.NET queda preparada en:
 desktop-agent\windows-bridge
 ```
 
-Esa capa reemplazara gradualmente los puentes PowerShell de accesibilidad, mouse y captura cuando instalemos el SDK de .NET.
+Esa capa ya empezo a reemplazar el launcher PowerShell. El ejecutable nuevo inicia los motores por procesos ocultos directos y deja PowerShell fuera de la operacion diaria.
 
 ## Modo Vivo
 
@@ -117,7 +120,7 @@ La ventana principal muestra una seccion **Que paso**. Ahi explica si el modo vi
 
 La decision local usa reglas rapidas en Python primero para no perder velocidad. Si esta PC tiene `OPENAI_API_KEY` configurada, el modo vivo tambien puede pedir una decision OpenAI directa sobre la lectura reciente cuando las reglas no ven una accion clara, sin esperar a que la nube procese la captura.
 
-PowerShell queda como lanzador y puente de Windows. El nuevo Core IA, la memoria y la decision principal van migrando a Python.
+PowerShell queda deprecado para operar el agente. El flujo nuevo es `AriadGSM Agent.exe` como escritorio, .NET para ojos/manos y Python para IA/memoria.
 
 ## Visual Debugger
 
