@@ -1,0 +1,22 @@
+{
+  "runtimeDir": "./desktop-agent/runtime",
+  "memoryDb": "./desktop-agent/runtime/agent-memory.sqlite",
+  "stateFile": "./desktop-agent/runtime/core.state.json",
+  "readerCore": {
+    "observationsFile": "./scripts/visual-agent/runtime/reader-core/structured-observations.jsonl",
+    "maxAgeSeconds": 45,
+    "limit": 800
+  },
+  "service": {
+    "intervalSeconds": 0.75,
+    "maxCycles": 0
+  },
+  "cloud": {
+    "url": "https://ariadgsm.com",
+    "enabled": false
+  },
+  "windowsBridge": {
+    "mode": "pending-dotnet",
+    "contract": "./desktop-agent/contracts/windows-bridge-event.schema.json"
+  }
+}

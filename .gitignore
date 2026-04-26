@@ -11,6 +11,8 @@ obj/
 *.suo
 *.log
 node_modules/
+__pycache__/
+*.pyc
 scripts/visual-agent/visual-agent.config.json
 scripts/visual-agent/visual-agent.cloud.json
 scripts/visual-agent/*.secret.txt
@@ -24,3 +26,5 @@ scripts/visual-agent/captures/
 scripts/visual-agent/captures-test/
 scripts/visual-agent/captures-dryrun/
 scripts/visual-agent/runtime/
+desktop-agent/runtime/
+desktop-agent/*.local.json

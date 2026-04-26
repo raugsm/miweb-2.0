@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "StartEyes", "StopEyes", "StartReader", "StopReader", "ReaderOnce", "EyesSample", "VisualDebug", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
+  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "StartEyes", "StopEyes", "StartReader", "StopReader", "ReaderOnce", "StartCore", "StopCore", "CoreOnce", "EyesSample", "VisualDebug", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
   [int]$PollSeconds = 30,
   [switch]$StartMinimized
@@ -9,6 +9,8 @@ $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
+$DesktopCoreScript = Join-Path $ProjectRoot "desktop-agent\run_core.py"
+$DesktopCoreConfig = Join-Path $ProjectRoot "desktop-agent\config.example.json"
 $CaptureScript = Join-Path $ScriptDir "visual-screen-capture.ps1"
 $IntentBridgeScript = Join-Path $ScriptDir "visual-intent-bridge.ps1"
 $LearningPassScript = Join-Path $ScriptDir "visual-chat-learning-pass.ps1"
@@ -34,6 +36,10 @@ $BrowserReaderPidFile = Join-Path $RuntimeDir "browser-accessibility-reader.pid"
 $BrowserReaderOutLog = Join-Path $RuntimeDir "browser-accessibility-reader.out.log"
 $BrowserReaderErrLog = Join-Path $RuntimeDir "browser-accessibility-reader.err.log"
 $BrowserReaderStateFile = Join-Path $RuntimeDir "reader-core\accessibility-reader.state.json"
+$DesktopCorePidFile = Join-Path $RuntimeDir "desktop-core.pid"
+$DesktopCoreOutLog = Join-Path $RuntimeDir "desktop-core.out.log"
+$DesktopCoreErrLog = Join-Path $RuntimeDir "desktop-core.err.log"
+$DesktopCoreStateFile = Join-Path $ProjectRoot "desktop-agent\runtime\core.state.json"
 $LearningReportFile = Join-Path $RuntimeDir "learning-ledger\latest.html"
 
 function Ensure-RuntimeDir {
@@ -149,6 +155,10 @@ function Get-BrowserReaderProcess {
   return Get-ProcessFromPidFile $BrowserReaderPidFile
 }
 
+function Get-DesktopCoreProcess {
+  return Get-ProcessFromPidFile $DesktopCorePidFile
+}
+
 function Get-ProcessFromPidFile {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -185,6 +195,7 @@ function Get-AgentStatus {
   $autopilotProcess = Get-AutopilotProcess
   $eyesProcess = Get-EyesProcess
   $browserReaderProcess = Get-BrowserReaderProcess
+  $desktopCoreProcess = Get-DesktopCoreProcess
   $latestCapture = Get-LatestFile (Join-Path $ScriptDir "captures") "screen-events-*.json"
   $latestProcessed = Get-LatestFile (Join-Path $ScriptDir "cloud-processed") "*screen-events-*.json"
   $latestError = if (Test-Path -LiteralPath $StderrLog) {
@@ -221,6 +232,14 @@ function Get-AgentStatus {
       $latestBrowserReaderState = $null
     }
   }
+  $latestDesktopCoreState = $null
+  if (Test-Path -LiteralPath $DesktopCoreStateFile) {
+    try {
+      $latestDesktopCoreState = Get-Content -LiteralPath $DesktopCoreStateFile -Raw | ConvertFrom-Json
+    } catch {
+      $latestDesktopCoreState = $null
+    }
+  }
 
   return [pscustomobject]@{
     Running = [bool]$process
@@ -231,6 +250,8 @@ function Get-AgentStatus {
     EyesProcessId = if ($eyesProcess) { $eyesProcess.Id } else { $null }
     BrowserReaderRunning = [bool]$browserReaderProcess
     BrowserReaderProcessId = if ($browserReaderProcess) { $browserReaderProcess.Id } else { $null }
+    DesktopCoreRunning = [bool]$desktopCoreProcess
+    DesktopCoreProcessId = if ($desktopCoreProcess) { $desktopCoreProcess.Id } else { $null }
     Configured = $configStatus.Configured
     ConfigMessage = $configStatus.Message
     CloudUrl = $configStatus.CloudUrl
@@ -283,6 +304,11 @@ function Get-AgentStatus {
       $null
     }
     LatestBrowserReaderError = if ($latestBrowserReaderState -and $latestBrowserReaderState.lastError) { $latestBrowserReaderState.lastError } else { "" }
+    LatestDesktopCoreStatus = if ($latestDesktopCoreState) { $latestDesktopCoreState.Status } else { $null }
+    LatestDesktopCoreSeen = if ($latestDesktopCoreState -and $null -ne $latestDesktopCoreState.observationsSeen) { $latestDesktopCoreState.observationsSeen } else { $null }
+    LatestDesktopCoreMessages = if ($latestDesktopCoreState -and $latestDesktopCoreState.ingested -and $null -ne $latestDesktopCoreState.ingested.messages) { $latestDesktopCoreState.ingested.messages } else { $null }
+    LatestDesktopCoreMemory = if ($latestDesktopCoreState -and $latestDesktopCoreState.memory -and $null -ne $latestDesktopCoreState.memory.messages) { $latestDesktopCoreState.memory.messages } else { $null }
+    LatestDesktopCoreDecision = if ($latestDesktopCoreState -and $latestDesktopCoreState.memory -and $latestDesktopCoreState.memory.latestDecision) { $latestDesktopCoreState.memory.latestDecision.intent } else { $null }
     LatestLearningReport = if ($latestEyesState -and $latestEyesState.learningSummary -and $latestEyesState.learningSummary.report) { $latestEyesState.learningSummary.report } else { $null }
     LatestLearningAccounting = if ($latestEyesState -and $latestEyesState.learningSummary -and $null -ne $latestEyesState.learningSummary.accountingItems) { $latestEyesState.learningSummary.accountingItems } else { $null }
     LatestEyesUpdatedAt = if ($latestEyesState) { $latestEyesState.updatedAt } else { $null }
@@ -309,6 +335,9 @@ function Get-AgentDiagnosisText {
   }
   if ($Status.LatestBrowserReaderError) {
     $lines += "Error del lector visible: $($Status.LatestBrowserReaderError)"
+  }
+  if ($Status.LatestDesktopCoreStatus) {
+    $lines += "Core IA: $($Status.LatestDesktopCoreStatus), vio $($Status.LatestDesktopCoreSeen) observaciones, mensajes nuevos $($Status.LatestDesktopCoreMessages), memoria $($Status.LatestDesktopCoreMemory), ultima decision $($Status.LatestDesktopCoreDecision)."
   }
 
   if (-not $Status.LatestAutopilotCycle) {
@@ -449,6 +478,7 @@ function Start-Autopilot {
   }
 
   $pythonPath = Get-PythonPath
+  Start-DesktopCore | Out-Null
   Start-EyesStream | Out-Null
   $runner = Join-Path $RuntimeDir "agent-autopilot-runner.ps1"
   $livePollSeconds = [Math]::Max(3, [Math]::Min(5, $PollSeconds))
@@ -484,6 +514,87 @@ function Stop-Autopilot {
     Remove-Item -LiteralPath $AutopilotPidFile -Force
   }
   Start-Sleep -Milliseconds 200
+  return Get-AgentStatus
+}
+
+function Start-DesktopCore {
+  Ensure-RuntimeDir
+  $existing = Get-DesktopCoreProcess
+  if ($existing) {
+    return Get-AgentStatus
+  }
+  if (-not (Test-Path -LiteralPath $DesktopCoreScript)) {
+    throw "No encontre desktop-agent\run_core.py"
+  }
+  if (-not (Test-Path -LiteralPath $DesktopCoreConfig)) {
+    throw "No encontre desktop-agent\config.example.json"
+  }
+
+  $pythonPath = Get-PythonPath
+  $runner = Join-Path $RuntimeDir "desktop-core-runner.ps1"
+  @(
+    '$ErrorActionPreference = "Continue"',
+    "& '$pythonPath' '$DesktopCoreScript' --config '$DesktopCoreConfig' --watch *>> '$DesktopCoreOutLog'"
+  ) | Set-Content -LiteralPath $runner -Encoding UTF8
+
+  $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
+    " -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " +
+    (Quote-CmdArgument $runner)
+
+  $startup = ([WMIClass]"Win32_ProcessStartup").CreateInstance()
+  $startup.ShowWindow = 0
+  $result = ([WMIClass]"Win32_Process").Create($commandLine, $ProjectRoot, $startup)
+  if ($result.ReturnValue -ne 0) {
+    throw "No pude iniciar Core IA. Win32_Process retorno $($result.ReturnValue)."
+  }
+
+  $process = Get-Process -Id $result.ProcessId -ErrorAction Stop
+  Set-Content -LiteralPath $DesktopCorePidFile -Value $process.Id -Encoding ASCII
+  Start-Sleep -Milliseconds 300
+  return Get-AgentStatus
+}
+
+function Stop-DesktopCore {
+  Ensure-RuntimeDir
+  $process = Get-DesktopCoreProcess
+  if ($process) {
+    Stop-Process -Id $process.Id -Force
+  }
+  if (Test-Path -LiteralPath $DesktopCorePidFile) {
+    Remove-Item -LiteralPath $DesktopCorePidFile -Force
+  }
+  if (Test-Path -LiteralPath $DesktopCoreStateFile) {
+    try {
+      $coreState = Get-Content -LiteralPath $DesktopCoreStateFile -Raw | ConvertFrom-Json
+      $coreState.Status = "stopped"
+      $coreState.updatedAt = (Get-Date).ToUniversalTime().ToString("o")
+      $coreState | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $DesktopCoreStateFile -Encoding UTF8
+    } catch {
+    }
+  }
+  Start-Sleep -Milliseconds 200
+  return Get-AgentStatus
+}
+
+function Invoke-DesktopCoreOnce {
+  Ensure-RuntimeDir
+  if (-not (Test-Path -LiteralPath $DesktopCoreScript)) {
+    throw "No encontre desktop-agent\run_core.py"
+  }
+  $coreOut = Join-Path $RuntimeDir ("desktop-core-once-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $coreErr = Join-Path $RuntimeDir ("desktop-core-once-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $pythonPath = Get-PythonPath
+  $command = "& '$pythonPath' '$DesktopCoreScript' --config '$DesktopCoreConfig' --once --json"
+  $process = Start-HiddenProcess -Arguments @("-Command", $command) -CaptureOutput
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  Set-Content -LiteralPath $coreOut -Value $stdout -Encoding UTF8
+  Set-Content -LiteralPath $coreErr -Value $stderr -Encoding UTF8
+  if ([int]$process.ExitCode -ne 0) {
+    $errorText = if ($stderr) { $stderr } else { $stdout }
+    throw "Core IA fallo con codigo $($process.ExitCode). $errorText"
+  }
   return Get-AgentStatus
 }
 
@@ -577,6 +688,7 @@ function Start-EyesStream {
   }
 
   $pythonPath = Get-PythonPath
+  Start-DesktopCore | Out-Null
   Start-BrowserVisibleReader | Out-Null
   $runner = Join-Path $RuntimeDir "eyes-stream-runner.ps1"
   @(
@@ -629,6 +741,7 @@ function Stop-AllAgents {
   Stop-AgentWatch | Out-Null
   Stop-Autopilot | Out-Null
   Stop-EyesStream | Out-Null
+  Stop-DesktopCore | Out-Null
   return Get-AgentStatus
 }
 
@@ -1084,6 +1197,7 @@ function Start-AgentGui {
       $status = Get-AgentStatus
       $lines = @(
         "Observador: " + $(if ($status.Running) { "ACTIVO (PID $($status.ProcessId))" } else { "DETENIDO" }),
+        "Core IA: " + $(if ($status.DesktopCoreRunning) { "ACTIVO (PID $($status.DesktopCoreProcessId))" } else { "DETENIDO" }),
         "Modo vivo: " + $(if ($status.AutopilotRunning) { "ACTIVO (PID $($status.AutopilotProcessId))" } else { "DETENIDO" }),
         "Ojo vivo: " + $(if ($status.EyesRunning) { "ACTIVO (PID $($status.EyesProcessId))" } else { "DETENIDO" }),
         "Lector visible: " + $(if ($status.BrowserReaderRunning) { "ACTIVO (PID $($status.BrowserReaderProcessId))" } else { "DETENIDO" }),
@@ -1097,6 +1211,7 @@ function Start-AgentGui {
         "Ojos: $($status.LatestEyesStatus) $($status.LatestEyesMode) $($status.LatestEyesIntervalMs)ms | frames $($status.LatestEyesFrames) grabados $($status.LatestEyesRecordedFrames) OCR $($status.LatestEyesOcrRuns) aprendidos $($status.LatestEyesLearnedItems) pendientes $($status.LatestEyesPendingOcr) | decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
         "Reader Core: $($status.LatestReaderCoreSources)",
         "Lector navegador: $($status.LatestBrowserReaderStatus) | WhatsApp $($status.LatestBrowserReaderWindows) | obs $($status.LatestBrowserReaderWritten) | $($status.LatestBrowserReaderBrowsers)",
+        "Core IA: $($status.LatestDesktopCoreStatus) | vio $($status.LatestDesktopCoreSeen) | nuevos $($status.LatestDesktopCoreMessages) | memoria $($status.LatestDesktopCoreMemory) | decision $($status.LatestDesktopCoreDecision)",
         "Aprendizaje: contabilidad $($status.LatestLearningAccounting) | reporte $($status.LatestLearningReport)",
         "Almacen visual: $($status.LatestEyesStorage)",
         "Logs: $($status.RuntimeDir)"
@@ -1190,6 +1305,9 @@ switch ($Action) {
   "StartReader" { Start-BrowserVisibleReader | ConvertTo-Json -Depth 5 }
   "StopReader" { Stop-BrowserVisibleReader | ConvertTo-Json -Depth 5 }
   "ReaderOnce" { Invoke-BrowserReaderOnce | ConvertTo-Json -Depth 5 }
+  "StartCore" { Start-DesktopCore | ConvertTo-Json -Depth 5 }
+  "StopCore" { Stop-DesktopCore | ConvertTo-Json -Depth 5 }
+  "CoreOnce" { Invoke-DesktopCoreOnce | ConvertTo-Json -Depth 5 }
   "EyesSample" { Invoke-EyesSample | ConvertTo-Json -Depth 5 }
   "VisualDebug" { Invoke-VisualDebug | ConvertTo-Json -Depth 5 }
   "OpenPanel" { Open-AgentPanel }

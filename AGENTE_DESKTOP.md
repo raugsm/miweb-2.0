@@ -56,6 +56,32 @@ Nivel actual del agente:
 
 Todavia no escribe mensajes ni envia respuestas a clientes.
 
+## Nueva Arquitectura
+
+La migracion ya comenzo en `desktop-agent/`.
+
+```text
+desktop-agent\ariadgsm_agent
+```
+
+Ese es el nuevo Core IA en Python. Lee observaciones visibles del Reader Core, guarda memoria local en SQLite y clasifica mensajes como contexto, precio, pago o deuda. PowerShell queda como lanzador temporal, no como cerebro principal.
+
+Ejecucion manual del Core IA:
+
+```powershell
+python .\desktop-agent\run_core.py --config .\desktop-agent\config.example.json --once --json
+```
+
+El launcher tambien expone acciones internas `StartCore`, `StopCore` y `CoreOnce`. Cuando presionas **Modo vivo** u **Ojo vivo**, el Core IA se levanta junto con el lector visible y el streaming visual.
+
+La parte C#/.NET queda preparada en:
+
+```text
+desktop-agent\windows-bridge
+```
+
+Esa capa reemplazara gradualmente los puentes PowerShell de accesibilidad, mouse y captura cuando instalemos el SDK de .NET.
+
 ## Modo Vivo
 
 El boton **Modo vivo** inicia un proceso local oculto:
@@ -67,14 +93,15 @@ scripts\visual-agent\agent-local.py
 El flujo del modo vivo es:
 
 1. respeta los 3 WhatsApp que ya dejaste alineados;
-2. ejecuta el motor local Python `scripts/visual-agent/agent-local.py`;
-3. inicia el lector visible de navegadores para Chrome, Edge y Firefox/Mozilla;
-4. captura pantalla y lee OCR solo como respaldo visual;
-5. toma una decision local rapida sobre pago/deuda/precio sin esperar a la nube;
-6. si encuentra una accion, busca el chat visible y lo abre;
-7. sube eventos a `ariadgsm.com` para historial y cabina;
-8. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
-9. repite el ciclo cada 3 a 5 segundos por defecto.
+2. inicia el nuevo Core IA en Python (`desktop-agent`);
+3. ejecuta el motor local Python `scripts/visual-agent/agent-local.py`;
+4. inicia el lector visible de navegadores para Chrome, Edge y Firefox/Mozilla;
+5. captura pantalla y lee OCR solo como respaldo visual;
+6. toma una decision local rapida sobre pago/deuda/precio sin esperar a la nube;
+7. si encuentra una accion, busca el chat visible y lo abre;
+8. sube eventos a `ariadgsm.com` para historial y cabina;
+9. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
+10. repite el ciclo cada 3 a 5 segundos por defecto.
 
 Por seguridad, el nivel actual sigue siendo de lectura. El modo vivo puede mover el mouse y abrir chats, pero no escribe ni envia mensajes.
 
@@ -90,7 +117,7 @@ La ventana principal muestra una seccion **Que paso**. Ahi explica si el modo vi
 
 La decision local usa reglas rapidas en Python primero para no perder velocidad. Si esta PC tiene `OPENAI_API_KEY` configurada, el modo vivo tambien puede pedir una decision OpenAI directa sobre la lectura reciente cuando las reglas no ven una accion clara, sin esperar a que la nube procese la captura.
 
-PowerShell queda como lanzador y puente de Windows. El ciclo vivo, el estado y la decision principal ya viven en Python.
+PowerShell queda como lanzador y puente de Windows. El nuevo Core IA, la memoria y la decision principal van migrando a Python.
 
 ## Visual Debugger
 

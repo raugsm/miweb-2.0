@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Windows Bridge Visible Observation",
+  "type": "object",
+  "required": ["channelId", "source", "capturedAt", "visibleOnly", "messages"],
+  "properties": {
+    "channelId": { "type": "string", "examples": ["wa-1"] },
+    "source": { "type": "string", "enum": ["accessibility", "dom", "browser_extension", "ocr"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "capturedAt": { "type": "string" },
+    "conversationTitle": { "type": "string" },
+    "visibleOnly": { "type": "boolean", "const": true },
+    "browser": { "type": "string", "examples": ["chrome", "msedge", "firefox"] },
+    "bounds": { "type": "object" },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "messageId": { "type": "string" },
+          "text": { "type": "string" },
+          "senderName": { "type": "string" },
+          "direction": { "type": "string", "enum": ["client", "agent", "unknown"] },
+          "sentAt": { "type": "string" }
+        }
+      }
+    }
+  }
+}

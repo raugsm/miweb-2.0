@@ -39,6 +39,8 @@ scripts\visual-agent\agent-local.py
 
 En cada ciclo el motor Python respeta los WhatsApp que ya dejaste alineados, captura pantalla, toma una decision local rapida sobre pago/deuda/precio y atiende alertas clasificadas. No hace aprendizaje profundo ni scroll largo mientras trabaja en vivo. No escribe mensajes al cliente.
 
+La migracion nueva agrega `desktop-agent\run_core.py` como Core IA en Python. Ese servicio consume las lecturas visibles del Reader Core, guarda memoria SQLite en `desktop-agent\runtime\agent-memory.sqlite` y clasifica mensajes antes de que PowerShell intervenga. PowerShell queda como lanzador temporal y puente Windows.
+
 La decision local usa la lectura reciente del Reader Core, antes de esperar la ida y vuelta con la nube. Primero aplica reglas rapidas en `agent-local.py`; si `OPENAI_API_KEY` existe en esta PC, puede usar OpenAI como segundo escalon cuando no hay senal clara. Si detecta algo pero no encuentra una fila visible para abrir, el launcher lo muestra en **Que paso** con el texto y las busquedas intentadas.
 
 El visual debugger se abre desde **Ver ojos** y deja un reporte en `scripts\visual-agent\runtime\visual-debugger\latest.html`. Ese reporte muestra cada captura, las lineas aceptadas, las ignoradas y el motivo exacto del filtro.
@@ -69,7 +71,7 @@ Ciclo real:
 python .\scripts\visual-agent\agent-local.py --mode Live --max-cycles 1 --execute --send
 ```
 
-El launcher tiene el boton **Modo vivo** para dejarlo corriendo en segundo plano. Ese boton tambien levanta Ojo vivo y el lector visible de navegadores. **Detener** lo apaga todo.
+El launcher tiene el boton **Modo vivo** para dejarlo corriendo en segundo plano. Ese boton tambien levanta el Core IA, Ojo vivo y el lector visible de navegadores. **Detener** lo apaga todo.
 
 ## Control visual con puntero
 
