@@ -10,7 +10,7 @@ internal sealed class MainForm : Form
     private readonly Label _summaryLabel = new();
     private readonly TextBox _problemBox = new();
     private readonly ListView _healthList = new();
-    private readonly TextBox _logBox = new();
+    private readonly TextBox _activityBox = new();
     private readonly Button _startButton = new();
     private readonly Button _stopButton = new();
     private readonly Button _onceButton = new();
@@ -20,6 +20,7 @@ internal sealed class MainForm : Form
     private readonly Button _diagnoseButton = new();
     private readonly bool _startMinimized;
     private readonly bool _manualMode;
+    private readonly Queue<string> _recentLogLines = new();
     private bool _autonomousStartupStarted;
     private string _lastProblemSignature = string.Empty;
 
@@ -60,7 +61,7 @@ internal sealed class MainForm : Form
     {
         Text = "AriadGSM Agent Desktop";
         Width = 980;
-        Height = 760;
+        Height = 800;
         MinimumSize = new Size(880, 620);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
@@ -73,7 +74,7 @@ internal sealed class MainForm : Form
             RowCount = 5,
             ColumnCount = 1
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 52));
@@ -83,36 +84,57 @@ internal sealed class MainForm : Form
         var header = new Panel
         {
             Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(12, 79, 170),
+            BackColor = Color.White,
             Padding = new Padding(18)
         };
         root.Controls.Add(header, 0, 0);
 
+        var logoPath = Path.Combine(AppContext.BaseDirectory, "assets", "ariadgsm-logo.jpg");
+        if (File.Exists(logoPath))
+        {
+            var logo = new PictureBox
+            {
+                ImageLocation = logoPath,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.White,
+                Location = new Point(18, 18),
+                Size = new Size(220, 72)
+            };
+            header.Controls.Add(logo);
+        }
+
         var title = new Label
         {
             Text = "AriadGSM Agent Desktop",
-            ForeColor = Color.White,
+            ForeColor = Color.FromArgb(12, 79, 170),
             Font = new Font("Segoe UI", 20, FontStyle.Bold),
             AutoSize = true,
-            Location = new Point(18, 14)
+            Location = new Point(260, 16)
         };
         var subtitle = new Label
         {
-            Text = "Arranque autonomo, actualizaciones, salud de motores y sincronizacion con ariadgsm.com",
-            ForeColor = Color.FromArgb(226, 240, 255),
+            Text = "Cabina local para lectura, aprendizaje, manos seguras y sincronizacion con ariadgsm.com",
+            ForeColor = Color.FromArgb(58, 82, 112),
             Font = new Font("Segoe UI", 10, FontStyle.Regular),
             AutoSize = true,
-            Location = new Point(20, 58)
+            Location = new Point(262, 58)
         };
         _versionLabel.Text = $"{_runtime.VersionSummary} | {AppContext.BaseDirectory}";
-        _versionLabel.ForeColor = Color.FromArgb(195, 224, 255);
+        _versionLabel.ForeColor = Color.FromArgb(73, 114, 170);
         _versionLabel.Font = new Font("Segoe UI", 8, FontStyle.Regular);
         _versionLabel.AutoEllipsis = true;
-        _versionLabel.Location = new Point(20, 82);
-        _versionLabel.Size = new Size(900, 22);
+        _versionLabel.Location = new Point(262, 82);
+        _versionLabel.Size = new Size(650, 22);
+        var headerLine = new Panel
+        {
+            BackColor = Color.FromArgb(24, 120, 242),
+            Dock = DockStyle.Bottom,
+            Height = 4
+        };
         header.Controls.Add(title);
         header.Controls.Add(subtitle);
         header.Controls.Add(_versionLabel);
+        header.Controls.Add(headerLine);
 
         var buttons = new FlowLayoutPanel
         {
@@ -176,13 +198,35 @@ internal sealed class MainForm : Form
         _healthList.Columns.Add("Detalle", 560);
         root.Controls.Add(_healthList, 0, 3);
 
-        _logBox.Dock = DockStyle.Fill;
-        _logBox.Multiline = true;
-        _logBox.ReadOnly = true;
-        _logBox.ScrollBars = ScrollBars.Vertical;
-        _logBox.BorderStyle = BorderStyle.FixedSingle;
-        _logBox.Font = new Font("Consolas", 9);
-        root.Controls.Add(_logBox, 0, 4);
+        var activityPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            RowCount = 2,
+            ColumnCount = 1,
+            Padding = new Padding(0, 8, 0, 0)
+        };
+        activityPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        activityPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.Controls.Add(activityPanel, 0, 4);
+
+        var activityTitle = new Label
+        {
+            Text = "Actividad de la IA",
+            Dock = DockStyle.Fill,
+            Font = new Font("Segoe UI", 11, FontStyle.Bold),
+            ForeColor = Color.FromArgb(22, 44, 72),
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        activityPanel.Controls.Add(activityTitle, 0, 0);
+
+        _activityBox.Dock = DockStyle.Fill;
+        _activityBox.Multiline = true;
+        _activityBox.ReadOnly = true;
+        _activityBox.ScrollBars = ScrollBars.Vertical;
+        _activityBox.BorderStyle = BorderStyle.FixedSingle;
+        _activityBox.BackColor = Color.White;
+        _activityBox.Font = new Font("Segoe UI", 10);
+        activityPanel.Controls.Add(_activityBox, 0, 1);
     }
 
     private void WireEvents()
@@ -377,6 +421,7 @@ internal sealed class MainForm : Form
 
         _problemBox.Text = string.Join(Environment.NewLine, problemLines);
         UpdateHealthList(allItems);
+        _activityBox.Text = string.Join(Environment.NewLine, _runtime.OperationalActivityLines(preflight, health, _recentLogLines.ToArray()));
         NotifyOnNewProblem(errors, warnings);
     }
 
@@ -458,6 +503,10 @@ internal sealed class MainForm : Form
             return;
         }
 
-        _logBox.AppendText(line + Environment.NewLine);
+        _recentLogLines.Enqueue($"{DateTimeOffset.Now:HH:mm:ss} {line}");
+        while (_recentLogLines.Count > 80)
+        {
+            _recentLogLines.Dequeue();
+        }
     }
 }

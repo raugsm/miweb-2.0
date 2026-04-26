@@ -2,6 +2,7 @@
   "cognitiveDecisionEventsFile": "desktop-agent\\runtime\\cognitive-decision-events.jsonl",
   "operatingDecisionEventsFile": "desktop-agent\\runtime\\decision-events.jsonl",
   "perceptionEventsFile": "desktop-agent\\runtime\\perception-events.jsonl",
+  "interactionEventsFile": "desktop-agent\\runtime\\interaction-events.jsonl",
   "actionEventsFile": "desktop-agent\\runtime\\action-events.jsonl",
   "stateFile": "desktop-agent\\runtime\\hands-state.json",
   "autonomyLevel": 3,
@@ -12,6 +13,7 @@
   "maxCycles": 0,
   "decisionLimit": 200,
   "perceptionLimit": 50,
+  "interactionLimit": 20,
   "channelMappings": [
     {
       "channelId": "wa-1",

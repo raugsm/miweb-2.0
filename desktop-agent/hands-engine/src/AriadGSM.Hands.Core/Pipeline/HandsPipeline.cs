@@ -4,6 +4,7 @@ using AriadGSM.Hands.Config;
 using AriadGSM.Hands.Decisions;
 using AriadGSM.Hands.Events;
 using AriadGSM.Hands.Execution;
+using AriadGSM.Hands.Interaction;
 using AriadGSM.Hands.Perception;
 using AriadGSM.Hands.Planning;
 using AriadGSM.Hands.Safety;
@@ -16,6 +17,7 @@ public sealed class HandsPipeline
     private readonly HandsOptions _options;
     private readonly DecisionEventReader _decisionReader;
     private readonly PerceptionContextReader _perceptionReader;
+    private readonly InteractionContextReader _interactionReader;
     private readonly ActionPlanner _planner = new();
     private readonly HandsSafetyPolicy _safety;
     private readonly IHandsExecutor _executor;
@@ -40,6 +42,7 @@ public sealed class HandsPipeline
             [options.CognitiveDecisionEventsFile, options.OperatingDecisionEventsFile],
             options.DecisionLimit);
         _perceptionReader = new PerceptionContextReader(options.PerceptionEventsFile, options.PerceptionLimit);
+        _interactionReader = new InteractionContextReader(options.InteractionEventsFile, options.InteractionLimit);
         _safety = new HandsSafetyPolicy(options);
         _executor = executor ?? (options.ExecuteActions ? new Win32HandsExecutor(options) : new DryRunHandsExecutor());
         _writer = new ActionEventWriter(options.ActionEventsFile);
@@ -59,6 +62,7 @@ public sealed class HandsPipeline
             }
 
             var perception = await _perceptionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
+            var interaction = await _interactionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
             var existingIds = await _writer.ReadExistingActionIdsAsync(cancellationToken).ConfigureAwait(false);
             var writtenThisCycle = 0;
 
@@ -66,8 +70,8 @@ public sealed class HandsPipeline
             {
                 foreach (var plan in _planner.Plan(decision))
                 {
-                    var enrichedPlan = EnrichPlanWithPerception(plan, perception);
-                    var scopedActionId = ScopedActionId(enrichedPlan.ActionId);
+                    var enrichedPlan = EnrichPlanWithInteraction(plan, interaction);
+                    var scopedActionId = ScopedActionId(enrichedPlan);
                     _actionsPlanned++;
                     if (existingIds.Contains(scopedActionId))
                     {
@@ -144,7 +148,7 @@ public sealed class HandsPipeline
         }
     }
 
-    private static ActionPlan EnrichPlanWithPerception(ActionPlan plan, PerceptionContext perception)
+    private static ActionPlan EnrichPlanWithInteraction(ActionPlan plan, InteractionContext interaction)
     {
         if (!plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase))
         {
@@ -153,29 +157,35 @@ public sealed class HandsPipeline
 
         var channelId = TargetString(plan, "channelId");
         var title = TargetString(plan, "conversationTitle");
-        var row = perception.BestChatRow(channelId, title);
-        if (row is null)
-        {
-            return plan;
-        }
-
         var target = new Dictionary<string, object?>(plan.Target, StringComparer.OrdinalIgnoreCase)
         {
-            ["chatRowId"] = row.ChatRowId,
-            ["chatRowTitle"] = row.Title,
-            ["chatRowPreview"] = row.Preview,
-            ["chatRowUnreadCount"] = row.UnreadCount,
-            ["clickX"] = row.ClickX,
-            ["clickY"] = row.ClickY,
-            ["chatRowBounds"] = new Dictionary<string, object?>
-            {
-                ["left"] = row.Left,
-                ["top"] = row.Top,
-                ["width"] = row.Width,
-                ["height"] = row.Height
-            },
-            ["chatRowConfidence"] = row.Confidence
+            ["interactionEventId"] = interaction.SourceInteractionEventId,
+            ["interactionTargetStatus"] = "missing"
         };
+
+        var row = interaction.BestChatTarget(channelId, title);
+        if (row is null)
+        {
+            return plan with { Target = target };
+        }
+
+        target["interactionTargetStatus"] = "ready";
+        target["interactionTargetId"] = row.TargetId;
+        target["interactionSourcePerceptionEventId"] = row.SourcePerceptionEventId;
+        target["chatRowTitle"] = row.Title;
+        target["chatRowPreview"] = row.Preview;
+        target["chatRowUnreadCount"] = row.UnreadCount;
+        target["clickX"] = row.ClickX;
+        target["clickY"] = row.ClickY;
+        target["chatRowBounds"] = new Dictionary<string, object?>
+        {
+            ["left"] = row.Left,
+            ["top"] = row.Top,
+            ["width"] = row.Width,
+            ["height"] = row.Height
+        };
+        target["chatRowConfidence"] = row.Confidence;
+        target["interactionCategory"] = row.Category;
 
         return plan with { Target = target };
     }
@@ -264,9 +274,19 @@ public sealed class HandsPipeline
             verification);
     }
 
-    private string ScopedActionId(string baseActionId)
+    private string ScopedActionId(ActionPlan plan)
     {
-        return $"{baseActionId}-{(_options.ExecuteActions ? "exec" : "plan")}";
+        var interactionTargetId = TargetString(plan, "interactionTargetId");
+        var suffix = string.IsNullOrWhiteSpace(interactionTargetId)
+            ? string.Empty
+            : $"-{StableHash(interactionTargetId)[..8]}";
+        return $"{plan.ActionId}-{(_options.ExecuteActions ? "exec" : "plan")}{suffix}";
+    }
+
+    private static string StableHash(string raw)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private HandsHealthState CreateState(string status, string summary, string error)
@@ -284,6 +304,7 @@ public sealed class HandsPipeline
             _options.CognitiveDecisionEventsFile,
             _options.OperatingDecisionEventsFile,
             _options.PerceptionEventsFile,
+            _options.InteractionEventsFile,
             _options.ActionEventsFile,
             _lastActionId,
             summary,

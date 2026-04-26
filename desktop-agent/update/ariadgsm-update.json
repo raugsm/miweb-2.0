@@ -1,8 +1,8 @@
 {
-  "version": "0.5.2",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.2.zip",
-  "sha256": "a675352c665b08bb935a8808227d3f6daf0143450be165415e2773cf0e0f9e23",
+  "version": "0.5.3",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.3.zip",
+  "sha256": "8fdfdd90dec049b4d7b2c66610fa1c8f98214fe442e8fbbe64192e20b6716519",
   "autoApply": true,
-  "notes": "Bootstrap autonomo de WhatsApp 1/2/3 y Hands en navegacion segura sin escritura ni envio.",
-  "publishedAt": "2026-04-26T20:02:00Z"
+  "notes": "Interaction Engine, logo AriadGSM exacto, cabina operativa clara y Hands usando objetivos verificados antes de mover el mouse.",
+  "publishedAt": "2026-04-26T20:35:00Z"
 }

@@ -65,6 +65,7 @@ static async Task TestPipelineWritesAndDedupes()
     var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
     var operating = Path.Combine(root, "decision-events.jsonl");
     var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
     var actions = Path.Combine(root, "action-events.jsonl");
     var state = Path.Combine(root, "hands-state.json");
     try
@@ -132,18 +133,62 @@ static async Task TestPipelineWritesAndDedupes()
                 }
             }
         }) + Environment.NewLine);
+        await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
+        {
+            eventType = "interaction_event",
+            interactionEventId = "interaction-test-1",
+            createdAt = DateTimeOffset.UtcNow,
+            source = "ariadgsm_interaction_engine",
+            latestPerceptionEventId = "perception-test-1",
+            perceptionEventsRead = 1,
+            targets = new object[]
+            {
+                new
+                {
+                    targetId = "interaction-target-client",
+                    targetType = "chat_row",
+                    channelId = "wa-1",
+                    sourcePerceptionEventId = "perception-test-1",
+                    observedAt = DateTimeOffset.UtcNow,
+                    title = "Cliente",
+                    preview = "Cuanto cuesta?",
+                    unreadCount = 1,
+                    left = 0,
+                    top = 150,
+                    width = 350,
+                    height = 72,
+                    clickX = 92,
+                    clickY = 186,
+                    confidence = 0.94,
+                    actionable = true,
+                    category = "customer_chat_candidate",
+                    rejectionReasons = Array.Empty<string>()
+                }
+            },
+            summary = new
+            {
+                targetsObserved = 1,
+                targetsAccepted = 1,
+                targetsRejected = 0,
+                actionableTargets = 1,
+                bestTargetTitle = "Cliente",
+                lastRejectionReason = ""
+            }
+        }) + Environment.NewLine);
 
         var options = new HandsOptions
         {
             CognitiveDecisionEventsFile = cognitive,
             OperatingDecisionEventsFile = operating,
             PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
             ActionEventsFile = actions,
             StateFile = state,
             AutonomyLevel = 3,
             ExecuteActions = false,
             DecisionLimit = 10,
-            PerceptionLimit = 10
+            PerceptionLimit = 10,
+            InteractionLimit = 10
         };
 
         var pipeline = new HandsPipeline(options);
@@ -183,12 +228,14 @@ static async Task TestPipelineWritesAndDedupes()
             CognitiveDecisionEventsFile = cognitive,
             OperatingDecisionEventsFile = operating,
             PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
             ActionEventsFile = actions,
             StateFile = state,
             AutonomyLevel = 3,
             ExecuteActions = true,
             DecisionLimit = 10,
-            PerceptionLimit = 10
+            PerceptionLimit = 10,
+            InteractionLimit = 10
         };
 
         var executePipeline = new HandsPipeline(executeOptions, executor);

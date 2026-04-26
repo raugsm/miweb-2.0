@@ -1,0 +1,29 @@
+{
+  "perceptionEventsFile": "desktop-agent\\runtime\\perception-events.jsonl",
+  "interactionEventsFile": "desktop-agent\\runtime\\interaction-events.jsonl",
+  "stateFile": "desktop-agent\\runtime\\interaction-state.json",
+  "pollIntervalMs": 200,
+  "maxCycles": 0,
+  "durationSeconds": 0,
+  "perceptionLimit": 120,
+  "minimumActionableConfidence": 0.66,
+  "rejectBusinessAdminGroups": true,
+  "lowValueChatTitlePatterns": [
+    "pagos mexico",
+    "pagos chile",
+    "pago colombia",
+    "pagos colombia"
+  ],
+  "browserUiTitlePatterns": [
+    "anadir esta pagina a marcadores",
+    "editar marcador",
+    "marcadores",
+    "leer en voz alta",
+    "informacion del sitio",
+    "copiar ruta",
+    "nueva pestana",
+    "google chrome",
+    "microsoft edge",
+    "mozilla firefox"
+  ]
+}

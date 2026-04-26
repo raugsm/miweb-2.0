@@ -99,6 +99,11 @@ internal sealed class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "perception-engine", "src", "AriadGSM.Perception.Worker", "AriadGSM.Perception.Worker.csproj"),
             Path.Combine("desktop-agent", "perception-engine", "config", "perception.example.json"));
         StartWorker(
+            "Interaction",
+            Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
+            Path.Combine("desktop-agent", "interaction-engine", "src", "AriadGSM.Interaction.Worker", "AriadGSM.Interaction.Worker.csproj"),
+            Path.Combine("desktop-agent", "interaction-engine", "config", "interaction.example.json"));
+        StartWorker(
             "Hands",
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "hands", "AriadGSM.Hands.Worker.exe"),
             Path.Combine("desktop-agent", "hands-engine", "src", "AriadGSM.Hands.Worker", "AriadGSM.Hands.Worker.csproj"),
@@ -120,6 +125,11 @@ internal sealed class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "perception", "AriadGSM.Perception.Worker.exe"),
             Path.Combine("desktop-agent", "perception-engine", "src", "AriadGSM.Perception.Worker", "AriadGSM.Perception.Worker.csproj"),
             Path.Combine("desktop-agent", "perception-engine", "config", "perception.example.json")).ConfigureAwait(false);
+        await RunWorkerOnceAsync(
+            "Interaction once",
+            Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
+            Path.Combine("desktop-agent", "interaction-engine", "src", "AriadGSM.Interaction.Worker", "AriadGSM.Interaction.Worker.csproj"),
+            Path.Combine("desktop-agent", "interaction-engine", "config", "interaction.example.json")).ConfigureAwait(false);
         await RunCoreSequenceAsync(CancellationToken.None).ConfigureAwait(false);
         await RunWorkerOnceAsync(
             "Hands once",
@@ -148,6 +158,7 @@ internal sealed class AgentRuntime : IDisposable
         return new AgentSnapshot(
             ReadJsonStatus("vision-health.json"),
             ReadJsonStatus("perception-health.json"),
+            ReadJsonStatus("interaction-state.json"),
             ReadJsonStatus("timeline-state.json"),
             ReadJsonStatus("cognitive-state.json"),
             ReadJsonStatus("operating-state.json"),
@@ -175,6 +186,10 @@ internal sealed class AgentRuntime : IDisposable
                 Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "perception", "AriadGSM.Perception.Worker.exe"),
                 Path.Combine("desktop-agent", "perception-engine", "src", "AriadGSM.Perception.Worker", "AriadGSM.Perception.Worker.csproj")),
             CheckWorkerReady(
+                "Interaction worker",
+                Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
+                Path.Combine("desktop-agent", "interaction-engine", "src", "AriadGSM.Interaction.Worker", "AriadGSM.Interaction.Worker.csproj")),
+            CheckWorkerReady(
                 "Hands worker",
                 Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "hands", "AriadGSM.Hands.Worker.exe"),
                 Path.Combine("desktop-agent", "hands-engine", "src", "AriadGSM.Hands.Worker", "AriadGSM.Hands.Worker.csproj"))
@@ -190,6 +205,7 @@ internal sealed class AgentRuntime : IDisposable
         {
             StateHealth("Vision", "vision-health.json", "Vision"),
             StateHealth("Perception", "perception-health.json", "Perception"),
+            StateHealth("Interaction", "interaction-state.json", "Interaction"),
             StateHealth("Timeline", "timeline-state.json", "PythonCoreLoop"),
             StateHealth("Cognitive", "cognitive-state.json", "PythonCoreLoop"),
             StateHealth("Operating", "operating-state.json", "PythonCoreLoop"),
@@ -235,6 +251,68 @@ internal sealed class AgentRuntime : IDisposable
         {
             return [];
         }
+    }
+
+    public IReadOnlyList<string> OperationalActivityLines(
+        PreflightReport preflight,
+        IReadOnlyList<HealthItem> health,
+        IReadOnlyList<string> recentLogLines)
+    {
+        using var vision = ReadJsonStatus("vision-health.json");
+        using var perception = ReadJsonStatus("perception-health.json");
+        using var interaction = ReadJsonStatus("interaction-state.json");
+        using var timeline = ReadJsonStatus("timeline-state.json");
+        using var cognitive = ReadJsonStatus("cognitive-state.json");
+        using var operating = ReadJsonStatus("operating-state.json");
+        using var memory = ReadJsonStatus("memory-state.json");
+        using var hands = ReadJsonStatus("hands-state.json");
+        using var supervisor = ReadJsonStatus("supervisor-state.json");
+
+        var whatsappSummary = preflight.Items
+            .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
+            .Select(item => $"{item.Name.Replace("WhatsApp ", string.Empty, StringComparison.OrdinalIgnoreCase)}={item.Status.ToLowerInvariant()}")
+            .ToArray();
+        var active = ActiveProcessSummary();
+        var blockers = health
+            .Where(item => item.Severity is HealthSeverity.Error or HealthSeverity.Warning)
+            .Take(4)
+            .Select(item => $"{item.Name}: {item.Detail}")
+            .ToArray();
+
+        var lines = new List<string>
+        {
+            "Esta zona resume el trabajo real. Los JSON y trazas largas quedan en Logs tecnicos.",
+            $"Modo: {(IsRunning ? "trabajando" : "detenido")} | Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
+            $"WhatsApps: {(whatsappSummary.Length == 0 ? "sin revision" : string.Join(" | ", whatsappSummary))}",
+            $"Vision: capturas={Number(vision, "framesCaptured", "eventsWritten")} | ventanas={Number(vision, "visibleWindowCount")} | intervalo={Number(vision, "captureIntervalMs")}ms",
+            $"Lectura: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
+            $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
+            $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")}",
+            $"Cognitive/Memory: decisiones={NestedNumber(cognitive, "summary", "decisions")} | memoria={NestedNumber(memory, "summary", "memoryMessages")} | aprendizaje={NestedNumber(memory, "summary", "learningEvents")}",
+            $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
+            $"Hands: ejecutadas={Number(hands, "actionsExecuted")} | verificadas={Number(hands, "actionsVerified")} | bloqueadas={Number(hands, "actionsBlocked")} | ultimo={Text(hands, "lastSummary")}",
+            $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}"
+        };
+
+        if (blockers.Length > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add("Atencion operativa:");
+            lines.AddRange(blockers.Select(item => $"- {item}"));
+        }
+
+        var usefulLogs = recentLogLines
+            .Where(line => !LooksLikeRawJson(line))
+            .TakeLast(8)
+            .ToArray();
+        if (usefulLogs.Length > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add("Ultimos movimientos:");
+            lines.AddRange(usefulLogs.Select(line => $"- {line}"));
+        }
+
+        return lines;
     }
 
     public async Task<UpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
@@ -1030,6 +1108,7 @@ internal sealed class AgentRuntime : IDisposable
         {
             "AriadGSM.Vision.Worker",
             "AriadGSM.Perception.Worker",
+            "AriadGSM.Interaction.Worker",
             "AriadGSM.Hands.Worker"
         };
 
@@ -1564,6 +1643,7 @@ internal sealed class AgentRuntime : IDisposable
         var parts = new List<string>();
         AddStringPart(parts, root, "lastSummary", "summaryText", "lastReaderStatus", "lastExtractionSummary");
         AddNumberPart(parts, root, "messagesExtracted", "eventsWritten", "conversationEventsWritten", "actionsWritten", "actionsBlocked", "whatsAppWindowsDetected", "readerLinesObserved");
+        AddNumberPart(parts, root, "targetsObserved", "targetsAccepted", "targetsRejected", "actionableTargets", "interactionEventsWritten");
         AddNestedNumberPart(parts, root, "summary", "findings", "blocked", "requiresHumanConfirmation", "critical", "memoryMessages");
         return parts.Count == 0 ? "Estado recibido correctamente." : string.Join(" | ", parts.Take(4));
     }
@@ -1608,6 +1688,51 @@ internal sealed class AgentRuntime : IDisposable
                 parts.Add($"{objectName}.{name}={number}");
             }
         }
+    }
+
+    private static string Text(JsonDocument? document, params string[] names)
+    {
+        if (document is null)
+        {
+            return "-";
+        }
+
+        var value = TryString(document.RootElement, names);
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string Number(JsonDocument? document, params string[] names)
+    {
+        if (document is null)
+        {
+            return "0";
+        }
+
+        return TryNumber(document.RootElement, names)?.ToString() ?? "0";
+    }
+
+    private static string NestedNumber(JsonDocument? document, string objectName, params string[] names)
+    {
+        if (document is null
+            || document.RootElement.ValueKind != JsonValueKind.Object
+            || !document.RootElement.TryGetProperty(objectName, out var child)
+            || child.ValueKind != JsonValueKind.Object)
+        {
+            return "0";
+        }
+
+        return TryNumber(child, names)?.ToString() ?? "0";
+    }
+
+    private static bool LooksLikeRawJson(string line)
+    {
+        var trimmed = line.TrimStart();
+        return trimmed.StartsWith("{", StringComparison.Ordinal)
+            || trimmed.StartsWith("}", StringComparison.Ordinal)
+            || trimmed.StartsWith("[", StringComparison.Ordinal)
+            || trimmed.Contains("\"eventType\"", StringComparison.Ordinal)
+            || trimmed.Contains("\"messages\"", StringComparison.Ordinal)
+            || trimmed.Contains("\"conversationEventId\"", StringComparison.Ordinal);
     }
 
     private static string? TryString(JsonElement root, params string[] names)
@@ -1800,6 +1925,7 @@ internal sealed record UpdateCheckResult(
 internal sealed record AgentSnapshot(
     JsonDocument? Vision,
     JsonDocument? Perception,
+    JsonDocument? Interaction,
     JsonDocument? Timeline,
     JsonDocument? Cognitive,
     JsonDocument? Operating,

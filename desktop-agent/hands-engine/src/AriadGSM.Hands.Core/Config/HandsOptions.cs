@@ -10,6 +10,8 @@ public sealed class HandsOptions
 
     public string PerceptionEventsFile { get; init; } = @"desktop-agent\runtime\perception-events.jsonl";
 
+    public string InteractionEventsFile { get; init; } = @"desktop-agent\runtime\interaction-events.jsonl";
+
     public string ActionEventsFile { get; init; } = @"desktop-agent\runtime\action-events.jsonl";
 
     public string StateFile { get; init; } = @"desktop-agent\runtime\hands-state.json";
@@ -29,6 +31,8 @@ public sealed class HandsOptions
     public int DecisionLimit { get; init; } = 200;
 
     public int PerceptionLimit { get; init; } = 50;
+
+    public int InteractionLimit { get; init; } = 20;
 
     public IReadOnlyList<HandsChannelMapping> ChannelMappings { get; init; } =
     [

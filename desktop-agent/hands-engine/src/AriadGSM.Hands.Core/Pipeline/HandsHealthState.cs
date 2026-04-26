@@ -13,6 +13,7 @@ public sealed record HandsHealthState(
     string CognitiveDecisionEventsFile,
     string OperatingDecisionEventsFile,
     string PerceptionEventsFile,
+    string InteractionEventsFile,
     string ActionEventsFile,
     string LastActionId,
     string LastSummary,

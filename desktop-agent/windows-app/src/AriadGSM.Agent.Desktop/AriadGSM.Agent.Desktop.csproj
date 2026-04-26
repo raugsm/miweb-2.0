@@ -10,4 +10,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon />
   </PropertyGroup>
+  <ItemGroup>
+    <Content Include="assets\ariadgsm-logo.jpg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

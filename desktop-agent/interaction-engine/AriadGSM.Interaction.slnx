@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AriadGSM.Interaction.Core/AriadGSM.Interaction.Core.csproj" />
+    <Project Path="src/AriadGSM.Interaction.Worker/AriadGSM.Interaction.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AriadGSM.Interaction.Tests/AriadGSM.Interaction.Tests.csproj" />
+  </Folder>
+</Solution>

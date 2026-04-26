@@ -13,7 +13,7 @@ popd >nul 2>nul
 if not defined GIT_COMMIT set "GIT_COMMIT=unknown"
 
 set "RUNNING_AGENT="
-for %%P in ("AriadGSM Agent.exe" "AriadGSM.Vision.Worker.exe" "AriadGSM.Perception.Worker.exe" "AriadGSM.Hands.Worker.exe") do (
+for %%P in ("AriadGSM Agent.exe" "AriadGSM.Vision.Worker.exe" "AriadGSM.Perception.Worker.exe" "AriadGSM.Interaction.Worker.exe" "AriadGSM.Hands.Worker.exe") do (
   tasklist /fi "imagename eq %%~P" 2>nul | find /i "%%~P" >nul
   if not errorlevel 1 set "RUNNING_AGENT=1"
 )
@@ -28,6 +28,7 @@ if exist "%DIST%" rmdir /s /q "%DIST%"
 mkdir "%DIST%" >nul 2>&1
 mkdir "%DIST%\engines\vision" >nul 2>&1
 mkdir "%DIST%\engines\perception" >nul 2>&1
+mkdir "%DIST%\engines\interaction" >nul 2>&1
 mkdir "%DIST%\engines\hands" >nul 2>&1
 mkdir "%DIST%\config" >nul 2>&1
 mkdir "%DIST%\updater" >nul 2>&1
@@ -57,6 +58,12 @@ if errorlevel 1 exit /b 1
 dotnet publish "%ROOT%\desktop-agent\perception-engine\src\AriadGSM.Perception.Worker\AriadGSM.Perception.Worker.csproj" -c Release -r win-x64 --self-contained false -o "%DIST%\engines\perception" /p:Version=%AGENT_VERSION% /p:AssemblyVersion=%AGENT_FILE_VERSION% /p:FileVersion=%AGENT_FILE_VERSION% /p:InformationalVersion=%AGENT_VERSION%+%GIT_COMMIT%
 if errorlevel 1 exit /b 1
 
+echo Building Interaction Worker...
+dotnet restore "%ROOT%\desktop-agent\interaction-engine\src\AriadGSM.Interaction.Worker\AriadGSM.Interaction.Worker.csproj" -r win-x64
+if errorlevel 1 exit /b 1
+dotnet publish "%ROOT%\desktop-agent\interaction-engine\src\AriadGSM.Interaction.Worker\AriadGSM.Interaction.Worker.csproj" -c Release -r win-x64 --self-contained false -o "%DIST%\engines\interaction" /p:Version=%AGENT_VERSION% /p:AssemblyVersion=%AGENT_FILE_VERSION% /p:FileVersion=%AGENT_FILE_VERSION% /p:InformationalVersion=%AGENT_VERSION%+%GIT_COMMIT%
+if errorlevel 1 exit /b 1
+
 echo Building Hands Worker...
 dotnet restore "%ROOT%\desktop-agent\hands-engine\src\AriadGSM.Hands.Worker\AriadGSM.Hands.Worker.csproj" -r win-x64
 if errorlevel 1 exit /b 1
@@ -65,6 +72,7 @@ if errorlevel 1 exit /b 1
 
 copy /y "%ROOT%\desktop-agent\vision-engine\config\vision.example.json" "%DIST%\config\vision.json" >nul
 copy /y "%ROOT%\desktop-agent\perception-engine\config\perception.example.json" "%DIST%\config\perception.json" >nul
+copy /y "%ROOT%\desktop-agent\interaction-engine\config\interaction.example.json" "%DIST%\config\interaction.json" >nul
 copy /y "%ROOT%\desktop-agent\hands-engine\config\hands.example.json" "%DIST%\config\hands.json" >nul
 
 >"%DIST%\ariadgsm-version.json" echo {
