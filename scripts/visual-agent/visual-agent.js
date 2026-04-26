@@ -4,6 +4,10 @@ const path = require("path");
 const SCRIPT_DIR = __dirname;
 const DEFAULT_CONFIG_FILE = path.join(SCRIPT_DIR, "visual-agent.config.json");
 
+function readJsonFile(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
+}
+
 function resolveFromScriptDir(value, fallback) {
   const target = value || fallback;
   return path.isAbsolute(target) ? target : path.join(SCRIPT_DIR, target);
@@ -17,7 +21,7 @@ function readConfig() {
     );
   }
 
-  const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+  const config = readJsonFile(configFile);
   return {
     ...config,
     cloudUrl: String(config.cloudUrl || "https://ariadgsm.com").replace(/\/+$/, ""),
@@ -37,7 +41,7 @@ function ensureDirs(config) {
 }
 
 function readEventFile(filePath) {
-  const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  const parsed = readJsonFile(filePath);
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
