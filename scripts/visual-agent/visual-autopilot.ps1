@@ -24,6 +24,7 @@ $CaptureScript = Join-Path $ScriptDir "visual-screen-capture.ps1"
 $IntentBridgeScript = Join-Path $ScriptDir "visual-intent-bridge.ps1"
 $LearningPassScript = Join-Path $ScriptDir "visual-chat-learning-pass.ps1"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
+$AutopilotStateFile = Join-Path $RuntimeDir "agent-autopilot.state.json"
 New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
 
 if (-not $ConfigPath) {
@@ -328,7 +329,9 @@ do {
   $cycle += 1
   $summary = Invoke-AutopilotCycle -CycleNumber $cycle -Config $config
   $summaries += $summary
-  $summary | ConvertTo-Json -Depth 12
+  $summaryJson = $summary | ConvertTo-Json -Depth 12
+  $summaryJson | Set-Content -LiteralPath $AutopilotStateFile -Encoding UTF8
+  $summaryJson
 
   $shouldContinue = $Watch -and ($MaxCycles -le 0 -or $cycle -lt $MaxCycles)
   if ($shouldContinue) {

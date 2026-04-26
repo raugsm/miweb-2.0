@@ -21,6 +21,7 @@ $StderrLog = Join-Path $RuntimeDir "agent-watch.err.log"
 $AutopilotPidFile = Join-Path $RuntimeDir "agent-autopilot.pid"
 $AutopilotOutLog = Join-Path $RuntimeDir "agent-autopilot.out.log"
 $AutopilotErrLog = Join-Path $RuntimeDir "agent-autopilot.err.log"
+$AutopilotStateFile = Join-Path $RuntimeDir "agent-autopilot.state.json"
 
 function Ensure-RuntimeDir {
   New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
@@ -155,6 +156,14 @@ function Get-AgentStatus {
   } else {
     ""
   }
+  $latestAutopilotState = $null
+  if (Test-Path -LiteralPath $AutopilotStateFile) {
+    try {
+      $latestAutopilotState = Get-Content -LiteralPath $AutopilotStateFile -Raw | ConvertFrom-Json
+    } catch {
+      $latestAutopilotState = $null
+    }
+  }
 
   return [pscustomobject]@{
     Running = [bool]$process
@@ -170,6 +179,12 @@ function Get-AgentStatus {
     LatestProcessed = if ($latestProcessed) { $latestProcessed.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
     LatestError = $latestError
     LatestAutopilotError = $latestAutopilotError
+    LatestAutopilotCycle = if ($latestAutopilotState) { $latestAutopilotState.Cycle } else { $null }
+    LatestAutopilotStatus = if ($latestAutopilotState) { $latestAutopilotState.Status } else { $null }
+    LatestAutopilotFinishedAt = if ($latestAutopilotState) { $latestAutopilotState.FinishedAt } else { $null }
+    LatestAutopilotLines = if ($latestAutopilotState -and $latestAutopilotState.BaseCapture -and $latestAutopilotState.BaseCapture.Result) { $latestAutopilotState.BaseCapture.Result.Lines } else { $null }
+    LatestAutopilotIntent = if ($latestAutopilotState -and $latestAutopilotState.Intent) { $latestAutopilotState.Intent.Status } else { $null }
+    LatestAutopilotLearning = if ($latestAutopilotState -and $latestAutopilotState.Learning) { $latestAutopilotState.Learning.Status } else { $null }
   }
 }
 
@@ -557,6 +572,7 @@ function Start-AgentGui {
         "Nube: $($status.CloudUrl)",
         "Ultima captura: $($status.LatestCapture)",
         "Ultimo envio procesado: $($status.LatestProcessed)",
+        "Ultimo autopiloto: ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
         "Logs: $($status.RuntimeDir)"
       )
       if ($status.LatestError) {
