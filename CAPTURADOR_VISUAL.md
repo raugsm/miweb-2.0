@@ -15,6 +15,20 @@ Este capturador reconstruye el paso que ya habia llegado a funcionar: leer panta
 scripts\visual-agent\visual-screen-capture.ps1
 ```
 
+## Launcher local
+
+Para usar el agente sin escribir comandos:
+
+```text
+AriadGSM-Agent.cmd
+```
+
+Para instalar accesos directos en Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\install-agent-launcher.ps1
+```
+
 ## Control visual con puntero
 
 El control del mouse existe en modo seguro y no hace clics a menos que se use `-Execute`:

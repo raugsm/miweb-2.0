@@ -1,0 +1,362 @@
+param(
+  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
+  [string]$Action = "Gui",
+  [int]$PollSeconds = 60
+)
+
+$ErrorActionPreference = "Stop"
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
+$CaptureScript = Join-Path $ScriptDir "visual-screen-capture.ps1"
+$ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
+$RuntimeDir = Join-Path $ScriptDir "runtime"
+$PidFile = Join-Path $RuntimeDir "agent-watch.pid"
+$StdoutLog = Join-Path $RuntimeDir "agent-watch.out.log"
+$StderrLog = Join-Path $RuntimeDir "agent-watch.err.log"
+
+function Ensure-RuntimeDir {
+  New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
+}
+
+function Get-PowerShellPath {
+  $systemPath = Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0\powershell.exe"
+  if (Test-Path $systemPath) {
+    return $systemPath
+  }
+  return (Get-Command powershell.exe -ErrorAction Stop).Source
+}
+
+function Test-AgentConfig {
+  if (-not (Test-Path -LiteralPath $ConfigPath)) {
+    return [pscustomobject]@{
+      Configured = $false
+      Message = "Falta visual-agent.cloud.json"
+    }
+  }
+
+  try {
+    $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    $hasToken = [bool]([string]$config.agentToken).Trim()
+    return [pscustomobject]@{
+      Configured = $hasToken
+      CloudUrl = if ($config.cloudUrl) { $config.cloudUrl } else { "https://ariadgsm.com" }
+      Message = if ($hasToken) { "Configurado" } else { "Falta agentToken" }
+    }
+  } catch {
+    return [pscustomobject]@{
+      Configured = $false
+      Message = "Config invalido: $($_.Exception.Message)"
+    }
+  }
+}
+
+function Get-AgentProcess {
+  if (-not (Test-Path -LiteralPath $PidFile)) {
+    return $null
+  }
+
+  $pidText = (Get-Content -LiteralPath $PidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+  $agentPid = 0
+  if (-not [int]::TryParse([string]$pidText, [ref]$agentPid)) {
+    return $null
+  }
+
+  $process = Get-Process -Id $agentPid -ErrorAction SilentlyContinue
+  if (-not $process) {
+    return $null
+  }
+  return $process
+}
+
+function Get-LatestFile {
+  param([string]$Path, [string]$Filter)
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return $null
+  }
+  return Get-ChildItem -LiteralPath $Path -Filter $Filter -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+}
+
+function Get-AgentStatus {
+  Ensure-RuntimeDir
+  $configStatus = Test-AgentConfig
+  $process = Get-AgentProcess
+  $latestCapture = Get-LatestFile (Join-Path $ScriptDir "captures") "screen-events-*.json"
+  $latestProcessed = Get-LatestFile (Join-Path $ScriptDir "cloud-processed") "*screen-events-*.json"
+  $latestError = if (Test-Path -LiteralPath $StderrLog) {
+    (Get-Content -LiteralPath $StderrLog -Tail 4 -ErrorAction SilentlyContinue) -join "`n"
+  } else {
+    ""
+  }
+
+  return [pscustomobject]@{
+    Running = [bool]$process
+    ProcessId = if ($process) { $process.Id } else { $null }
+    Configured = $configStatus.Configured
+    ConfigMessage = $configStatus.Message
+    CloudUrl = $configStatus.CloudUrl
+    PollSeconds = $PollSeconds
+    RuntimeDir = $RuntimeDir
+    LatestCapture = if ($latestCapture) { $latestCapture.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
+    LatestProcessed = if ($latestProcessed) { $latestProcessed.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
+    LatestError = $latestError
+  }
+}
+
+function Start-AgentWatch {
+  Ensure-RuntimeDir
+  $existing = Get-AgentProcess
+  if ($existing) {
+    return Get-AgentStatus
+  }
+
+  $configStatus = Test-AgentConfig
+  if (-not $configStatus.Configured) {
+    throw $configStatus.Message
+  }
+
+  if (-not (Test-Path -LiteralPath $CaptureScript)) {
+    throw "No encontre visual-screen-capture.ps1"
+  }
+
+  $psExe = Get-PowerShellPath
+  $arguments = @(
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    $CaptureScript,
+    "-Send",
+    "-Watch",
+    "-PollSeconds",
+    [string]$PollSeconds
+  )
+
+  $process = Start-Process -FilePath $psExe `
+    -ArgumentList $arguments `
+    -WorkingDirectory $ProjectRoot `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput $StdoutLog `
+    -RedirectStandardError $StderrLog `
+    -PassThru
+
+  Set-Content -LiteralPath $PidFile -Value $process.Id -Encoding ASCII
+  Start-Sleep -Milliseconds 400
+  return Get-AgentStatus
+}
+
+function Stop-AgentWatch {
+  Ensure-RuntimeDir
+  $process = Get-AgentProcess
+  if ($process) {
+    Stop-Process -Id $process.Id -Force
+  }
+  if (Test-Path -LiteralPath $PidFile) {
+    Remove-Item -LiteralPath $PidFile -Force
+  }
+  Start-Sleep -Milliseconds 200
+  return Get-AgentStatus
+}
+
+function Invoke-RunOnce {
+  Ensure-RuntimeDir
+  $configStatus = Test-AgentConfig
+  if (-not $configStatus.Configured) {
+    throw $configStatus.Message
+  }
+
+  $psExe = Get-PowerShellPath
+  $onceOut = Join-Path $RuntimeDir ("run-once-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $onceErr = Join-Path $RuntimeDir ("run-once-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $process = Start-Process -FilePath $psExe `
+    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $CaptureScript, "-Send") `
+    -WorkingDirectory $ProjectRoot `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput $onceOut `
+    -RedirectStandardError $onceErr `
+    -PassThru
+  $process.WaitForExit()
+
+  if ($process.ExitCode -ne 0) {
+    $errorText = if (Test-Path -LiteralPath $onceErr) { Get-Content -LiteralPath $onceErr -Raw } else { "" }
+    throw "La lectura una vez fallo con codigo $($process.ExitCode). $errorText"
+  }
+
+  return Get-AgentStatus
+}
+
+function Open-AgentPanel {
+  Start-Process "https://ariadgsm.com/operativa-v2.html"
+}
+
+function Open-LocalPanel {
+  Start-Process "http://localhost:3000/operativa-v2.html"
+}
+
+function Open-RuntimeFolder {
+  Ensure-RuntimeDir
+  Start-Process explorer.exe $RuntimeDir
+}
+
+function Write-StatusJson {
+  Get-AgentStatus | ConvertTo-Json -Depth 5
+}
+
+function Start-AgentGui {
+  Add-Type -AssemblyName System.Windows.Forms
+  Add-Type -AssemblyName System.Drawing
+
+  [System.Windows.Forms.Application]::EnableVisualStyles()
+
+  $form = New-Object System.Windows.Forms.Form
+  $form.Text = "AriadGSM Agent Desktop"
+  $form.StartPosition = "CenterScreen"
+  $form.Width = 560
+  $form.Height = 430
+  $form.MinimumSize = New-Object System.Drawing.Size(520, 390)
+
+  $title = New-Object System.Windows.Forms.Label
+  $title.Text = "AriadGSM Agent Desktop"
+  $title.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+  $title.AutoSize = $true
+  $title.Left = 22
+  $title.Top = 18
+  $form.Controls.Add($title)
+
+  $subtitle = New-Object System.Windows.Forms.Label
+  $subtitle.Text = "Observador local para leer los 3 WhatsApp y enviar eventos a ariadgsm.com"
+  $subtitle.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+  $subtitle.AutoSize = $true
+  $subtitle.Left = 24
+  $subtitle.Top = 55
+  $form.Controls.Add($subtitle)
+
+  $statusBox = New-Object System.Windows.Forms.TextBox
+  $statusBox.Left = 24
+  $statusBox.Top = 88
+  $statusBox.Width = 500
+  $statusBox.Height = 165
+  $statusBox.Multiline = $true
+  $statusBox.ReadOnly = $true
+  $statusBox.ScrollBars = "Vertical"
+  $statusBox.Font = New-Object System.Drawing.Font("Consolas", 9)
+  $form.Controls.Add($statusBox)
+
+  $buttonStart = New-Object System.Windows.Forms.Button
+  $buttonStart.Text = "Iniciar observador"
+  $buttonStart.Left = 24
+  $buttonStart.Top = 270
+  $buttonStart.Width = 150
+  $buttonStart.Height = 34
+  $form.Controls.Add($buttonStart)
+
+  $buttonStop = New-Object System.Windows.Forms.Button
+  $buttonStop.Text = "Detener"
+  $buttonStop.Left = 186
+  $buttonStop.Top = 270
+  $buttonStop.Width = 92
+  $buttonStop.Height = 34
+  $form.Controls.Add($buttonStop)
+
+  $buttonOnce = New-Object System.Windows.Forms.Button
+  $buttonOnce.Text = "Leer una vez"
+  $buttonOnce.Left = 290
+  $buttonOnce.Top = 270
+  $buttonOnce.Width = 112
+  $buttonOnce.Height = 34
+  $form.Controls.Add($buttonOnce)
+
+  $buttonPanel = New-Object System.Windows.Forms.Button
+  $buttonPanel.Text = "Abrir cabina"
+  $buttonPanel.Left = 414
+  $buttonPanel.Top = 270
+  $buttonPanel.Width = 110
+  $buttonPanel.Height = 34
+  $form.Controls.Add($buttonPanel)
+
+  $buttonLogs = New-Object System.Windows.Forms.Button
+  $buttonLogs.Text = "Logs"
+  $buttonLogs.Left = 24
+  $buttonLogs.Top = 318
+  $buttonLogs.Width = 80
+  $buttonLogs.Height = 32
+  $form.Controls.Add($buttonLogs)
+
+  $buttonLocal = New-Object System.Windows.Forms.Button
+  $buttonLocal.Text = "Panel local"
+  $buttonLocal.Left = 116
+  $buttonLocal.Top = 318
+  $buttonLocal.Width = 100
+  $buttonLocal.Height = 32
+  $form.Controls.Add($buttonLocal)
+
+  $hint = New-Object System.Windows.Forms.Label
+  $hint.Text = "Nivel actual: observa y abre lecturas. No escribe ni envia mensajes al cliente."
+  $hint.AutoSize = $true
+  $hint.Left = 24
+  $hint.Top = 362
+  $form.Controls.Add($hint)
+
+  function Refresh-Ui {
+    try {
+      $status = Get-AgentStatus
+      $lines = @(
+        "Estado: " + $(if ($status.Running) { "ACTIVO (PID $($status.ProcessId))" } else { "DETENIDO" }),
+        "Config: $($status.ConfigMessage)",
+        "Nube: $($status.CloudUrl)",
+        "Ultima captura: $($status.LatestCapture)",
+        "Ultimo envio procesado: $($status.LatestProcessed)",
+        "Logs: $($status.RuntimeDir)"
+      )
+      if ($status.LatestError) {
+        $lines += ""
+        $lines += "Ultimo error:"
+        $lines += $status.LatestError
+      }
+      $statusBox.Text = ($lines -join "`r`n")
+    } catch {
+      $statusBox.Text = "No pude leer estado: $($_.Exception.Message)"
+    }
+  }
+
+  function Run-GuiAction {
+    param([scriptblock]$Operation)
+    try {
+      $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+      [void]$Operation.Invoke()
+    } catch {
+      [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "AriadGSM Agent", "OK", "Warning") | Out-Null
+    } finally {
+      $form.Cursor = [System.Windows.Forms.Cursors]::Default
+      Refresh-Ui
+    }
+  }
+
+  $buttonStart.Add_Click({ Run-GuiAction { Start-AgentWatch | Out-Null } })
+  $buttonStop.Add_Click({ Run-GuiAction { Stop-AgentWatch | Out-Null } })
+  $buttonOnce.Add_Click({ Run-GuiAction { Invoke-RunOnce | Out-Null } })
+  $buttonPanel.Add_Click({ Open-AgentPanel })
+  $buttonLocal.Add_Click({ Open-LocalPanel })
+  $buttonLogs.Add_Click({ Open-RuntimeFolder })
+
+  $timer = New-Object System.Windows.Forms.Timer
+  $timer.Interval = 5000
+  $timer.Add_Tick({ Refresh-Ui })
+  $timer.Start()
+
+  Refresh-Ui
+  [void]$form.ShowDialog()
+}
+
+switch ($Action) {
+  "Gui" { Start-AgentGui }
+  "Status" { Write-StatusJson }
+  "Start" { Start-AgentWatch | ConvertTo-Json -Depth 5 }
+  "Stop" { Stop-AgentWatch | ConvertTo-Json -Depth 5 }
+  "RunOnce" { Invoke-RunOnce | ConvertTo-Json -Depth 5 }
+  "OpenPanel" { Open-AgentPanel }
+  "OpenLocalPanel" { Open-LocalPanel }
+  "OpenRuntime" { Open-RuntimeFolder }
+}
