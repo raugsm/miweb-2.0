@@ -36,7 +36,7 @@ public sealed class Win32WindowEnumerator : IWindowEnumerator
                 return true;
             }
 
-            _ = GetWindowThreadProcessId(handle, out var processId);
+            GetWindowThreadProcessId(handle, out var processId);
             var processName = GetProcessName(processId);
             windows.Add(new WindowSnapshot(
                 handle,
@@ -103,4 +103,3 @@ public sealed class Win32WindowEnumerator : IWindowEnumerator
         public int Bottom;
     }
 }
-
