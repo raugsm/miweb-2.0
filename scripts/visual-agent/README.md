@@ -52,7 +52,9 @@ Observador continuo por streaming visual:
 python .\scripts\visual-agent\eyes-stream.py --duration-seconds 8
 ```
 
-Para dejarlo corriendo desde el launcher usa **Ojo vivo**. El launcher usa `--live`: captura cada 100ms por defecto, compara cambios por region, exige firma visual de WhatsApp antes de aceptar texto, ejecuta OCR bajo demanda en segundo plano y escribe `runtime\eyes-stream.state.json` y `runtime\eyes-stream\latest.html`.
+Para dejarlo corriendo desde el launcher usa **Ojo vivo**. El launcher usa `--live`: captura cada 100ms por defecto, compara cambios por region, exige firma visual de WhatsApp antes de aceptar texto, ejecuta OCR bajo demanda en segundo plano, guarda frames comprimidos en `D:\AriadGSM\vision-buffer` y escribe `runtime\eyes-stream.state.json` y `runtime\eyes-stream\latest.html`.
+
+El buffer visual rota por defecto con 7 dias o 500GB. Se puede cambiar con `--retention-hours`, `--max-storage-gb`, `--vision-storage-dir` o la variable `ARIADGSM_VISION_STORAGE_DIR`.
 
 ## Ejecutar en observacion continua
 

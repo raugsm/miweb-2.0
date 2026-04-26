@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -34,6 +35,7 @@ OCR_SCRIPT = SCRIPT_DIR / "visual-ocr-image.ps1"
 RUNTIME_DIR = SCRIPT_DIR / "runtime"
 EYES_DIR = RUNTIME_DIR / "eyes-stream"
 STATE_FILE = RUNTIME_DIR / "eyes-stream.state.json"
+DEFAULT_VISION_STORAGE = Path("D:/AriadGSM/vision-buffer")
 
 
 def load_agent_local():
@@ -70,6 +72,74 @@ def log(message: str) -> None:
 
 def read_config(config_path: Path) -> dict[str, Any]:
     return json.loads(config_path.read_text(encoding="utf-8-sig"))
+
+
+def resolve_vision_storage_root(config: dict[str, Any]) -> Path:
+    storage = config.get("storage") or {}
+    configured = os.environ.get("ARIADGSM_VISION_STORAGE_DIR") or storage.get("visionStorageDir")
+    if configured:
+        return Path(str(configured)).expanduser().resolve()
+    if DEFAULT_VISION_STORAGE.drive and Path(DEFAULT_VISION_STORAGE.drive + "/").exists():
+        return DEFAULT_VISION_STORAGE.resolve()
+    return (RUNTIME_DIR / "vision-buffer").resolve()
+
+
+def path_is_inside(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def directory_size(path: Path) -> int:
+    total = 0
+    for item in path.rglob("*"):
+        if item.is_file():
+            try:
+                total += item.stat().st_size
+            except OSError:
+                pass
+    return total
+
+
+def cleanup_vision_storage(root: Path, retention_hours: float, max_storage_gb: float) -> dict[str, Any]:
+    stream_root = root / "eyes-stream"
+    stream_root.mkdir(parents=True, exist_ok=True)
+    deleted: list[str] = []
+    now = time.time()
+    retention_seconds = max(1.0, retention_hours * 3600.0)
+
+    sessions = [item for item in stream_root.iterdir() if item.is_dir()]
+    for session in sessions:
+        try:
+            age_seconds = now - session.stat().st_mtime
+        except OSError:
+            continue
+        if age_seconds > retention_seconds and path_is_inside(session, stream_root):
+            shutil.rmtree(session, ignore_errors=True)
+            deleted.append(session.name)
+
+    max_bytes = int(max_storage_gb * 1024 * 1024 * 1024)
+    sessions = sorted([item for item in stream_root.iterdir() if item.is_dir()], key=lambda item: item.stat().st_mtime)
+    total = directory_size(stream_root)
+    for session in sessions:
+        if total <= max_bytes:
+            break
+        if not path_is_inside(session, stream_root):
+            continue
+        size = directory_size(session)
+        shutil.rmtree(session, ignore_errors=True)
+        total = max(0, total - size)
+        deleted.append(session.name)
+
+    return {
+        "root": str(root),
+        "streamRoot": str(stream_root),
+        "deletedSessions": deleted,
+        "usedBytes": total,
+        "maxBytes": max_bytes,
+    }
 
 
 def ratio_value(obj: dict[str, Any] | None, default: dict[str, Any] | None, name: str, fallback: float) -> float:
@@ -157,6 +227,12 @@ def run_ocr(image_path: Path) -> list[str]:
         raise RuntimeError((result.stderr or result.stdout).strip() or "OCR fallo.")
     payload = agent_local.extract_json(result.stdout)
     return [str(line) for line in payload.get("Lines", []) if str(line).strip()]
+
+
+def save_recorded_frame(image: Image.Image, image_path: Path, quality: int) -> str:
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(image_path, format="JPEG", quality=quality, optimize=True)
+    return str(image_path)
 
 
 def time_only_line(text: str) -> bool:
@@ -267,7 +343,7 @@ def render_report(state: dict[str, Any], output_path: Path) -> None:
     h1 {{ margin:0; font-size:24px; }}
     main {{ padding:22px; display:grid; gap:16px; }}
     .panel,.event {{ background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:16px; box-shadow:0 10px 26px rgba(19,52,102,.08); }}
-    .metrics {{ display:grid; grid-template-columns:repeat(5,minmax(120px,1fr)); gap:10px; margin-top:12px; }}
+    .metrics {{ display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:10px; margin-top:12px; }}
     .metric {{ background:#f4f8ff; border:1px solid var(--line); border-radius:8px; padding:10px; }}
     .metric b {{ display:block; color:var(--accent); font-size:20px; }}
     .event-head {{ display:flex; gap:12px; align-items:center; color:var(--muted); margin-bottom:10px; }}
@@ -288,11 +364,13 @@ def render_report(state: dict[str, Any], output_path: Path) -> None:
       <h2>Estado</h2>
       <div class="metrics">
         <div class="metric"><b>{esc(state.get('frames'))}</b>frames</div>
+        <div class="metric"><b>{esc(state.get('recordedFrames'))}</b>grabados</div>
         <div class="metric"><b>{esc(state.get('ocrRuns'))}</b>OCR</div>
         <div class="metric"><b>{esc(len(events))}</b>eventos</div>
         <div class="metric"><b>{esc(decision.get('Status'))}</b>decision</div>
         <div class="metric"><b>{esc(decision.get('TargetChannel'))}</b>canal</div>
       </div>
+      <p><b>Almacen visual:</b> {esc(state.get('visionStorageRoot'))}</p>
       <p><b>Ultima decision:</b> {esc(decision.get('Label') or decision.get('Reason'))} · {esc(decision.get('Text'))}</p>
     </section>
     {''.join(rows)}
@@ -323,6 +401,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--ocr-workers", type=int, default=1)
     parser.add_argument("--max-pending-ocr", type=int, default=4)
     parser.add_argument("--state-interval-ms", type=int, default=750)
+    parser.add_argument("--record-frames", dest="record_frames", action="store_true")
+    parser.add_argument("--no-record-frames", dest="record_frames", action="store_false")
+    parser.set_defaults(record_frames=None)
+    parser.add_argument("--record-interval-ms", type=int, default=500)
+    parser.add_argument("--record-quality", type=int, default=55)
+    parser.add_argument("--retention-hours", type=float, default=168.0)
+    parser.add_argument("--max-storage-gb", type=float, default=500.0)
+    parser.add_argument("--vision-storage-dir", default="")
     parser.add_argument("--fingerprint-width", type=int, default=96)
     parser.add_argument("--fingerprint-height", type=int, default=96)
     parser.add_argument("--buffer-events", type=int, default=160)
@@ -341,6 +427,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             args.max_pending_ocr = 6
         if args.state_interval_ms == 750:
             args.state_interval_ms = 500
+        if args.record_frames is None:
+            args.record_frames = True
+    if args.record_frames is None:
+        args.record_frames = False
+    args.record_quality = max(25, min(90, args.record_quality))
+    args.record_interval_ms = max(100, args.record_interval_ms)
     return args
 
 
@@ -353,6 +445,10 @@ def build_state(
     events: deque[dict[str, Any]],
     last_decision: dict[str, Any],
     pending_ocr: dict[Future[list[str]], dict[str, Any]],
+    pending_frames: dict[Future[str], str],
+    vision_storage_root: Path,
+    storage_cleanup: dict[str, Any],
+    recorded_frames: int,
     completed: bool = False,
 ) -> dict[str, Any]:
     return {
@@ -364,9 +460,15 @@ def build_state(
         "frames": frames,
         "ocrRuns": ocr_runs,
         "pendingOcr": len(pending_ocr),
+        "pendingFrameSaves": len(pending_frames),
+        "recordedFrames": recorded_frames,
+        "recordFrames": bool(args.record_frames),
         "captureIntervalMs": args.interval_ms,
+        "recordIntervalMs": args.record_interval_ms,
         "ocrCooldownSeconds": args.ocr_cooldown_seconds,
         "ocrWorkers": args.ocr_workers,
+        "visionStorageRoot": str(vision_storage_root),
+        "storageCleanup": storage_cleanup,
         "regions": [{"channelId": r.channel_id, "name": r.name, "rect": list(r.rect)} for r in regions],
         "events": list(events),
         "lastDecision": last_decision,
@@ -378,116 +480,140 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     config_path = Path(args.config_path).resolve()
     config = json.loads(config_path.read_text(encoding="utf-8-sig"))
-    session_dir = EYES_DIR / datetime.now().strftime("%Y%m%d-%H%M%S")
+    vision_storage_root = Path(args.vision_storage_dir).expanduser().resolve() if args.vision_storage_dir else resolve_vision_storage_root(config)
+    storage_cleanup = cleanup_vision_storage(vision_storage_root, args.retention_hours, args.max_storage_gb)
+    session_dir = vision_storage_root / "eyes-stream" / datetime.now().strftime("%Y%m%d-%H%M%S")
     crop_dir = session_dir / "crops"
+    frame_dir = session_dir / "frames"
     crop_dir.mkdir(parents=True, exist_ok=True)
     first = ImageGrab.grab(all_screens=True)
     regions = build_regions(config, first.size, args.full_section)
     fingerprints: dict[str, np.ndarray] = {}
     last_ocr: dict[str, float] = {}
     pending_ocr: dict[Future[list[str]], dict[str, Any]] = {}
+    pending_frames: dict[Future[str], str] = {}
     pending_channels: set[str] = set()
     events: deque[dict[str, Any]] = deque(maxlen=args.buffer_events)
     frames = 0
     ocr_runs = 0
+    recorded_frames = 0
     last_decision: dict[str, Any] = {"Status": "no_local_action", "Source": "eyes_stream", "Reason": "Sin lectura todavia."}
     start = time.monotonic()
     last_state_write = 0.0
+    last_record_write = 0.0
     log(
         f"Ojo vivo iniciado: {first.size[0]}x{first.size[1]}, {len(regions)} regiones, "
-        f"intervalo {args.interval_ms}ms, OCR workers {args.ocr_workers}."
+        f"intervalo {args.interval_ms}ms, OCR workers {args.ocr_workers}, storage {vision_storage_root}."
     )
 
     with ThreadPoolExecutor(max_workers=max(1, args.ocr_workers)) as executor:
-        while True:
-            now_mono = time.monotonic()
-            event_added = False
+        with ThreadPoolExecutor(max_workers=1) as frame_executor:
+            while True:
+                now_mono = time.monotonic()
+                event_added = False
 
-            for future in [item for item in pending_ocr if item.done()]:
-                job = pending_ocr.pop(future)
-                pending_channels.discard(job["region"].channel_id)
-                try:
-                    raw_lines = future.result()
-                except Exception as exc:
-                    raw_lines = []
-                    decisions = [{"Raw": "", "Clean": "", "Accepted": False, "Reason": f"ocr_error: {exc}"}]
-                    ignored = decisions
-                else:
-                    blocked_reason = blocked_section_reason(raw_lines)
-                    if blocked_reason:
-                        decisions = [
-                            {"Raw": line, "Clean": re.sub(r"\s+", " ", line).strip(), "Accepted": False, "Reason": blocked_reason}
-                            for line in raw_lines
-                        ]
+                for future in [item for item in pending_frames if item.done()]:
+                    pending_frames.pop(future, None)
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        log(f"No pude guardar frame visual: {exc}")
+
+                for future in [item for item in pending_ocr if item.done()]:
+                    job = pending_ocr.pop(future)
+                    pending_channels.discard(job["region"].channel_id)
+                    try:
+                        raw_lines = future.result()
+                    except Exception as exc:
+                        raw_lines = []
+                        decisions = [{"Raw": "", "Clean": "", "Accepted": False, "Reason": f"ocr_error: {exc}"}]
+                        ignored = decisions
                     else:
-                        decisions = [line_decision(line) for line in raw_lines]
-                    ignored = [item for item in decisions if not item["Accepted"]]
+                        blocked_reason = blocked_section_reason(raw_lines)
+                        if blocked_reason:
+                            decisions = [
+                                {"Raw": line, "Clean": re.sub(r"\s+", " ", line).strip(), "Accepted": False, "Reason": blocked_reason}
+                                for line in raw_lines
+                            ]
+                        else:
+                            decisions = [line_decision(line) for line in raw_lines]
+                        ignored = [item for item in decisions if not item["Accepted"]]
 
-                accepted = [item["Clean"] for item in decisions if item["Accepted"]]
-                if accepted:
-                    messages = make_messages(job["region"].channel_id, accepted)
-                    last_decision = agent_local.rule_decision(messages, 3)
-                event = {
-                    "capturedAt": job["capturedAt"],
-                    "processedAt": now_iso(),
-                    "channelId": job["region"].channel_id,
-                    "name": job["region"].name,
-                    "rect": list(job["region"].rect),
-                    "imagePath": str(job["imagePath"]),
-                    "change": job["change"],
-                    "rawLines": raw_lines,
-                    "acceptedLines": accepted,
-                    "ignoredLines": ignored,
-                    "decision": last_decision,
-                }
-                events.append(event)
-                ocr_runs += 1
-                event_added = True
-                log(f"{job['region'].channel_id}: cambio {job['change']['score']:.2f}, OCR {len(raw_lines)} lineas, utiles {len(accepted)}.")
-
-            expired = (not args.watch) and (now_mono - start) >= args.duration_seconds
-            if not expired:
-                image = ImageGrab.grab(all_screens=True)
-                frames += 1
-                candidates: list[tuple[float, Region, Image.Image, dict[str, float]]] = []
-                for region in regions:
-                    crop = image.crop(region.rect)
-                    fp = fingerprint(crop, (args.fingerprint_width, args.fingerprint_height))
-                    change = change_score(fingerprints.get(region.channel_id), fp)
-                    fingerprints[region.channel_id] = fp
-                    should_ocr = (
-                        change["score"] >= args.change_threshold
-                        and (now_mono - last_ocr.get(region.channel_id, 0.0)) >= args.ocr_cooldown_seconds
-                        and region.channel_id not in pending_channels
-                    )
-                    if should_ocr:
-                        candidates.append((change["score"], region, crop, change))
-
-                slots = max(0, args.max_pending_ocr - len(pending_ocr))
-                for _, region, crop, change in sorted(candidates, key=lambda item: item[0], reverse=True)[:slots]:
-                    last_ocr[region.channel_id] = now_mono
-                    image_path = crop_dir / f"{stamp()}-{region.channel_id}.png"
-                    crop.save(image_path)
-                    future = executor.submit(run_ocr, image_path)
-                    pending_ocr[future] = {
-                        "region": region,
-                        "imagePath": image_path,
-                        "change": change,
-                        "capturedAt": now_iso(),
+                    accepted = [item["Clean"] for item in decisions if item["Accepted"]]
+                    if accepted:
+                        messages = make_messages(job["region"].channel_id, accepted)
+                        last_decision = agent_local.rule_decision(messages, 3)
+                    event = {
+                        "capturedAt": job["capturedAt"],
+                        "processedAt": now_iso(),
+                        "channelId": job["region"].channel_id,
+                        "name": job["region"].name,
+                        "rect": list(job["region"].rect),
+                        "imagePath": str(job["imagePath"]),
+                        "change": job["change"],
+                        "rawLines": raw_lines,
+                        "acceptedLines": accepted,
+                        "ignoredLines": ignored,
+                        "decision": last_decision,
                     }
-                    pending_channels.add(region.channel_id)
+                    events.append(event)
+                    ocr_runs += 1
+                    event_added = True
+                    log(f"{job['region'].channel_id}: cambio {job['change']['score']:.2f}, OCR {len(raw_lines)} lineas, utiles {len(accepted)}.")
 
-            should_write_state = event_added or (now_mono - last_state_write) >= (args.state_interval_ms / 1000.0)
-            if should_write_state:
-                state = build_state(args, session_dir, frames, ocr_runs, regions, events, last_decision, pending_ocr)
-                write_state(state)
-                last_state_write = now_mono
+                expired = (not args.watch) and (now_mono - start) >= args.duration_seconds
+                if not expired:
+                    image = ImageGrab.grab(all_screens=True)
+                    frames += 1
+                    if args.record_frames and (now_mono - last_record_write) >= (args.record_interval_ms / 1000.0) and len(pending_frames) < 2:
+                        frame_path = frame_dir / f"{stamp()}-screen.jpg"
+                        pending_frames[frame_executor.submit(save_recorded_frame, image.copy(), frame_path, args.record_quality)] = str(frame_path)
+                        recorded_frames += 1
+                        last_record_write = now_mono
 
-            if expired and not pending_ocr:
-                break
-            time.sleep(max(0.02, args.interval_ms / 1000.0))
+                    candidates: list[tuple[float, Region, Image.Image, dict[str, float]]] = []
+                    for region in regions:
+                        crop = image.crop(region.rect)
+                        fp = fingerprint(crop, (args.fingerprint_width, args.fingerprint_height))
+                        change = change_score(fingerprints.get(region.channel_id), fp)
+                        fingerprints[region.channel_id] = fp
+                        should_ocr = (
+                            change["score"] >= args.change_threshold
+                            and (now_mono - last_ocr.get(region.channel_id, 0.0)) >= args.ocr_cooldown_seconds
+                            and region.channel_id not in pending_channels
+                        )
+                        if should_ocr:
+                            candidates.append((change["score"], region, crop, change))
 
-    state = build_state(args, session_dir, frames, ocr_runs, regions, events, last_decision, pending_ocr, completed=True)
+                    slots = max(0, args.max_pending_ocr - len(pending_ocr))
+                    for _, region, crop, change in sorted(candidates, key=lambda item: item[0], reverse=True)[:slots]:
+                        last_ocr[region.channel_id] = now_mono
+                        image_path = crop_dir / f"{stamp()}-{region.channel_id}.png"
+                        crop.save(image_path)
+                        future = executor.submit(run_ocr, image_path)
+                        pending_ocr[future] = {
+                            "region": region,
+                            "imagePath": image_path,
+                            "change": change,
+                            "capturedAt": now_iso(),
+                        }
+                        pending_channels.add(region.channel_id)
+
+                should_write_state = event_added or (now_mono - last_state_write) >= (args.state_interval_ms / 1000.0)
+                if should_write_state:
+                    state = build_state(
+                        args, session_dir, frames, ocr_runs, regions, events, last_decision, pending_ocr, pending_frames, vision_storage_root, storage_cleanup, recorded_frames
+                    )
+                    write_state(state)
+                    last_state_write = now_mono
+
+                if expired and not pending_ocr and not pending_frames:
+                    break
+                time.sleep(max(0.02, args.interval_ms / 1000.0))
+
+    state = build_state(
+        args, session_dir, frames, ocr_runs, regions, events, last_decision, pending_ocr, pending_frames, vision_storage_root, storage_cleanup, recorded_frames, completed=True
+    )
     write_state(state)
     print(json.dumps(state, ensure_ascii=False, indent=2))
     return 0

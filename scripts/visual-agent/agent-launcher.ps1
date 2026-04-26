@@ -245,6 +245,8 @@ function Get-AgentStatus {
     LatestEyesOcrRuns = if ($latestEyesState) { $latestEyesState.ocrRuns } else { $null }
     LatestEyesPendingOcr = if ($latestEyesState -and $null -ne $latestEyesState.pendingOcr) { $latestEyesState.pendingOcr } else { $null }
     LatestEyesIntervalMs = if ($latestEyesState -and $latestEyesState.captureIntervalMs) { $latestEyesState.captureIntervalMs } else { $null }
+    LatestEyesRecordedFrames = if ($latestEyesState -and $null -ne $latestEyesState.recordedFrames) { $latestEyesState.recordedFrames } else { $null }
+    LatestEyesStorage = if ($latestEyesState -and $latestEyesState.visionStorageRoot) { $latestEyesState.visionStorageRoot } else { $null }
     LatestEyesUpdatedAt = if ($latestEyesState) { $latestEyesState.updatedAt } else { $null }
     LatestEyesDecision = if ($latestEyesState -and $latestEyesState.lastDecision) { $latestEyesState.lastDecision.Status } else { $null }
     LatestEyesChannel = if ($latestEyesState -and $latestEyesState.lastDecision) { $latestEyesState.lastDecision.TargetChannel } else { $null }
@@ -314,7 +316,10 @@ function Get-AgentDiagnosisText {
   }
 
   if ($Status.LatestEyesStatus) {
-    $lines += "Ojo vivo: $($Status.LatestEyesStatus) $($Status.LatestEyesMode), intervalo $($Status.LatestEyesIntervalMs)ms, frames $($Status.LatestEyesFrames), OCR $($Status.LatestEyesOcrRuns), pendientes $($Status.LatestEyesPendingOcr), decision $($Status.LatestEyesDecision) $($Status.LatestEyesChannel)."
+    $lines += "Ojo vivo: $($Status.LatestEyesStatus) $($Status.LatestEyesMode), intervalo $($Status.LatestEyesIntervalMs)ms, frames $($Status.LatestEyesFrames), grabados $($Status.LatestEyesRecordedFrames), OCR $($Status.LatestEyesOcrRuns), pendientes $($Status.LatestEyesPendingOcr), decision $($Status.LatestEyesDecision) $($Status.LatestEyesChannel)."
+    if ($Status.LatestEyesStorage) {
+      $lines += "Almacen visual: $($Status.LatestEyesStorage)"
+    }
   }
 
   if (-not $Status.AutopilotRunning) {
@@ -939,7 +944,8 @@ function Start-AgentGui {
         "Ultimo modo: $($status.LatestAutopilotMode) motor $($status.LatestAutopilotEngine) ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
         "Publicacion nube: $($status.LatestBasePublished)",
         "Decision local: $($status.LatestLocalDecision) $($status.LatestLocalSource) $($status.LatestLocalLabel) $($status.LatestLocalChannel)",
-        "Ojos: $($status.LatestEyesStatus) $($status.LatestEyesMode) $($status.LatestEyesIntervalMs)ms | frames $($status.LatestEyesFrames) OCR $($status.LatestEyesOcrRuns) pendientes $($status.LatestEyesPendingOcr) | decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
+        "Ojos: $($status.LatestEyesStatus) $($status.LatestEyesMode) $($status.LatestEyesIntervalMs)ms | frames $($status.LatestEyesFrames) grabados $($status.LatestEyesRecordedFrames) OCR $($status.LatestEyesOcrRuns) pendientes $($status.LatestEyesPendingOcr) | decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
+        "Almacen visual: $($status.LatestEyesStorage)",
         "Logs: $($status.RuntimeDir)"
       )
       if ($status.LatestError) {
