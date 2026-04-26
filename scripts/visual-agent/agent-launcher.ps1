@@ -179,6 +179,7 @@ function Get-AgentStatus {
     LatestProcessed = if ($latestProcessed) { $latestProcessed.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
     LatestError = $latestError
     LatestAutopilotError = $latestAutopilotError
+    LatestAutopilotMode = if ($latestAutopilotState) { $latestAutopilotState.Mode } else { $null }
     LatestAutopilotCycle = if ($latestAutopilotState) { $latestAutopilotState.Cycle } else { $null }
     LatestAutopilotStatus = if ($latestAutopilotState) { $latestAutopilotState.Status } else { $null }
     LatestAutopilotFinishedAt = if ($latestAutopilotState) { $latestAutopilotState.FinishedAt } else { $null }
@@ -258,9 +259,10 @@ function Start-Autopilot {
   }
 
   $runner = Join-Path $RuntimeDir "agent-autopilot-runner.ps1"
+  $livePollSeconds = [Math]::Max(3, [Math]::Min(5, $PollSeconds))
   @(
     '$ErrorActionPreference = "Continue"',
-    "& '$AutopilotScript' -Watch -MaxCycles 0 -PollSeconds $PollSeconds -Execute -Send -LearnOnFirstCycle -LearningEveryCycles 6 -IntentMaxQueries 3 -MaxLinesPerCapture 20 -MaxLinesPerChat 25 -MaxScrollPages 2 -ScrollWheelClicks 5 -HistoryMonths 1 *>> '$AutopilotOutLog'"
+    "& '$AutopilotScript' -Mode Live -Watch -MaxCycles 0 -PollSeconds $livePollSeconds -LiveMinPollSeconds 3 -Execute -Send -LearningEveryCycles 0 -IntentMaxQueries 2 -IntentWaitSeconds 0.35 -MaxLinesPerCapture 16 *>> '$AutopilotOutLog'"
   ) | Set-Content -LiteralPath $runner -Encoding UTF8
 
   $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
@@ -411,7 +413,7 @@ function Invoke-AutopilotOnce {
 
   $autoOut = Join-Path $RuntimeDir ("autopilot-once-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
   $autoErr = Join-Path $RuntimeDir ("autopilot-once-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
-  $process = Start-HiddenProcess -Arguments @("-File", $AutopilotScript, "-MaxCycles", "1", "-Execute", "-Send", "-LearnOnFirstCycle", "-LearningEveryCycles", "6", "-IntentMaxQueries", "3", "-MaxLinesPerCapture", "20", "-MaxLinesPerChat", "25", "-MaxScrollPages", "2", "-ScrollWheelClicks", "5", "-HistoryMonths", "1") -CaptureOutput
+  $process = Start-HiddenProcess -Arguments @("-File", $AutopilotScript, "-Mode", "Live", "-MaxCycles", "1", "-Execute", "-Send", "-LearningEveryCycles", "0", "-IntentMaxQueries", "2", "-IntentWaitSeconds", "0.35", "-MaxLinesPerCapture", "16") -CaptureOutput
   $stdout = $process.StandardOutput.ReadToEnd()
   $stderr = $process.StandardError.ReadToEnd()
   $process.WaitForExit()
@@ -492,7 +494,7 @@ function Start-AgentGui {
   $form.Controls.Add($buttonStart)
 
   $buttonAutopilot = New-Object System.Windows.Forms.Button
-  $buttonAutopilot.Text = "Autopiloto"
+  $buttonAutopilot.Text = "Modo vivo"
   $buttonAutopilot.Left = 156
   $buttonAutopilot.Top = 270
   $buttonAutopilot.Width = 120
@@ -567,12 +569,12 @@ function Start-AgentGui {
       $status = Get-AgentStatus
       $lines = @(
         "Observador: " + $(if ($status.Running) { "ACTIVO (PID $($status.ProcessId))" } else { "DETENIDO" }),
-        "Autopiloto: " + $(if ($status.AutopilotRunning) { "ACTIVO (PID $($status.AutopilotProcessId))" } else { "DETENIDO" }),
+        "Modo vivo: " + $(if ($status.AutopilotRunning) { "ACTIVO (PID $($status.AutopilotProcessId))" } else { "DETENIDO" }),
         "Config: $($status.ConfigMessage)",
         "Nube: $($status.CloudUrl)",
         "Ultima captura: $($status.LatestCapture)",
         "Ultimo envio procesado: $($status.LatestProcessed)",
-        "Ultimo autopiloto: ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
+        "Ultimo modo: $($status.LatestAutopilotMode) ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
         "Logs: $($status.RuntimeDir)"
       )
       if ($status.LatestError) {

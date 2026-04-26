@@ -29,21 +29,21 @@ Para instalar accesos directos en Windows:
 powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\install-agent-launcher.ps1
 ```
 
-## Modo autopiloto
+## Modo vivo
 
-El autopiloto coordina las piezas locales en ciclos:
+El modo vivo coordina las piezas locales en ciclos rapidos:
 
 ```text
 scripts\visual-agent\visual-autopilot.ps1
 ```
 
-En cada ciclo respeta los WhatsApp que ya dejaste alineados, captura pantalla, atiende alertas clasificadas y hace aprendizaje profundo solo cada ciertos ciclos. No escribe mensajes al cliente.
+En cada ciclo respeta los WhatsApp que ya dejaste alineados, captura pantalla y atiende alertas clasificadas. No hace aprendizaje profundo ni scroll largo mientras trabaja en vivo. No escribe mensajes al cliente.
 
-El boton **Autopiloto** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
+El boton **Modo vivo** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
 El aprendizaje profundo no abre grupos como `Pagos Mexico`, `Pagos Chile` o `Pagos Colombia`, porque aportan poco al estilo de clientes y servicios. Se dejan fuera por reglas configurables en `autopilot.skipLearningChats`.
 
-El aprendizaje de conversaciones abre el chat, captura la vista actual, sube el scroll para leer paginas anteriores y corta el barrido al llegar al limite de 1 mes. El modo autopiloto aprende desde el primer ciclo y luego usa un barrido corto para responder rapido en vivo; el boton **Aprender chats** usa un barrido mas profundo.
+El aprendizaje de conversaciones queda separado en el boton **Aprender chats**. Esa pasada abre el chat, captura la vista actual, sube el scroll para leer paginas anteriores y corta el barrido al llegar al limite de 1 mes.
 
 Preview seguro:
 
@@ -57,7 +57,7 @@ Ciclo real:
 powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send
 ```
 
-El launcher tiene el boton **Autopiloto** para dejarlo corriendo en segundo plano. **Detener** lo apaga.
+El launcher tiene el boton **Modo vivo** para dejarlo corriendo en segundo plano. **Detener** lo apaga.
 
 ## Control visual con puntero
 

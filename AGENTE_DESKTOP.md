@@ -12,7 +12,7 @@ AriadGSM-Agent.cmd
 
 El launcher permite:
 
-- iniciar el modo autopiloto;
+- iniciar el modo vivo;
 - iniciar el observador continuo;
 - detenerlo;
 - hacer una lectura una vez;
@@ -52,35 +52,35 @@ Nivel actual del agente:
 4. Puede calcular/coordenar clics con permiso explicito.
 5. Puede tomar una alerta de pago/deuda/precio, buscar el chat visible, abrirlo y volver a capturar.
 6. Puede recorrer chats visibles para aprender clientes, servicios y contexto contable.
-7. Puede correr en modo autopiloto, coordinando captura, alertas y aprendizaje en ciclos.
+7. Puede correr en modo vivo, coordinando captura rapida y alertas en ciclos.
 
 Todavia no escribe mensajes ni envia respuestas a clientes.
 
-## Modo Autopiloto
+## Modo Vivo
 
-El boton **Autopiloto** inicia un proceso local oculto:
+El boton **Modo vivo** inicia un proceso local oculto:
 
 ```text
 scripts\visual-agent\visual-autopilot.ps1
 ```
 
-El flujo del autopiloto es:
+El flujo del modo vivo es:
 
 1. respeta los 3 WhatsApp que ya dejaste alineados;
 2. captura pantalla y sube eventos a `ariadgsm.com`;
 3. revisa la cabina para atender alertas de pago/deuda/precio;
-4. hace aprendizaje profundo solo cada ciertos ciclos;
-5. repite el ciclo cada 30 segundos por defecto.
+4. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
+5. repite el ciclo cada 3 a 5 segundos por defecto.
 
-Por seguridad, el nivel actual sigue siendo de lectura. El autopiloto puede mover el mouse y abrir chats, pero no escribe ni envia mensajes.
+Por seguridad, el nivel actual sigue siendo de lectura. El modo vivo puede mover el mouse y abrir chats, pero no escribe ni envia mensajes.
 
-Por defecto, el boton **Autopiloto** ya no abre una pestana nueva de Chrome ni reacomoda ventanas. Las opciones `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
+Por defecto, el boton **Modo vivo** no abre una pestana nueva de Chrome ni reacomoda ventanas. Las opciones `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
 El aprendizaje profundo excluye grupos contables repetitivos como `Pagos Mexico`, `Pagos Chile` y `Pagos Colombia`. Pueden aparecer como señales contables en capturas normales, pero el mouse no los abre para entrenar estilo de cliente/servicio.
 
 La lectura base tambien filtra esas filas de pagos cuando aparecen como texto de pantalla, para que no disparen alertas falsas ni contaminen el aprendizaje como si fueran chats de clientes.
 
-Cuando el autopiloto aprende de un chat, ya no captura solo lo visible. Abre la conversacion, toma una lectura, sube el scroll para buscar mensajes anteriores y repite la lectura de forma controlada. El boton **Autopiloto** aprende desde el primer ciclo y luego usa pasadas cortas para no perder velocidad en vivo; el boton **Aprender chats** hace una pasada mas profunda.
+El modo vivo no hace scroll de aprendizaje. Cuando necesitas entrenar la IA con historial, usa **Aprender chats**: abre la conversacion, toma una lectura, sube el scroll para buscar mensajes anteriores y repite la lectura de forma controlada.
 
 El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.
 
@@ -96,7 +96,7 @@ Para correr un ciclo real manual:
 powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send
 ```
 
-El boton **Detener** apaga tanto el observador como el autopiloto.
+El boton **Detener** apaga tanto el observador como el modo vivo.
 
 ## Mouse y lectura de conversaciones
 

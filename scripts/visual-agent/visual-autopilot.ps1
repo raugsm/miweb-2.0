@@ -1,7 +1,10 @@
 param(
   [string]$ConfigPath = "",
+  [ValidateSet("Live", "Full")]
+  [string]$Mode = "Live",
   [switch]$Watch,
   [int]$PollSeconds = 30,
+  [int]$LiveMinPollSeconds = 3,
   [int]$MaxCycles = 1,
   [int]$LearningEveryCycles = 6,
   [int]$MaxChatsPerChannel = 1,
@@ -284,7 +287,7 @@ function Invoke-AutopilotCycle {
     Start-Sleep -Milliseconds 500
   }
 
-  Write-AutopilotLine "Ciclo ${CycleNumber}: captura base."
+  Write-AutopilotLine "Ciclo ${CycleNumber}: captura base ($Mode)."
   $baseCapture = Invoke-CaptureStep -Name "base_capture"
 
   Write-AutopilotLine "Ciclo ${CycleNumber}: atendiendo alertas clasificadas."
@@ -296,7 +299,11 @@ function Invoke-AutopilotCycle {
   }
 
   $learning = $null
-  if (($LearnOnFirstCycle -and $CycleNumber -eq 1) -or ($LearningEveryCycles -gt 0 -and (($CycleNumber % $LearningEveryCycles) -eq 0))) {
+  $shouldLearn = $Mode -eq "Full" -and (
+    ($LearnOnFirstCycle -and $CycleNumber -eq 1) -or
+    ($LearningEveryCycles -gt 0 -and (($CycleNumber % $LearningEveryCycles) -eq 0))
+  )
+  if ($shouldLearn) {
     Write-AutopilotLine "Ciclo ${CycleNumber}: aprendizaje de chats visibles."
     try {
       $learning = Invoke-LearningStep
@@ -312,6 +319,7 @@ function Invoke-AutopilotCycle {
 
   return [pscustomobject]@{
     Status = $status
+    Mode = $Mode
     Cycle = $CycleNumber
     Execute = [bool]$Execute
     Send = [bool]$Send
@@ -342,7 +350,8 @@ do {
   $shouldContinue = $Watch -and ($MaxCycles -le 0 -or $cycle -lt $MaxCycles)
   if ($shouldContinue) {
     Write-AutopilotLine "Esperando $PollSeconds segundo(s) para el siguiente ciclo."
-    Start-Sleep -Seconds ([Math]::Max(10, $PollSeconds))
+    $minimumPoll = if ($Mode -eq "Live") { [Math]::Max(1, $LiveMinPollSeconds) } else { 10 }
+    Start-Sleep -Seconds ([Math]::Max($minimumPoll, $PollSeconds))
   }
 } while ($shouldContinue)
 
