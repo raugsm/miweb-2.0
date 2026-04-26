@@ -221,7 +221,7 @@ def run_ocr(image_path: Path, languages: list[str], max_engines: int) -> list[st
         str(image_path),
     ]
     if languages:
-        command.extend(["-Languages", *languages])
+        command.extend(["-Languages", ",".join(languages)])
     command.extend(["-MaxEngines", str(max(1, max_engines))])
     result = subprocess.run(
         command,
@@ -387,6 +387,70 @@ def classify_learning_text(text: str, decision: dict[str, Any]) -> tuple[str, st
     return "conversation_context", "Contexto de cliente"
 
 
+def detect_language_profile(text: str) -> dict[str, Any]:
+    value = agent_local.normalize(text)
+    tokens = set(re.findall(r"[a-z0-9]+", value))
+    profiles = {
+        "es": {
+            "label": "Espanol",
+            "terms": {"que", "cuando", "debe", "pago", "precio", "cuanto", "ayuda", "solucionar", "me", "con", "por", "favor"},
+        },
+        "en": {
+            "label": "Ingles",
+            "terms": {"the", "you", "price", "prices", "check", "tool", "friend", "please", "unlock", "payment", "paid", "cost"},
+        },
+        "pt": {
+            "label": "Portugues",
+            "terms": {"voce", "voces", "preco", "pagamento", "obrigado", "quanto", "ajuda", "conta", "cliente", "pode"},
+        },
+    }
+    scores: dict[str, int] = {}
+    for code, profile in profiles.items():
+        scores[code] = len(tokens & profile["terms"])
+    best_code = max(scores, key=scores.get) if scores else "unknown"
+    if scores.get(best_code, 0) == 0:
+        best_code = "unknown"
+    return {
+        "language": best_code,
+        "languageLabel": profiles.get(best_code, {}).get("label", "Desconocido"),
+        "scores": scores,
+    }
+
+
+def detect_regional_profile(text: str) -> dict[str, Any]:
+    value = agent_local.normalize(text)
+    country_terms = {
+        "Colombia": ["colombia", "colombiano", "parce", "manes", "nequi", "bancolombia", "daviplata", "pelao"],
+        "Mexico": ["mexico", "mx", "compa", "wey", "mande", "ahorita", "banorte", "oxxo", "bbva mxn"],
+        "Chile": ["chile", "cl", "weon", "lucas", "transferencia chile", "bci", "mach"],
+        "Peru": ["peru", "pe", "yape", "plin", "soles", "bcp", "interbank"],
+        "Venezuela": ["venezuela", "ve", "pana", "chamo", "zelle", "bolivares", "mercantil"],
+        "Brasil": ["brasil", "brazil", "pix", "obrigado", "preco", "reais"],
+        "USA": ["usa", "united states", "zelle", "cashapp", "paypal", "usd"],
+    }
+    matches: dict[str, list[str]] = {}
+    for country, terms in country_terms.items():
+        found = [term for term in terms if term in value]
+        if found:
+            matches[country] = found
+    primary = max(matches, key=lambda country: len(matches[country])) if matches else "Unknown"
+    slang_terms = sorted({term for terms in matches.values() for term in terms if term not in {"colombia", "mexico", "chile", "peru", "venezuela", "brasil", "brazil", "usa"}})
+    return {
+        "countryHint": primary,
+        "countryMatches": matches,
+        "slangTerms": slang_terms,
+    }
+
+
+def build_language_profile(text: str) -> dict[str, Any]:
+    language = detect_language_profile(text)
+    regional = detect_regional_profile(text)
+    return {
+        **language,
+        **regional,
+    }
+
+
 def learning_id(channel_id: str, text: str, learning_type: str) -> str:
     raw = f"{channel_id}|{learning_type}|{agent_local.normalize(text)}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
@@ -399,6 +463,7 @@ def build_learning_items(event: dict[str, Any], decision: dict[str, Any]) -> lis
         if not clean:
             continue
         learning_type, label = classify_learning_text(clean, decision)
+        language_profile = build_language_profile(clean)
         item = {
             "id": learning_id(str(event.get("channelId") or ""), clean, learning_type),
             "learnedAt": now_iso(),
@@ -408,6 +473,10 @@ def build_learning_items(event: dict[str, Any], decision: dict[str, Any]) -> lis
             "label": label,
             "text": clean,
             "amounts": extract_amounts(clean),
+            "languageProfile": language_profile,
+            "language": language_profile.get("language"),
+            "countryHint": language_profile.get("countryHint"),
+            "slangTerms": language_profile.get("slangTerms"),
             "decisionLinked": agent_local.normalize(decision.get("Text", "")) == agent_local.normalize(clean),
             "decisionIntent": decision.get("Intent"),
             "decisionLabel": decision.get("Label"),
@@ -468,9 +537,15 @@ def read_learning_tail(limit: int = 300) -> list[dict[str, Any]]:
 def render_learning_report() -> dict[str, Any]:
     items = read_learning_tail(500)
     counts: dict[str, int] = {}
+    languages: dict[str, int] = {}
+    countries: dict[str, int] = {}
     for item in items:
         key = str(item.get("learningType") or "unknown")
         counts[key] = counts.get(key, 0) + 1
+        language = str(item.get("language") or "unknown")
+        languages[language] = languages.get(language, 0) + 1
+        country = str(item.get("countryHint") or "Unknown")
+        countries[country] = countries.get(country, 0) + 1
     accounting = [item for item in items if str(item.get("learningType") or "").startswith("accounting_")]
 
     def esc(value: Any) -> str:
@@ -479,8 +554,9 @@ def render_learning_report() -> dict[str, Any]:
     rows = []
     for item in reversed(items[-120:]):
         amounts = ", ".join(f"{value.get('amount')} {value.get('currency')}" for value in item.get("amounts") or [])
+        slang = ", ".join(item.get("slangTerms") or [])
         rows.append(
-            f"<tr><td>{esc(item.get('learnedAt'))}</td><td>{esc(item.get('channelId'))}</td><td>{esc(item.get('label'))}</td><td>{esc(item.get('text'))}</td><td>{esc(amounts)}</td></tr>"
+            f"<tr><td>{esc(item.get('learnedAt'))}</td><td>{esc(item.get('channelId'))}</td><td>{esc(item.get('label'))}</td><td>{esc(item.get('text'))}</td><td>{esc(item.get('language'))}</td><td>{esc(item.get('countryHint'))}</td><td>{esc(slang)}</td><td>{esc(amounts)}</td></tr>"
         )
     LEARNING_DIR.mkdir(parents=True, exist_ok=True)
     LEARNING_REPORT_FILE.write_text(
@@ -495,7 +571,7 @@ def render_learning_report() -> dict[str, Any]:
     header {{ background:white; border-bottom:1px solid #d9e3f3; padding:20px 26px; }}
     main {{ padding:22px; display:grid; gap:16px; }}
     section {{ background:white; border:1px solid #d9e3f3; border-radius:8px; padding:16px; }}
-    .metrics {{ display:grid; grid-template-columns:repeat(4,minmax(130px,1fr)); gap:10px; }}
+    .metrics {{ display:grid; grid-template-columns:repeat(6,minmax(130px,1fr)); gap:10px; }}
     .metric {{ background:#f4f8ff; border:1px solid #d9e3f3; border-radius:8px; padding:10px; }}
     .metric b {{ display:block; color:#2478f2; font-size:22px; }}
     table {{ width:100%; border-collapse:collapse; font-size:13px; }}
@@ -512,11 +588,13 @@ def render_learning_report() -> dict[str, Any]:
         <div class="metric"><b>{len(accounting)}</b>contabilidad</div>
         <div class="metric"><b>{counts.get('accounting_payment', 0)}</b>pagos</div>
         <div class="metric"><b>{counts.get('accounting_debt', 0)}</b>deudas</div>
+        <div class="metric"><b>{languages.get('en', 0)}</b>ingles</div>
+        <div class="metric"><b>{sum(1 for item in items if item.get('slangTerms'))}</b>jerga</div>
       </div>
     </section>
     <section>
       <h2>Ultimos registros</h2>
-      <table><thead><tr><th>Hora</th><th>Canal</th><th>Tipo</th><th>Texto aprendido</th><th>Monto</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
+      <table><thead><tr><th>Hora</th><th>Canal</th><th>Tipo</th><th>Texto aprendido</th><th>Idioma</th><th>Pais</th><th>Jerga</th><th>Monto</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
     </section>
   </main>
 </body>
@@ -527,6 +605,8 @@ def render_learning_report() -> dict[str, Any]:
         "updatedAt": now_iso(),
         "itemsInReport": len(items),
         "counts": counts,
+        "languages": languages,
+        "countries": countries,
         "accountingItems": len(accounting),
         "report": str(LEARNING_REPORT_FILE),
         "ledger": str(LEARNING_LEDGER_FILE),

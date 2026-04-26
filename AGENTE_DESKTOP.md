@@ -148,6 +148,8 @@ El historial visual completo queda local en disco y rota por defecto con limite 
 
 El boton **Aprendizaje** abre el reporte local de lo que el agente aprendio: contexto de cliente, preguntas de precio, pagos y deudas detectadas. Ese reporte es la vista de control antes de usarlo como contabilidad total.
 
+Cada registro de aprendizaje incluye perfil linguistico: idioma probable, pais sugerido y jerga detectada. Esto ayuda a que el sistema aprenda formas reales de hablar por pais, no solo comandos fijos.
+
 Para instalar idiomas OCR recomendados de Windows se usa:
 
 ```powershell

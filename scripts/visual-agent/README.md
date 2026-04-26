@@ -58,6 +58,8 @@ El buffer visual rota por defecto con 7 dias o 500GB. Se puede cambiar con `--re
 
 El aprendizaje visible queda en `runtime\learning-ledger\latest.html` y tambien se abre desde el launcher con **Aprendizaje**.
 
+Cada aprendizaje guarda tambien perfil linguistico: idioma probable, pais sugerido por palabras/servicios regionales y jerga detectada. Eso permite que la IA aprenda diferencias como `pana`, `parce`, `compa`, `yape`, `plin`, `nequi`, `pix`, `zelle` o formas de pedir precio segun pais.
+
 ## Idiomas OCR
 
 Windows OCR solo puede leer idiomas instalados en el sistema. Para instalar los idiomas recomendados:
