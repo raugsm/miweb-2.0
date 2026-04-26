@@ -52,6 +52,20 @@ function createEmptyData(message) {
       { name: "Receptor Mexico", country: "Mexico", currency: "MXN", received: 0, sentToOwner: 0, pending: 0, status: "cerrado" },
     ],
     weeklyAccounts: [],
+    cloudStatus: {
+      status: "pendiente",
+      message: "Esperando la primera sincronizacion del agente local.",
+      lastSyncAt: null,
+      lastBackupAt: null,
+      backups: [],
+      totals: {},
+    },
+    reportSummary: {
+      generatedAt,
+      totals: {},
+      channels: [],
+    },
+    syncBatches: [],
   };
 }
 
@@ -260,6 +274,78 @@ function renderWeeklyAccounts() {
   `);
 }
 
+function renderCloudStatus() {
+  const cloud = state.data?.cloudStatus || {};
+  const totals = cloud.totals || {};
+  setText("cloudStatusPill", cloud.status || "Pendiente");
+  const container = $("cloudStatus");
+  if (!container) return;
+  const rows = [
+    ["Estado", cloud.status || "pendiente"],
+    ["Ultima sincronizacion", formatDate(cloud.lastSyncAt)],
+    ["Ultimo respaldo", formatDate(cloud.lastBackupAt)],
+    ["Conversaciones", formatNumber(totals.conversations)],
+    ["Mensajes aprendidos", formatNumber(totals.messages)],
+    ["Eventos contables", formatNumber(totals.accountingEntries)],
+  ];
+  container.innerHTML = `
+    <article class="cloud-message">
+      <h4>${escapeHtml(cloud.message || "Nube lista.")}</h4>
+      <p>${escapeHtml(cloud.publicUrl || "https://ariadgsm.com")}</p>
+    </article>
+    ${rows.map(([label, value]) => `
+      <div class="cash-item">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+      </div>
+    `).join("")}
+  `;
+}
+
+function renderBackups() {
+  const backups = state.data?.cloudStatus?.backups || [];
+  renderList("backupList", backups, "Todavia no hay respaldos operativos.", (item) => `
+    <article class="list-row">
+      <h4>${escapeHtml(item.fileName)}</h4>
+      <p>${formatDate(item.updatedAt || item.createdAt)} | ${formatNumber(item.bytes)} bytes</p>
+    </article>
+  `);
+}
+
+function renderCloudReport() {
+  const report = state.data?.reportSummary || {};
+  const totals = report.totals || {};
+  const rows = [
+    ["Mensajes hoy", totals.todayMessages],
+    ["Dudas pendientes", totals.pendingReviews],
+    ["Pagos pendientes", totals.pendingPayments],
+    ["Servicios activos", totals.activeServices],
+    ["Sincronizaciones", totals.syncBatches],
+    ["Respaldos", totals.backups],
+  ];
+  const container = $("cloudReport");
+  if (!container) return;
+  container.innerHTML = rows.map(([label, value]) => `
+    <div class="cash-item">
+      <span>${escapeHtml(label)}</span>
+      <strong>${formatNumber(value)}</strong>
+    </div>
+  `).join("");
+}
+
+function renderSyncBatches() {
+  renderList("syncBatches", state.data?.syncBatches || [], "No hay lotes de sincronizacion todavia.", (item) => `
+    <article class="list-row">
+      <h4>${escapeHtml(item.source || "desktop_agent")} - ${escapeHtml(item.status || "ok")}</h4>
+      <p>${formatDate(item.receivedAt)} | ${formatNumber(item.messages)} mensajes | ${formatNumber(item.conversations)} conversaciones</p>
+      <div class="row-meta">
+        <span class="tag">${escapeHtml(item.mode || "observador")}</span>
+        <span class="tag">${escapeHtml(item.channelId || "todos")}</span>
+      </div>
+    </article>
+  `);
+}
+
 function buildDataFromDashboard(payload) {
   const cases = payload?.cases || [];
   const meta = payload?.meta || {};
@@ -339,6 +425,38 @@ function renderAll() {
   renderChannels();
   renderReceivers();
   renderWeeklyAccounts();
+  renderCloudStatus();
+  renderBackups();
+  renderCloudReport();
+  renderSyncBatches();
+}
+
+async function createBackup() {
+  const button = $("createBackupButton");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Creando...";
+  }
+  try {
+    const response = await fetch("/api/operativa-v2/cloud/backups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actor: "panel", note: "Respaldo manual desde AriadGSM Control" }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || "No pude crear el respaldo");
+    }
+    state.data = payload.snapshot || state.data;
+    renderAll();
+  } catch (error) {
+    window.alert(error.message || "No pude crear el respaldo");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Crear respaldo";
+    }
+  }
 }
 
 async function loadOperativa() {
@@ -367,5 +485,6 @@ async function loadOperativa() {
 }
 
 $("refreshButton")?.addEventListener("click", loadOperativa);
+$("createBackupButton")?.addEventListener("click", createBackup);
 loadOperativa();
 window.setInterval(loadOperativa, 30000);

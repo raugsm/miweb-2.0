@@ -16,7 +16,11 @@ public sealed class ConversationBuilder
         _options = options;
     }
 
-    public ConversationEvent Build(ResolvedChannel channel, ReaderCoreResult readerResult, IReadOnlyList<ExtractedMessage> messages)
+    public ConversationEvent Build(
+        ResolvedChannel channel,
+        ReaderCoreResult readerResult,
+        IReadOnlyList<ExtractedMessage> messages,
+        ConversationIdentity identity)
     {
         var unique = messages
             .GroupBy(message => message.MessageId, StringComparer.OrdinalIgnoreCase)
@@ -30,29 +34,17 @@ public sealed class ConversationBuilder
                 message.Confidence,
                 message.Signals))
             .ToArray();
-        var title = CleanTitle(channel.Candidate.Window.Title);
-        var conversationId = $"{channel.ChannelId}-{ShortHash(title)}";
+
         return new ConversationEvent(
             "conversation_event",
             $"conversation-{readerResult.ChannelId}-{ShortHash(readerResult.Source + readerResult.Status + string.Join("|", unique.Select(item => item.MessageId)))}",
-            conversationId,
+            identity.ConversationId,
             channel.ChannelId,
             DateTimeOffset.UtcNow,
-            title,
+            identity.Title,
             "live",
             unique,
             new ConversationTimeline(_options.HistoryLimitDays, false, null, "message_id_hash"));
-    }
-
-    private static string CleanTitle(string title)
-    {
-        var clean = title
-            .Replace(" - Google Chrome", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace(" - Microsoft Edge", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace(" - Mozilla Firefox", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace(" — Mozilla Firefox", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Trim();
-        return string.IsNullOrWhiteSpace(clean) ? "WhatsApp" : clean;
     }
 
     private static string ShortHash(string value)

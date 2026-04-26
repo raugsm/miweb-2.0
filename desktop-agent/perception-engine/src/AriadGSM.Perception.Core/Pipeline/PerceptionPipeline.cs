@@ -23,6 +23,7 @@ public sealed class PerceptionPipeline
     private readonly IReaderCore _readerCore;
     private readonly MessageExtractor _messageExtractor;
     private readonly ChatRowExtractor _chatRowExtractor = new();
+    private readonly ConversationIdentityResolver _conversationIdentityResolver = new();
     private readonly ConversationBuilder _conversationBuilder;
     private int _visionEventsRead;
     private int _perceptionEventsWritten;
@@ -150,8 +151,9 @@ public sealed class PerceptionPipeline
                 var readerResult = await _readerCore.ReadAsync(channel, readerContext, cancellationToken).ConfigureAwait(false);
                 var extraction = _messageExtractor.Extract(readerResult, channel);
                 var chatRows = _chatRowExtractor.Extract(readerResult, channel);
-                var conversation = _conversationBuilder.Build(channel, readerResult, extraction.Messages);
-                reads.Add(new ChannelReadResult(channel, readerResult, extraction, chatRows, conversation));
+                var identity = _conversationIdentityResolver.Resolve(channel, readerResult, chatRows);
+                var conversation = _conversationBuilder.Build(channel, readerResult, extraction.Messages, identity);
+                reads.Add(new ChannelReadResult(channel, readerResult, extraction, chatRows, identity, conversation));
             }
 
             var perceptionEvent = CreatePerceptionEvent(visionEvent, reads);
@@ -276,6 +278,12 @@ public sealed class PerceptionPipeline
                     ["readerLines"] = read.ReaderResult.Lines.Count,
                     ["chatRows"] = read.ChatRows.Rows.Count,
                     ["chatRowCandidateLines"] = read.ChatRows.CandidateLines,
+                    ["conversationTitleSource"] = read.Identity.Source,
+                    ["conversationTitleConfidence"] = read.Identity.Confidence,
+                    ["matchedChatRowId"] = read.Identity.MatchedChatRow?.ChatRowId,
+                    ["matchedChatRowTitle"] = read.Identity.MatchedChatRow?.Title,
+                    ["matchedChatRowClickX"] = read.Identity.MatchedChatRow?.ClickX,
+                    ["matchedChatRowClickY"] = read.Identity.MatchedChatRow?.ClickY,
                     ["messageCount"] = read.Extraction.Messages.Count,
                     ["historyLimitDays"] = _options.HistoryLimitDays,
                     ["extractionDiagnostics"] = read.Extraction.Diagnostics,
@@ -373,5 +381,6 @@ public sealed class PerceptionPipeline
         ReaderCoreResult ReaderResult,
         MessageExtractionResult Extraction,
         ChatRowExtractionResult ChatRows,
+        ConversationIdentity Identity,
         ConversationEvent Conversation);
 }

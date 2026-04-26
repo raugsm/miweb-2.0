@@ -121,6 +121,7 @@ static async Task TestReaderExtractorConversationPipeline()
         [
             new ReaderTextLine("WhatsApp Business", "Text", null, 0.9, "test"),
             new ReaderTextLine("10:42", "Text", null, 0.9, "test"),
+            new ReaderTextLine("Cliente Uno", "Text", new VisionBounds(420, 74, 180, 26), 0.94, "test"),
             new ReaderTextLine("Cliente Uno", "Text", new VisionBounds(72, 164, 180, 26), 0.92, "test"),
             new ReaderTextLine("2 mensajes no leídos", "Text", new VisionBounds(72, 194, 150, 24), 0.9, "test"),
             new ReaderTextLine("Cuanto cuesta liberar Samsung", "Text", new VisionBounds(72, 222, 238, 24), 0.91, "test"),
@@ -133,7 +134,7 @@ static async Task TestReaderExtractorConversationPipeline()
         var pipeline = new PerceptionPipeline(options, reader);
         var state = await pipeline.RunOnceAsync();
         Assert(state.Status == "ok", "reader pipeline should finish ok");
-        Assert(state.ReaderLinesObserved == 10, "reader should observe ten lines");
+        Assert(state.ReaderLinesObserved == 11, "reader should observe eleven lines");
         Assert(state.MessagesExtracted == 3, "extractor should keep three useful messages");
         Assert(state.LastExtractionSummary.Contains("not_message_text", StringComparison.OrdinalIgnoreCase), "extractor diagnostics should explain rejected UI lines");
         Assert(state.ConversationEventsWritten == 1, "conversation builder should write one conversation");
@@ -142,6 +143,8 @@ static async Task TestReaderExtractorConversationPipeline()
         var conversation = JsonSerializer.Deserialize<ConversationEvent>(conversationJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert(conversation is not null, "conversation event should deserialize");
         Assert(ConversationContractValidator.Validate(conversation!).Count == 0, "conversation should satisfy contract");
+        Assert(conversation!.ConversationTitle == "Cliente Uno", "conversation title should come from the active WhatsApp chat header");
+        Assert(conversation.ConversationId.StartsWith("wa-1-", StringComparison.OrdinalIgnoreCase), "conversation id should stay channel-scoped");
         Assert(conversation!.Messages.Count == 3, "conversation should contain three messages");
         Assert(conversation.Messages.Any(message => message.Direction == "agent"), "agent direction should be detected from prefix");
         Assert(conversation.Messages.Any(message => message.Direction == "client"), "client direction should be inferred from bubble position");
@@ -158,6 +161,15 @@ static async Task TestReaderExtractorConversationPipeline()
         Assert(metadata.GetProperty("title").GetString() == "Cliente Uno", "chat row title should be preserved");
         Assert(metadata.GetProperty("clickX").GetInt32() > 0, "chat row should expose clickX");
         Assert(metadata.GetProperty("clickY").GetInt32() > 0, "chat row should expose clickY");
+
+        var conversationObject = perceptionDocument.RootElement.GetProperty("objects")
+            .EnumerateArray()
+            .FirstOrDefault(item => item.GetProperty("objectType").GetString() == "conversation");
+        Assert(conversationObject.ValueKind == JsonValueKind.Object, "perception should emit an active conversation object");
+        var conversationMetadata = conversationObject.GetProperty("metadata");
+        Assert(conversationMetadata.GetProperty("conversationTitleSource").GetString() == "header_chat_row_match", "conversation should be matched to a visible chat row");
+        Assert(conversationMetadata.GetProperty("matchedChatRowTitle").GetString() == "Cliente Uno", "matched row title should be exposed for hands targeting");
+        Assert(conversationMetadata.GetProperty("matchedChatRowClickX").GetInt32() > 0, "matched row clickX should be exposed");
     }
     finally
     {

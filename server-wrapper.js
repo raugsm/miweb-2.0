@@ -3,8 +3,12 @@ const crypto = require("crypto");
 const { URL } = require("url");
 const { hasAdminPassword, isAuthenticated } = require("./admin-auth");
 const {
+  buildCloudReport,
   buildOperativaSnapshot,
+  createOperativaBackupSnapshot,
   ingestOperativaEvent,
+  listOperativaBackups,
+  recordCloudSync,
   readOperativaState,
   writeOperativaState,
 } = require("./operativa-store");
@@ -192,6 +196,7 @@ async function handleOperativaApi(req, res, requestUrl) {
   const isOperativaRoute =
     requestUrl.pathname === "/api/operativa-v2" ||
     requestUrl.pathname === "/api/operativa-v2/events" ||
+    requestUrl.pathname.startsWith("/api/operativa-v2/cloud") ||
     requestUrl.pathname.startsWith("/api/operativa-v2/reviews");
 
   if (!isOperativaRoute) {
@@ -208,6 +213,16 @@ async function handleOperativaApi(req, res, requestUrl) {
     return true;
   }
 
+  if (req.method === "GET" && requestUrl.pathname === "/api/operativa-v2/cloud") {
+    const snapshot = buildCleanOperativaSnapshot();
+    sendJson(res, 200, {
+      cloudStatus: snapshot.cloudStatus,
+      reportSummary: snapshot.reportSummary,
+      syncBatches: snapshot.syncBatches,
+    });
+    return true;
+  }
+
   if (req.method === "POST" && requestUrl.pathname === "/api/operativa-v2/events") {
     try {
       const body = await parseBody(req);
@@ -220,6 +235,54 @@ async function handleOperativaApi(req, res, requestUrl) {
       });
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude registrar el evento operativo" });
+    }
+    return true;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/operativa-v2/cloud/report") {
+    sendJson(res, 200, buildCloudReport());
+    return true;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/operativa-v2/cloud/backups") {
+    sendJson(res, 200, { backups: listOperativaBackups(30) });
+    return true;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/operativa-v2/cloud/backups") {
+    try {
+      const body = await parseBody(req);
+      const backup = createOperativaBackupSnapshot(body.actor || "panel", body.note || "");
+      sendJson(res, 201, {
+        ok: true,
+        backup,
+        backups: listOperativaBackups(30),
+        snapshot: buildCleanOperativaSnapshot(),
+      });
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || "No pude crear el respaldo operativo" });
+    }
+    return true;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/operativa-v2/cloud/sync") {
+    try {
+      const body = await parseBody(req, { maxBytes: 5 * 1024 * 1024 });
+      const actor = body.actor || "desktop_agent";
+      const events = Array.isArray(body.events) ? body.events.slice(0, 100) : [];
+      let eventsIngested = 0;
+      for (const event of events) {
+        ingestOperativaEvent(event, actor);
+        eventsIngested++;
+      }
+      const payload = recordCloudSync({ ...body, eventsIngested }, actor);
+      sendJson(res, 201, {
+        ok: true,
+        batch: payload.batch,
+        snapshot: buildCleanOperativaSnapshot(payload.snapshot),
+      });
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || "No pude registrar la sincronizacion cloud" });
     }
     return true;
   }

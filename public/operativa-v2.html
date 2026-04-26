@@ -44,6 +44,8 @@
           <a href="#servicios">Servicios</a>
           <a href="#clientes">Clientes</a>
           <a href="#semanal">Cuentas semanales</a>
+          <a href="#nube">Nube</a>
+          <a href="#reportes">Reportes</a>
         </nav>
         <section class="side-card">
           <p class="eyebrow">Agente visual</p>
@@ -104,6 +106,26 @@
         <section class="main-grid">
           <article class="panel"><div class="panel-head"><div><p class="eyebrow">Receptores</p><h3>Dinero por pais</h3></div></div><div id="receivers" class="receiver-grid"></div></article>
           <article class="panel" id="semanal"><div class="panel-head"><div><p class="eyebrow">Semanal</p><h3>Cuentas acumuladas</h3></div></div><div id="weeklyAccounts" class="compact-list"></div></article>
+        </section>
+        <section class="main-grid" id="nube">
+          <article class="panel large-panel">
+            <div class="panel-head">
+              <div><p class="eyebrow">Nube</p><h3>Sincronizacion del agente local</h3></div>
+              <span class="pill" id="cloudStatusPill">Pendiente</span>
+            </div>
+            <div id="cloudStatus" class="cloud-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <div><p class="eyebrow">Respaldo</p><h3>Copias operativas</h3></div>
+              <button id="createBackupButton" class="clear-board-button" type="button">Crear respaldo</button>
+            </div>
+            <div id="backupList" class="compact-list"></div>
+          </article>
+        </section>
+        <section class="main-grid" id="reportes">
+          <article class="panel large-panel"><div class="panel-head"><div><p class="eyebrow">Reportes</p><h3>Lectura contable y operativa</h3></div></div><div id="cloudReport" class="report-grid"></div></article>
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">Sincronizacion</p><h3>Ultimos lotes</h3></div></div><div id="syncBatches" class="compact-list"></div></article>
         </section>
       </section>
     </main>

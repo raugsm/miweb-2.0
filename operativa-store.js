@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const path = require("path");
 
 const OPERATIVA_FILE = path.join(DATA_DIR, "operativa-v2.json");
+const OPERATIVA_BACKUPS_DIR = path.join(DATA_DIR, "operativa-backups");
 
 const DEFAULT_CHANNELS = [
   {
@@ -184,6 +185,12 @@ function ensureOperativaFile() {
   }
 }
 
+function ensureOperativaBackupsDir() {
+  if (!fs.existsSync(OPERATIVA_BACKUPS_DIR)) {
+    fs.mkdirSync(OPERATIVA_BACKUPS_DIR, { recursive: true });
+  }
+}
+
 function hashText(value) {
   return crypto.createHash("sha256").update(String(value || "").trim().toLowerCase()).digest("hex");
 }
@@ -346,7 +353,12 @@ function normalizeState(rawState) {
     weeklyAccounts: rawState.weeklyAccounts || [],
     events: rawState.events || [],
     agentCheckpoints: rawState.agentCheckpoints || [],
+    syncBatches: rawState.syncBatches || [],
     auditLog: rawState.auditLog || [],
+    cloud: {
+      ...createSeedState().cloud,
+      ...(rawState.cloud || {}),
+    },
     agent: {
       ...createSeedState().agent,
       ...(rawState.agent || {}),
@@ -393,7 +405,18 @@ function createSeedState() {
     weeklyAccounts: [],
     events: [],
     agentCheckpoints: [],
+    syncBatches: [],
     auditLog: [],
+    cloud: {
+      status: "pendiente",
+      environment: process.env.NODE_ENV || "production",
+      publicUrl: process.env.PUBLIC_URL || "https://ariadgsm.com",
+      lastSyncAt: null,
+      lastBackupAt: null,
+      lastBackupFile: null,
+      lastReportAt: null,
+      message: "Nube lista. Esperando la primera sincronizacion del agente local.",
+    },
     agent: {
       mode: "observador",
       autonomyLevel: 1,
@@ -879,6 +902,162 @@ function updateCheckpoint(state, data) {
   return checkpoint;
 }
 
+function recordCloudSync(data, actor = "visual_agent") {
+  const state = readOperativaState();
+  const batch = {
+    id: data.id || createId("sync"),
+    actor,
+    source: data.source || "desktop_agent",
+    mode: data.mode || state.agent.mode || "observador",
+    status: data.status || "ok",
+    receivedAt: nowIso(),
+    channelId: data.channelId || null,
+    conversationId: data.conversationId || null,
+    conversations: Number(data.conversations || data.conversationCount || 0),
+    messages: Number(data.messages || data.messageCount || 0),
+    accountingEvents: Number(data.accountingEvents || data.accountingEventCount || 0),
+    learningEvents: Number(data.learningEvents || data.learningEventCount || 0),
+    eventsIngested: Number(data.eventsIngested || 0),
+    error: data.error || null,
+  };
+
+  state.syncBatches.unshift(batch);
+  state.syncBatches = state.syncBatches.slice(0, 100);
+  state.cloud = {
+    ...state.cloud,
+    status: batch.status === "ok" ? "sincronizado" : "alerta",
+    lastSyncAt: batch.receivedAt,
+    message: batch.error
+      ? `Sincronizacion recibida con alerta: ${batch.error}`
+      : `Sincronizacion recibida: ${batch.messages} mensajes, ${batch.conversations} conversaciones.`,
+  };
+  updateAgentStatus(state, {
+    mode: batch.mode,
+    connected: true,
+    lastHeartbeat: batch.receivedAt,
+    message: state.cloud.message,
+  });
+  pushAudit(state, {
+    actor,
+    action: "cloud:sync",
+    entityType: "sync_batch",
+    entityId: batch.id,
+    after: batch,
+  });
+
+  return {
+    batch,
+    snapshot: buildOperativaSnapshot(writeOperativaState(state)),
+  };
+}
+
+function listOperativaBackups(limit = 20) {
+  ensureOperativaBackupsDir();
+  return fs
+    .readdirSync(OPERATIVA_BACKUPS_DIR)
+    .filter((fileName) => fileName.endsWith(".json"))
+    .map((fileName) => {
+      const fullPath = path.join(OPERATIVA_BACKUPS_DIR, fileName);
+      const stats = fs.statSync(fullPath);
+      return {
+        fileName,
+        bytes: stats.size,
+        createdAt: stats.birthtime.toISOString(),
+        updatedAt: stats.mtime.toISOString(),
+      };
+    })
+    .sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
+    .slice(0, limit);
+}
+
+function createOperativaBackupSnapshot(actor = "panel", note = "") {
+  ensureOperativaBackupsDir();
+  const state = readOperativaState();
+  const stamp = nowIso().replace(/[:.]/g, "-");
+  const fileName = `operativa-${stamp}.json`;
+  const fullPath = path.join(OPERATIVA_BACKUPS_DIR, fileName);
+  const payload = {
+    createdAt: nowIso(),
+    actor,
+    note,
+    source: "ariadgsm_operativa_v2",
+    state,
+  };
+
+  fs.writeFileSync(fullPath, JSON.stringify(payload, null, 2));
+  const stats = fs.statSync(fullPath);
+  state.cloud = {
+    ...state.cloud,
+    status: "respaldo_ok",
+    lastBackupAt: payload.createdAt,
+    lastBackupFile: fileName,
+    message: `Respaldo operativo creado: ${fileName}`,
+  };
+  pushAudit(state, {
+    actor,
+    action: "cloud:backup",
+    entityType: "backup",
+    entityId: fileName,
+    after: { fileName, bytes: stats.size, note },
+  });
+  writeOperativaState(state);
+  return {
+    fileName,
+    bytes: stats.size,
+    createdAt: payload.createdAt,
+  };
+}
+
+function buildCloudReport(stateOverride = null) {
+  const state = stateOverride ? normalizeState(stateOverride) : readOperativaState();
+  const pendingReviews = state.reviewItems.filter((item) => item.status === "pendiente");
+  const today = getDayKey();
+  const todayMessages = state.messages.filter((item) => item.dayKey === today);
+  const pendingPayments = state.paymentEvidences.filter((item) =>
+    ["detected", "text_only", "old_reusable", "duplicate_suspect"].includes(item.status)
+  );
+  const activeServices = state.serviceOrders.filter((item) =>
+    ["payment_verified", "in_process", "pending_provider", "weekly_billable"].includes(item.status)
+  );
+
+  return {
+    generatedAt: nowIso(),
+    today,
+    totals: {
+      conversations: state.conversations.length,
+      messages: state.messages.length,
+      todayMessages: todayMessages.length,
+      pendingReviews: pendingReviews.length,
+      pendingPayments: pendingPayments.length,
+      activeServices: activeServices.length,
+      accountingEntries: state.ledgerEntries.length,
+      syncBatches: state.syncBatches.length,
+      backups: listOperativaBackups(50).length,
+    },
+    channels: buildChannels(state).map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      status: channel.status,
+      unread: channel.unread,
+      lastScannedAt: channel.lastScannedAt,
+    })),
+    latestSync: state.syncBatches[0] || null,
+    latestBackup: listOperativaBackups(1)[0] || null,
+  };
+}
+
+function buildCloudStatus(state) {
+  const report = buildCloudReport(state);
+  return {
+    ...state.cloud,
+    agent: state.agent,
+    latestSync: report.latestSync,
+    latestBackup: report.latestBackup,
+    backups: listOperativaBackups(8),
+    totals: report.totals,
+  };
+}
+
 function ingestOperativaEvent(payload, actor = "visual_agent") {
   const state = readOperativaState();
   const type = payload.type || payload.eventType;
@@ -1076,6 +1255,7 @@ function buildOperativaSnapshot(stateOverride = null) {
   );
   const receivers = buildReceivers(state);
   const messageInsights = buildMessageInsights(state);
+  const reportSummary = buildCloudReport(state);
 
   return {
     ...state,
@@ -1085,6 +1265,9 @@ function buildOperativaSnapshot(stateOverride = null) {
     messageInsights: messageInsights.rows,
     messageIntentSummary: messageInsights.byIntent,
     cashbox: buildCashbox(state),
+    cloudStatus: buildCloudStatus(state),
+    reportSummary,
+    syncBatches: state.syncBatches.slice(0, 12),
     nowQueue: pendingReviews.slice(0, 12).map(mapReviewToQueue),
     summary: {
       openAlerts: pendingReviews.filter((item) => item.priority === "alta").length,
@@ -1098,10 +1281,14 @@ function buildOperativaSnapshot(stateOverride = null) {
 
 module.exports = {
   buildOperativaSnapshot,
+  buildCloudReport,
   classifyWhatsappMessage,
   createSeedState,
+  createOperativaBackupSnapshot,
   getDayKey,
   ingestOperativaEvent,
+  listOperativaBackups,
+  recordCloudSync,
   readOperativaState,
   writeOperativaState,
 };
