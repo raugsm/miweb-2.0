@@ -40,7 +40,7 @@ def main() -> int:
 
     operating = OperatingCore()
     update = operating.process_conversation(conversation, autonomy_level=2)
-    assert update.case.status == "open"
+    assert update.case.status == "customer_waiting"
     assert update.tasks
     assert update.decision_event
     assert not validate_contract(update.decision_event, "decision_event")
@@ -56,18 +56,55 @@ def main() -> int:
         root = Path(tmp)
         conversation_file = root / "conversation-events.jsonl"
         decision_file = root / "decision-events.jsonl"
+        accounting_file = root / "accounting-events.jsonl"
         state_file = root / "operating-state.json"
         db_file = root / "operating.sqlite"
-        conversation_file.write_text(json.dumps(conversation, ensure_ascii=False) + "\n", encoding="utf-8")
-        state = run_operating_once(conversation_file, decision_file, state_file, db_file, autonomy_level=2)
+        payment_conversation = dict(conversation)
+        payment_conversation["conversationEventId"] = "conversation-payment-test"
+        payment_conversation["conversationId"] = "wa-1-cliente-pago"
+        payment_conversation["conversationTitle"] = "Cliente Pago"
+        payment_conversation["messages"] = [
+            {"messageId": "pay-1", "text": "Ya hice el pago de 25 usdt", "direction": "client"}
+        ]
+        conversation_file.write_text(
+            json.dumps(conversation, ensure_ascii=False) + "\n"
+            + json.dumps(payment_conversation, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        state = run_operating_once(
+            conversation_file,
+            decision_file,
+            state_file,
+            db_file,
+            autonomy_level=2,
+            accounting_events_file=accounting_file,
+        )
         assert state["status"] == "ok"
-        assert state["summary"]["cases"] == 1
-        assert state["summary"]["openTasks"] == 1
+        assert state["summary"]["cases"] == 2
+        assert state["summary"]["openTasks"] == 2
+        assert state["summary"]["accountingDrafts"] == 1
+        assert state["ingested"]["duplicates"] == 0
         assert decision_file.exists()
+        assert accounting_file.exists()
+
+        repeated = run_operating_once(
+            conversation_file,
+            decision_file,
+            state_file,
+            db_file,
+            autonomy_level=2,
+            accounting_events_file=accounting_file,
+        )
+        assert repeated["ingested"]["events"] == 0
+        assert repeated["ingested"]["duplicates"] == 2
+        assert repeated["summary"]["cases"] == 2
+        assert repeated["summary"]["openTasks"] == 2
 
         store = OperatingStore(db_file)
         try:
-            assert store.summary()["cases"] == 1
+            summary = store.summary()
+            assert summary["cases"] == 2
+            assert summary["accountingDrafts"] == 1
         finally:
             store.close()
     print("architecture contracts OK")

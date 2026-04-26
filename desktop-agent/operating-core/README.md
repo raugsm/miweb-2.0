@@ -2,11 +2,11 @@
 
 Owner: Python.
 
-The Operating Core turns `conversation_event` records into business state: cases, tasks, priority queue and operating `decision_event` output.
+The Operating Core turns `conversation_event` records into business state: cases, tasks, priority queue, accounting drafts and operating `decision_event` output.
 
 ## Boundaries
 
-It does not read the screen, move the mouse, answer customers, or register final accounting entries. It opens operational tasks that the Cognitive Core, Accounting Core and Hands Engine can act on.
+It does not read the screen, move the mouse, answer customers, or register final accounting entries. It opens operational tasks and draft accounting events that the Cognitive Core, Accounting Core and Hands Engine can act on.
 
 ## Inputs
 
@@ -17,6 +17,7 @@ It does not read the screen, move the mouse, answer customers, or register final
 - SQLite state: `desktop-agent/runtime/operating-core.sqlite`
 - State file: `desktop-agent/runtime/operating-state.json`
 - Decisions: `desktop-agent/runtime/decision-events.jsonl`
+- Accounting drafts: `desktop-agent/runtime/accounting-events.jsonl`
 
 ## Run
 
@@ -32,4 +33,8 @@ Run it from `desktop-agent`, or set `PYTHONPATH=desktop-agent` from the reposito
 - payment/debt messages become accounting-risk tasks;
 - service/equipment context becomes active service case;
 - customer/unknown latest messages stay in the waiting queue;
-- groups named Pagos Mexico, Pagos Chile or Pagos Colombia are tracked as ignored groups and do not create action decisions.
+- groups named Pagos Mexico, Pagos Chile or Pagos Colombia are tracked as ignored groups and do not create action decisions;
+- source conversation events are deduplicated so repeated passes do not create duplicate work;
+- repeated tasks for the same case/action are updated in place, and older duplicate open tasks are superseded;
+- resolved conversations close open tasks for that case;
+- payment, debt and price-with-amount signals create draft accounting events for later confirmation.

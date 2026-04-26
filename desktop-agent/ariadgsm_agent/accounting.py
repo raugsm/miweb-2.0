@@ -33,7 +33,7 @@ def accounting_event_from_message(conversation_id: str, client_name: str, messag
     amounts = extract_amounts(text)
     first = amounts[0] if amounts else {}
     raw_id = f"{conversation_id}|{kind}|{text}|{message.get('sentAt') or ''}"
-    return {
+    event = {
         "eventType": "accounting_event",
         "accountingId": hashlib.sha1(raw_id.encode("utf-8")).hexdigest(),
         "createdAt": utc_now(),
@@ -42,8 +42,10 @@ def accounting_event_from_message(conversation_id: str, client_name: str, messag
         "clientName": client_name,
         "conversationId": conversation_id,
         "kind": kind,
-        "amount": first.get("amount"),
-        "currency": first.get("currency"),
         "evidence": [message.get("messageId") or text],
     }
-
+    if "amount" in first:
+        event["amount"] = first["amount"]
+    if "currency" in first:
+        event["currency"] = first["currency"]
+    return event

@@ -10,8 +10,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .accounting import accounting_event_from_message, extract_amounts
 from .classifier import Decision, classify_messages
 from .contracts import validate_contract
+from .text import normalize
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
@@ -29,9 +31,18 @@ PRIORITY_ORDER = {
 
 IGNORED_GROUP_TITLES = (
     "pagos mexico",
-    "pagos méxico",
     "pagos chile",
     "pagos colombia",
+)
+
+RESOLUTION_KEYWORDS = (
+    "done",
+    "listo",
+    "resuelto",
+    "solucionado",
+    "completado",
+    "liberado",
+    "finalizado",
 )
 
 
@@ -54,6 +65,14 @@ def evidence_from_messages(messages: list[dict[str, Any]], limit: int = 5) -> li
             continue
         evidence.append(str(message.get("messageId") or message.get("text") or ""))
     return [item for item in evidence if item]
+
+
+def event_id_for_conversation(conversation_event: dict[str, Any]) -> str:
+    explicit = clean_text(conversation_event.get("conversationEventId"))
+    if explicit:
+        return explicit
+    raw = json.dumps(conversation_event, ensure_ascii=False, sort_keys=True)
+    return f"conversation-{stable_hash(raw, 24)}"
 
 
 @dataclass(order=True)
@@ -105,30 +124,44 @@ class OperatingTask:
 
 @dataclass(frozen=True)
 class OperatingUpdate:
+    source_event_id: str
     case: BusinessCase
     tasks: list[OperatingTask]
     work_items: list[WorkItem]
     decision_event: dict[str, Any] | None
+    accounting_events: list[dict[str, Any]]
     ignored: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "sourceEventId": self.source_event_id,
             "case": asdict(self.case),
             "tasks": [asdict(task) for task in self.tasks],
             "workItems": [asdict(item) for item in self.work_items],
             "decisionEvent": self.decision_event,
+            "accountingEvents": self.accounting_events,
             "ignored": self.ignored,
         }
 
 
 def is_ignored_group(conversation_event: dict[str, Any]) -> bool:
-    haystack = " ".join(
-        [
-            clean_text(conversation_event.get("conversationTitle")).lower(),
-            clean_text(conversation_event.get("conversationId")).lower(),
-        ]
+    haystack = normalize(
+        " ".join(
+            [
+                clean_text(conversation_event.get("conversationTitle")),
+                clean_text(conversation_event.get("conversationId")),
+            ]
+        )
     )
     return any(title in haystack for title in IGNORED_GROUP_TITLES)
+
+
+def looks_resolved(messages: list[dict[str, Any]]) -> bool:
+    for message in messages[-8:]:
+        text = clean_text(message.get("text")).lower()
+        if any(keyword in text for keyword in RESOLUTION_KEYWORDS):
+            return True
+    return False
 
 
 def priority_kind_for_decision(decision: Decision, conversation_event: dict[str, Any]) -> str:
@@ -163,6 +196,14 @@ def confidence_for_decision(decision: Decision) -> float:
 def case_status_for_decision(decision: Decision, ignored: bool) -> str:
     if ignored:
         return "ignored"
+    if decision.intent == "accounting_payment":
+        return "waiting_payment_confirmation"
+    if decision.intent == "accounting_debt":
+        return "waiting_payment"
+    if decision.intent == "price_request":
+        return "customer_waiting"
+    if decision.intent == "service_context":
+        return "in_progress"
     if decision.intent in {"no_signal", "conversation_context"}:
         return "observing"
     return "open"
@@ -171,6 +212,7 @@ def case_status_for_decision(decision: Decision, ignored: bool) -> str:
 class OperatingCore:
     def process_conversation(self, conversation_event: dict[str, Any], autonomy_level: int = 1) -> OperatingUpdate:
         messages = [message for message in conversation_event.get("messages") or [] if isinstance(message, dict)]
+        source_event_id = event_id_for_conversation(conversation_event)
         ignored = is_ignored_group(conversation_event)
         decision = classify_messages(messages)
         if ignored:
@@ -192,39 +234,44 @@ class OperatingCore:
         confidence = confidence_for_decision(decision)
         now = utc_now()
         last_message = clean_text((messages[-1] or {}).get("text") if messages else decision.text)
+        status = case_status_for_decision(decision, ignored)
+        if not ignored and looks_resolved(messages):
+            status = "resolved"
+
         case = BusinessCase(
             case_id=f"case-{stable_hash(channel_id + '|' + conversation_id)}",
             channel_id=channel_id,
             conversation_id=conversation_id,
             title=title,
             intent=decision.intent,
-            status=case_status_for_decision(decision, ignored),
+            status=status,
             priority=priority_kind,
             confidence=confidence,
             last_message=last_message,
             updated_at=now,
             evidence=evidence,
         )
-        tasks = [] if ignored else self._tasks_for_case(case, decision, evidence, now)
+        tasks = [] if ignored or status == "resolved" else self._tasks_for_case(case, decision, evidence, now)
         work_items = [
             make_work_item(task.kind, case.channel_id, case.conversation_id, task.summary)
             for task in tasks
         ]
         decision_event = None if ignored else self._decision_event(case, decision, tasks, autonomy_level, evidence, now)
-        return OperatingUpdate(case, tasks, work_items, decision_event, ignored=ignored)
+        accounting_events = [] if ignored else self._accounting_events_for_case(case, decision, messages)
+        return OperatingUpdate(source_event_id, case, tasks, work_items, decision_event, accounting_events, ignored=ignored)
 
     def _tasks_for_case(self, case: BusinessCase, decision: Decision, evidence: list[str], now: str) -> list[OperatingTask]:
         task_kind = case.priority
         summary = {
             "accounting_payment": "Revisar posible pago o comprobante del cliente.",
             "accounting_debt": "Revisar posible deuda, saldo o reembolso.",
-            "price_request": "Preparar respuesta de precio con servicio y país correctos.",
+            "price_request": "Preparar respuesta de precio con servicio y pais correctos.",
             "service_context": "Revisar servicio/equipo mencionado y mantener caso activo.",
-            "conversation_context": "Observar conversación y esperar señal de negocio.",
-            "no_signal": "Observar conversación y esperar señal de negocio.",
+            "conversation_context": "Observar conversacion y esperar senal de negocio.",
+            "no_signal": "Observar conversacion y esperar senal de negocio.",
         }.get(decision.intent, "Revisar caso operativo.")
         proposed_action = proposed_action_for_decision(decision)
-        task_id = f"task-{stable_hash(case.case_id + '|' + task_kind + '|' + proposed_action + '|' + '|'.join(evidence))}"
+        task_id = f"task-{stable_hash(case.case_id + '|' + task_kind + '|' + proposed_action)}"
         return [
             OperatingTask(
                 task_id=task_id,
@@ -239,6 +286,30 @@ class OperatingCore:
             )
         ]
 
+    def _accounting_events_for_case(
+        self,
+        case: BusinessCase,
+        decision: Decision,
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        kind_by_intent = {
+            "accounting_payment": "payment",
+            "accounting_debt": "debt",
+            "price_request": "price_quote",
+        }
+        kind = kind_by_intent.get(decision.intent)
+        if not kind:
+            return []
+
+        best_message = next(
+            (message for message in messages if clean_text(message.get("text")) == clean_text(decision.text)),
+            messages[-1] if messages else {},
+        )
+        if kind == "price_quote" and not extract_amounts(clean_text(best_message.get("text"))):
+            return []
+
+        return [accounting_event_from_message(case.conversation_id, case.title, best_message, kind)]
+
     def _decision_event(
         self,
         case: BusinessCase,
@@ -248,7 +319,7 @@ class OperatingCore:
         evidence: list[str],
         now: str,
     ) -> dict[str, Any]:
-        raw_id = "|".join([case.case_id, case.intent, ",".join(evidence), ",".join(task.task_id for task in tasks)])
+        raw_id = "|".join([case.case_id, case.intent, ",".join(task.task_id for task in tasks), case.status])
         requires_confirmation = autonomy_level < 4 or decision.intent in {"accounting_payment", "accounting_debt"}
         return {
             "eventType": "decision_event",
@@ -279,6 +350,10 @@ class OperatingStore:
     def init_schema(self) -> None:
         self.conn.executescript(
             """
+            create table if not exists processed_events (
+              source_event_id text primary key,
+              processed_at text not null
+            );
             create table if not exists cases (
               case_id text primary key,
               channel_id text not null,
@@ -312,12 +387,29 @@ class OperatingStore:
               event_json text not null,
               created_at text not null
             );
+            create table if not exists accounting_events (
+              accounting_id text primary key,
+              case_id text not null,
+              conversation_id text not null,
+              event_json text not null,
+              created_at text not null
+            );
             """
         )
         self.conn.commit()
 
+    def has_processed_event(self, source_event_id: str) -> bool:
+        row = self.conn.execute(
+            "select 1 from processed_events where source_event_id = ? limit 1",
+            (source_event_id,),
+        ).fetchone()
+        return row is not None
+
     def save_update(self, update: OperatingUpdate) -> dict[str, int]:
         now = utc_now()
+        if self.has_processed_event(update.source_event_id):
+            return {"events": 0, "duplicates": 1, "cases": 0, "tasks": 0, "decisions": 0, "accounting": 0}
+
         with self.conn:
             existing_case = self.conn.execute(
                 "select 1 from cases where case_id = ? limit 1",
@@ -354,6 +446,7 @@ class OperatingStore:
                     update.case.updated_at,
                 ),
             )
+
             new_tasks = 0
             for task in update.tasks:
                 before = self.conn.execute(
@@ -387,8 +480,27 @@ class OperatingStore:
                         now,
                     ),
                 )
+                self.conn.execute(
+                    """
+                    update tasks
+                    set status = 'superseded', updated_at = ?
+                    where case_id = ?
+                      and kind = ?
+                      and proposed_action = ?
+                      and task_id <> ?
+                      and status = 'open'
+                    """,
+                    (now, task.case_id, task.kind, task.proposed_action, task.task_id),
+                )
                 if before is None:
                     new_tasks += 1
+
+            if update.case.status == "resolved":
+                self.conn.execute(
+                    "update tasks set status = 'resolved', updated_at = ? where case_id = ? and status = 'open'",
+                    (now, update.case.case_id),
+                )
+
             new_decisions = 0
             if update.decision_event:
                 decision_id = str(update.decision_event["decisionId"])
@@ -412,10 +524,43 @@ class OperatingStore:
                         ),
                     )
                     new_decisions = 1
+
+            new_accounting = 0
+            for event in update.accounting_events:
+                accounting_id = str(event["accountingId"])
+                before = self.conn.execute(
+                    "select 1 from accounting_events where accounting_id = ? limit 1",
+                    (accounting_id,),
+                ).fetchone()
+                if before is None:
+                    self.conn.execute(
+                        """
+                        insert into accounting_events (
+                          accounting_id, case_id, conversation_id, event_json, created_at
+                        ) values (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            accounting_id,
+                            update.case.case_id,
+                            update.case.conversation_id,
+                            json.dumps(event, ensure_ascii=False, separators=(",", ":")),
+                            event["createdAt"],
+                        ),
+                    )
+                    new_accounting += 1
+
+            self.conn.execute(
+                "insert into processed_events (source_event_id, processed_at) values (?, ?)",
+                (update.source_event_id, now),
+            )
+
         return {
+            "events": 1,
+            "duplicates": 0,
             "cases": 0 if existing_case else 1,
             "tasks": new_tasks,
             "decisions": new_decisions,
+            "accounting": new_accounting,
         }
 
     def summary(self) -> dict[str, Any]:
@@ -438,9 +583,12 @@ class OperatingStore:
             ).fetchall()
         ]
         return {
+            "processedEvents": scalar("select count(*) from processed_events"),
             "cases": scalar("select count(*) from cases"),
             "openTasks": scalar("select count(*) from tasks where status = 'open'"),
+            "resolvedTasks": scalar("select count(*) from tasks where status = 'resolved'"),
             "decisions": scalar("select count(*) from decisions"),
+            "accountingDrafts": scalar("select count(*) from accounting_events"),
             "queue": queue,
             "db": str(self.db_path),
         }
@@ -489,33 +637,41 @@ def run_operating_once(
     db_path: Path,
     autonomy_level: int = 1,
     limit: int = 200,
+    accounting_events_file: Path | None = None,
 ) -> dict[str, Any]:
+    accounting_events_file = accounting_events_file or decision_events_file.with_name("accounting-events.jsonl")
     core = OperatingCore()
     store = OperatingStore(db_path)
-    ingested = {"events": 0, "cases": 0, "tasks": 0, "decisions": 0, "ignored": 0}
+    ingested = {"events": 0, "duplicates": 0, "cases": 0, "tasks": 0, "decisions": 0, "accounting": 0, "ignored": 0}
     updates: list[dict[str, Any]] = []
     try:
         for conversation_event in read_conversation_events(conversation_events_file, limit=limit):
             update = core.process_conversation(conversation_event, autonomy_level=autonomy_level)
             stored = store.save_update(update)
-            ingested["events"] += 1
-            ingested["cases"] += stored["cases"]
-            ingested["tasks"] += stored["tasks"]
-            ingested["decisions"] += stored["decisions"]
-            if update.ignored:
+            for key in ("events", "duplicates", "cases", "tasks", "decisions", "accounting"):
+                ingested[key] += stored[key]
+            if update.ignored and stored["events"]:
                 ingested["ignored"] += 1
             if update.decision_event and stored["decisions"]:
                 errors = validate_contract(update.decision_event, "decision_event")
                 if errors:
                     raise ValueError("; ".join(errors))
                 append_jsonl(decision_events_file, update.decision_event)
-            updates.append(update.to_dict())
+            if update.accounting_events and stored["accounting"]:
+                for event in update.accounting_events:
+                    errors = validate_contract(event, "accounting_event")
+                    if errors:
+                        raise ValueError("; ".join(errors))
+                    append_jsonl(accounting_events_file, event)
+            if stored["events"]:
+                updates.append(update.to_dict())
         state = {
             "status": "ok",
             "engine": "ariadgsm_operating_core",
             "updatedAt": utc_now(),
             "conversationEventsFile": str(conversation_events_file),
             "decisionEventsFile": str(decision_events_file),
+            "accountingEventsFile": str(accounting_events_file),
             "ingested": ingested,
             "latestUpdates": updates[-10:],
             "summary": store.summary(),
@@ -530,6 +686,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AriadGSM Operating Core")
     parser.add_argument("--conversation-events", default="runtime/conversation-events.jsonl")
     parser.add_argument("--decision-events", default="runtime/decision-events.jsonl")
+    parser.add_argument("--accounting-events", default="runtime/accounting-events.jsonl")
     parser.add_argument("--state-file", default="runtime/operating-state.json")
     parser.add_argument("--db", default="runtime/operating-core.sqlite")
     parser.add_argument("--autonomy-level", type=int, default=1)
@@ -551,6 +708,7 @@ def main() -> int:
         resolve_runtime_path(args.db),
         autonomy_level=args.autonomy_level,
         limit=args.limit,
+        accounting_events_file=resolve_runtime_path(args.accounting_events),
     )
     if args.json:
         print(json.dumps(state, ensure_ascii=False, indent=2))
@@ -560,9 +718,11 @@ def main() -> int:
         print(
             "AriadGSM Operating Core: "
             f"events={ingested['events']} "
+            f"duplicates={ingested['duplicates']} "
             f"cases={summary['cases']} "
             f"open_tasks={summary['openTasks']} "
             f"decisions={summary['decisions']} "
+            f"accounting={summary['accountingDrafts']} "
             f"db={summary['db']}"
         )
     return 0

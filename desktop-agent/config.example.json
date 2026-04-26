@@ -10,6 +10,7 @@
   "operatingCore": {
     "conversationEventsFile": "./desktop-agent/runtime/conversation-events.jsonl",
     "decisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
+    "accountingEventsFile": "./desktop-agent/runtime/accounting-events.jsonl",
     "stateFile": "./desktop-agent/runtime/operating-state.json",
     "db": "./desktop-agent/runtime/operating-core.sqlite",
     "limit": 200
