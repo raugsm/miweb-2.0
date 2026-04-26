@@ -43,6 +43,10 @@ internal sealed class AgentRuntime : IDisposable
 
     public string RuntimeDir => _runtimeDir;
 
+    public string ExecutableDirectory => AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    public string VersionSummary => ReadVersionSummary();
+
     public string LogFile => _logFile;
 
     public bool IsRunning
@@ -1253,6 +1257,41 @@ internal sealed class AgentRuntime : IDisposable
         catch
         {
             return "0.0.0-dev";
+        }
+    }
+
+    private string ReadVersionSummary()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "ariadgsm-version.json");
+        if (!File.Exists(path))
+        {
+            return "v0.0.0-dev";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(ReadAllTextShared(path));
+            var root = document.RootElement;
+            var version = TryString(root, "version") ?? "0.0.0-dev";
+            var channel = TryString(root, "channel") ?? "local";
+            var commit = TryString(root, "buildCommit");
+            var builtAt = TryString(root, "builtAt");
+            var detail = new List<string> { channel };
+            if (!string.IsNullOrWhiteSpace(commit))
+            {
+                detail.Add(commit);
+            }
+
+            if (!string.IsNullOrWhiteSpace(builtAt))
+            {
+                detail.Add(builtAt);
+            }
+
+            return $"v{version} ({string.Join(", ", detail)})";
+        }
+        catch
+        {
+            return $"v{ReadCurrentVersion()}";
         }
     }
 

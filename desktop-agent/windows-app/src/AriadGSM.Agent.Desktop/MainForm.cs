@@ -6,6 +6,7 @@ internal sealed class MainForm : Form
 {
     private readonly AgentRuntime _runtime = new();
     private readonly System.Windows.Forms.Timer _timer = new();
+    private readonly Label _versionLabel = new();
     private readonly Label _summaryLabel = new();
     private readonly TextBox _problemBox = new();
     private readonly ListView _healthList = new();
@@ -72,7 +73,7 @@ internal sealed class MainForm : Form
             RowCount = 5,
             ColumnCount = 1
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 52));
@@ -103,8 +104,15 @@ internal sealed class MainForm : Form
             AutoSize = true,
             Location = new Point(20, 58)
         };
+        _versionLabel.Text = $"{_runtime.VersionSummary} | {AppContext.BaseDirectory}";
+        _versionLabel.ForeColor = Color.FromArgb(195, 224, 255);
+        _versionLabel.Font = new Font("Segoe UI", 8, FontStyle.Regular);
+        _versionLabel.AutoEllipsis = true;
+        _versionLabel.Location = new Point(20, 82);
+        _versionLabel.Size = new Size(900, 22);
         header.Controls.Add(title);
         header.Controls.Add(subtitle);
+        header.Controls.Add(_versionLabel);
 
         var buttons = new FlowLayoutPanel
         {
@@ -345,6 +353,8 @@ internal sealed class MainForm : Form
                     ? "Modo manual: puedes iniciar desde cabina; el pensamiento autonomo queda pausado."
                     : "Modo autonomo: reviso updates, WhatsApp 1/2/3, dependencias y motores; luego arranco.",
             $"Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
+            $"Version: {_runtime.VersionSummary}",
+            $"Ejecutable: {_runtime.ExecutableDirectory}",
             $"Runtime: {_runtime.RuntimeDir}",
             string.Empty
         };

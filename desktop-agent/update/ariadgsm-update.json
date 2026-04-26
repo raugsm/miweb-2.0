@@ -1,8 +1,8 @@
 {
-  "version": "0.5.0",
-  "packageUrl": "",
-  "sha256": "",
-  "autoApply": false,
-  "notes": "Canal de actualizaciones preparado. Para activar auto-update, publicar AriadGSMAgent-0.5.0.zip o superior con SHA256.",
-  "publishedAt": "2026-04-26T00:00:00Z"
+  "version": "0.5.1",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.1.zip",
+  "sha256": "9105c0a8802d5ca969caa739c33d854b1c0e53648def04c7ae7392e776f9780c",
+  "autoApply": true,
+  "notes": "Version visible en cabina, binarios 0.5.1 y empaquetado seguro cuando hay motores vivos.",
+  "publishedAt": "2026-04-26T19:50:00Z"
 }
