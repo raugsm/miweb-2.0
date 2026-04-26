@@ -184,9 +184,89 @@ function Get-AgentStatus {
     LatestAutopilotStatus = if ($latestAutopilotState) { $latestAutopilotState.Status } else { $null }
     LatestAutopilotFinishedAt = if ($latestAutopilotState) { $latestAutopilotState.FinishedAt } else { $null }
     LatestAutopilotLines = if ($latestAutopilotState -and $latestAutopilotState.BaseCapture -and $latestAutopilotState.BaseCapture.Result) { $latestAutopilotState.BaseCapture.Result.Lines } else { $null }
+    LatestBasePublished = if ($latestAutopilotState -and $latestAutopilotState.BasePublish) { $latestAutopilotState.BasePublish.Published } else { $null }
+    LatestLocalDecision = if ($latestAutopilotState -and $latestAutopilotState.LocalDecision) { $latestAutopilotState.LocalDecision.Status } else { $null }
+    LatestLocalSource = if ($latestAutopilotState -and $latestAutopilotState.LocalDecision) { $latestAutopilotState.LocalDecision.Source } else { $null }
+    LatestLocalLabel = if ($latestAutopilotState -and $latestAutopilotState.LocalDecision) { $latestAutopilotState.LocalDecision.Label } else { $null }
+    LatestLocalChannel = if ($latestAutopilotState -and $latestAutopilotState.LocalDecision) { $latestAutopilotState.LocalDecision.TargetChannel } else { $null }
+    LatestLocalText = if ($latestAutopilotState -and $latestAutopilotState.LocalDecision) { $latestAutopilotState.LocalDecision.Text } else { $null }
+    LatestLocalQueries = if ($latestAutopilotState -and $latestAutopilotState.LocalDecision -and $latestAutopilotState.LocalDecision.Queries) { (@($latestAutopilotState.LocalDecision.Queries) -join ", ") } else { $null }
+    LatestLocalAiError = if ($latestAutopilotState -and $latestAutopilotState.LocalDecision -and $latestAutopilotState.LocalDecision.AiError) { $latestAutopilotState.LocalDecision.AiError } else { "" }
     LatestAutopilotIntent = if ($latestAutopilotState -and $latestAutopilotState.Intent) { $latestAutopilotState.Intent.Status } else { $null }
+    LatestIntentSource = if ($latestAutopilotState -and $latestAutopilotState.Intent -and $latestAutopilotState.Intent.Source) { $latestAutopilotState.Intent.Source } else { $null }
+    LatestIntentTargetChannel = if ($latestAutopilotState -and $latestAutopilotState.Intent) { $latestAutopilotState.Intent.TargetChannel } else { $null }
+    LatestIntentSelectedQuery = if ($latestAutopilotState -and $latestAutopilotState.Intent) { $latestAutopilotState.Intent.SelectedQuery } else { $null }
+    LatestIntentNotes = if ($latestAutopilotState -and $latestAutopilotState.Intent -and $latestAutopilotState.Intent.Notes) { (@($latestAutopilotState.Intent.Notes) -join " ") } else { "" }
     LatestAutopilotLearning = if ($latestAutopilotState -and $latestAutopilotState.Learning) { $latestAutopilotState.Learning.Status } else { $null }
   }
+}
+
+function Get-AgentDiagnosisText {
+  param($Status)
+
+  $lines = @()
+  if (-not $Status.Configured) {
+    $lines += "Falta configuracion: $($Status.ConfigMessage)."
+    return ($lines -join "`r`n")
+  }
+
+  if ($Status.LatestError) {
+    $lines += "Error del observador: $($Status.LatestError)"
+  }
+  if ($Status.LatestAutopilotError) {
+    $lines += "Error del modo vivo: $($Status.LatestAutopilotError)"
+  }
+
+  if (-not $Status.LatestAutopilotCycle) {
+    $lines += "Todavia no hay ciclos registrados. Pulsa Modo vivo para iniciar lectura rapida."
+    return ($lines -join "`r`n")
+  }
+
+  $lines += "Ultimo ciclo: modo $($Status.LatestAutopilotMode), estado $($Status.LatestAutopilotStatus), lineas utiles $($Status.LatestAutopilotLines)."
+  if ($null -ne $Status.LatestBasePublished) {
+    $lines += "Publicacion nube: " + $(if ($Status.LatestBasePublished) { "completada despues de decidir localmente." } else { "fallo o quedo pendiente." })
+  }
+
+  if ($Status.LatestLocalDecision -eq "local_match") {
+    $sourceLabel = if ($Status.LatestLocalSource -eq "openai_local") { "OpenAI local" } else { "reglas rapidas" }
+    $lines += "Decision local ($sourceLabel): detecte $($Status.LatestLocalLabel) en $($Status.LatestLocalChannel)."
+    if ($Status.LatestLocalText) {
+      $lines += "Texto: $($Status.LatestLocalText)"
+    }
+    if ($Status.LatestLocalQueries) {
+      $lines += "Busquedas probadas: $($Status.LatestLocalQueries)."
+    }
+  } elseif ($Status.LatestLocalDecision -eq "no_local_action") {
+    $lines += "Decision local: no vi pago, deuda ni precio en la captura actual."
+  }
+
+  if ($Status.LatestLocalAiError) {
+    $lines += "IA local: fallo OpenAI y use reglas rapidas. $($Status.LatestLocalAiError)"
+  }
+
+  switch ($Status.LatestAutopilotIntent) {
+    "executed_and_captured" { $lines += "Accion: abri un chat, espere y capture la conversacion." }
+    "executed" { $lines += "Accion: abri un chat visible." }
+    "preview_match" { $lines += "Accion pendiente: encontre un chat candidato, pero el ciclo estaba en vista previa." }
+    "local_no_visible_match" { $lines += "No movi el mouse: la IA local detecto algo, pero no encontro una fila visible para abrir." }
+    "preview_no_match" { $lines += "No movi el mouse: no encontre chat visible que coincida con la alerta o busqueda." }
+    "no_action" { $lines += "No hubo accion: no hay palabra de busqueda clara." }
+    default {
+      if ($Status.LatestAutopilotIntent) {
+        $lines += "Resultado de alerta: $($Status.LatestAutopilotIntent)."
+      }
+    }
+  }
+
+  if ($Status.LatestIntentNotes) {
+    $lines += "Nota: $($Status.LatestIntentNotes)"
+  }
+
+  if (-not $Status.AutopilotRunning) {
+    $lines += "Modo vivo detenido ahora. Presiona Modo vivo para dejarlo trabajando."
+  }
+
+  return ($lines -join "`r`n")
 }
 
 function Start-AgentWatch {
@@ -454,114 +534,211 @@ function Start-AgentGui {
   $form = New-Object System.Windows.Forms.Form
   $form.Text = "AriadGSM Agent Desktop"
   $form.StartPosition = "CenterScreen"
-  $form.Width = 700
-  $form.Height = 470
-  $form.MinimumSize = New-Object System.Drawing.Size(660, 430)
+  $form.Width = 900
+  $form.Height = 620
+  $form.MinimumSize = New-Object System.Drawing.Size(840, 580)
+  $form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#eef4ff")
+  $form.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+
+  $accent = [System.Drawing.ColorTranslator]::FromHtml("#2478f2")
+  $accentStrong = [System.Drawing.ColorTranslator]::FromHtml("#0f5fd4")
+  $surface = [System.Drawing.ColorTranslator]::FromHtml("#ffffff")
+  $surfaceStrong = [System.Drawing.ColorTranslator]::FromHtml("#f4f8ff")
+  $ink = [System.Drawing.ColorTranslator]::FromHtml("#101827")
+  $muted = [System.Drawing.ColorTranslator]::FromHtml("#61708a")
+  $line = [System.Drawing.ColorTranslator]::FromHtml("#d9e3f3")
+
+  $brandPanel = New-Object System.Windows.Forms.Panel
+  $brandPanel.Left = 24
+  $brandPanel.Top = 18
+  $brandPanel.Width = 152
+  $brandPanel.Height = 52
+  $brandPanel.BackColor = $accent
+  $form.Controls.Add($brandPanel)
+
+  $brandA = New-Object System.Windows.Forms.Label
+  $brandA.Text = "ARIAD"
+  $brandA.Font = New-Object System.Drawing.Font("Arial Black", 24, [System.Drawing.FontStyle]::Italic)
+  $brandA.ForeColor = [System.Drawing.Color]::White
+  $brandA.AutoSize = $true
+  $brandA.Left = 9
+  $brandA.Top = 6
+  $brandPanel.Controls.Add($brandA)
+
+  $brandG = New-Object System.Windows.Forms.Label
+  $brandG.Text = "GSM"
+  $brandG.Font = New-Object System.Drawing.Font("Arial Black", 24, [System.Drawing.FontStyle]::Italic)
+  $brandG.ForeColor = $accent
+  $brandG.AutoSize = $true
+  $brandG.Left = 182
+  $brandG.Top = 24
+  $form.Controls.Add($brandG)
 
   $title = New-Object System.Windows.Forms.Label
-  $title.Text = "AriadGSM Agent Desktop"
-  $title.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+  $title.Text = "Agent Desktop"
+  $title.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+  $title.ForeColor = $ink
   $title.AutoSize = $true
-  $title.Left = 22
-  $title.Top = 18
+  $title.Left = 315
+  $title.Top = 20
   $form.Controls.Add($title)
 
   $subtitle = New-Object System.Windows.Forms.Label
-  $subtitle.Text = "Observador local para leer los 3 WhatsApp y enviar eventos a ariadgsm.com"
+  $subtitle.Text = "Modo vivo local para leer 3 WhatsApp, decidir rapido y reportar a ariadgsm.com"
   $subtitle.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+  $subtitle.ForeColor = $muted
   $subtitle.AutoSize = $true
-  $subtitle.Left = 24
+  $subtitle.Left = 318
   $subtitle.Top = 55
   $form.Controls.Add($subtitle)
 
+  $statusTitle = New-Object System.Windows.Forms.Label
+  $statusTitle.Text = "Estado"
+  $statusTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+  $statusTitle.ForeColor = $ink
+  $statusTitle.AutoSize = $true
+  $statusTitle.Left = 24
+  $statusTitle.Top = 96
+  $form.Controls.Add($statusTitle)
+
+  $diagnosisTitle = New-Object System.Windows.Forms.Label
+  $diagnosisTitle.Text = "Que paso"
+  $diagnosisTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+  $diagnosisTitle.ForeColor = $ink
+  $diagnosisTitle.AutoSize = $true
+  $diagnosisTitle.Left = 456
+  $diagnosisTitle.Top = 96
+  $form.Controls.Add($diagnosisTitle)
+
   $statusBox = New-Object System.Windows.Forms.TextBox
   $statusBox.Left = 24
-  $statusBox.Top = 88
-  $statusBox.Width = 640
-  $statusBox.Height = 165
+  $statusBox.Top = 122
+  $statusBox.Width = 410
+  $statusBox.Height = 210
   $statusBox.Multiline = $true
   $statusBox.ReadOnly = $true
   $statusBox.ScrollBars = "Vertical"
   $statusBox.Font = New-Object System.Drawing.Font("Consolas", 9)
+  $statusBox.BackColor = $surface
+  $statusBox.ForeColor = $ink
+  $statusBox.BorderStyle = "FixedSingle"
   $form.Controls.Add($statusBox)
+
+  $diagnosisBox = New-Object System.Windows.Forms.TextBox
+  $diagnosisBox.Left = 456
+  $diagnosisBox.Top = 122
+  $diagnosisBox.Width = 400
+  $diagnosisBox.Height = 210
+  $diagnosisBox.Multiline = $true
+  $diagnosisBox.ReadOnly = $true
+  $diagnosisBox.ScrollBars = "Vertical"
+  $diagnosisBox.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+  $diagnosisBox.BackColor = $surface
+  $diagnosisBox.ForeColor = $ink
+  $diagnosisBox.BorderStyle = "FixedSingle"
+  $form.Controls.Add($diagnosisBox)
+
+  function Set-AgentButtonStyle {
+    param(
+      [System.Windows.Forms.Button]$Button,
+      [switch]$Primary
+    )
+    $Button.FlatStyle = "Flat"
+    $Button.FlatAppearance.BorderSize = 1
+    $Button.FlatAppearance.BorderColor = if ($Primary) { $accentStrong } else { $line }
+    $Button.BackColor = if ($Primary) { $accent } else { $surfaceStrong }
+    $Button.ForeColor = if ($Primary) { [System.Drawing.Color]::White } else { $ink }
+    $Button.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+    $Button.Cursor = [System.Windows.Forms.Cursors]::Hand
+  }
 
   $buttonStart = New-Object System.Windows.Forms.Button
   $buttonStart.Text = "Observador"
   $buttonStart.Left = 24
-  $buttonStart.Top = 270
+  $buttonStart.Top = 360
   $buttonStart.Width = 120
   $buttonStart.Height = 34
+  Set-AgentButtonStyle $buttonStart
   $form.Controls.Add($buttonStart)
 
   $buttonAutopilot = New-Object System.Windows.Forms.Button
   $buttonAutopilot.Text = "Modo vivo"
   $buttonAutopilot.Left = 156
-  $buttonAutopilot.Top = 270
+  $buttonAutopilot.Top = 360
   $buttonAutopilot.Width = 120
   $buttonAutopilot.Height = 34
+  Set-AgentButtonStyle $buttonAutopilot -Primary
   $form.Controls.Add($buttonAutopilot)
 
   $buttonStop = New-Object System.Windows.Forms.Button
   $buttonStop.Text = "Detener"
   $buttonStop.Left = 288
-  $buttonStop.Top = 270
+  $buttonStop.Top = 360
   $buttonStop.Width = 92
   $buttonStop.Height = 34
+  Set-AgentButtonStyle $buttonStop
   $form.Controls.Add($buttonStop)
 
   $buttonOnce = New-Object System.Windows.Forms.Button
   $buttonOnce.Text = "Leer una vez"
   $buttonOnce.Left = 392
-  $buttonOnce.Top = 270
+  $buttonOnce.Top = 360
   $buttonOnce.Width = 112
   $buttonOnce.Height = 34
+  Set-AgentButtonStyle $buttonOnce
   $form.Controls.Add($buttonOnce)
 
   $buttonPanel = New-Object System.Windows.Forms.Button
   $buttonPanel.Text = "Abrir cabina"
   $buttonPanel.Left = 516
-  $buttonPanel.Top = 270
+  $buttonPanel.Top = 360
   $buttonPanel.Width = 110
   $buttonPanel.Height = 34
+  Set-AgentButtonStyle $buttonPanel
   $form.Controls.Add($buttonPanel)
 
   $buttonLogs = New-Object System.Windows.Forms.Button
   $buttonLogs.Text = "Logs"
-  $buttonLogs.Left = 432
-  $buttonLogs.Top = 318
+  $buttonLogs.Left = 540
+  $buttonLogs.Top = 410
   $buttonLogs.Width = 80
   $buttonLogs.Height = 32
+  Set-AgentButtonStyle $buttonLogs
   $form.Controls.Add($buttonLogs)
 
   $buttonLocal = New-Object System.Windows.Forms.Button
   $buttonLocal.Text = "Panel local"
-  $buttonLocal.Left = 296
-  $buttonLocal.Top = 318
+  $buttonLocal.Left = 420
+  $buttonLocal.Top = 410
   $buttonLocal.Width = 100
   $buttonLocal.Height = 32
+  Set-AgentButtonStyle $buttonLocal
   $form.Controls.Add($buttonLocal)
 
   $buttonIntent = New-Object System.Windows.Forms.Button
   $buttonIntent.Text = "Atender alerta"
   $buttonIntent.Left = 160
-  $buttonIntent.Top = 318
+  $buttonIntent.Top = 410
   $buttonIntent.Width = 124
   $buttonIntent.Height = 32
+  Set-AgentButtonStyle $buttonIntent
   $form.Controls.Add($buttonIntent)
 
   $buttonLearn = New-Object System.Windows.Forms.Button
   $buttonLearn.Text = "Aprender chats"
   $buttonLearn.Left = 24
-  $buttonLearn.Top = 318
+  $buttonLearn.Top = 410
   $buttonLearn.Width = 124
   $buttonLearn.Height = 32
+  Set-AgentButtonStyle $buttonLearn
   $form.Controls.Add($buttonLearn)
 
   $hint = New-Object System.Windows.Forms.Label
-  $hint.Text = "Nivel actual: observa y abre lecturas. No escribe ni envia mensajes al cliente."
+  $hint.Text = "Nivel actual: lee, decide y abre lecturas. No escribe ni envia mensajes al cliente."
   $hint.AutoSize = $true
+  $hint.ForeColor = $muted
   $hint.Left = 24
-  $hint.Top = 370
+  $hint.Top = 470
   $form.Controls.Add($hint)
 
   function Refresh-Ui {
@@ -575,6 +752,8 @@ function Start-AgentGui {
         "Ultima captura: $($status.LatestCapture)",
         "Ultimo envio procesado: $($status.LatestProcessed)",
         "Ultimo modo: $($status.LatestAutopilotMode) ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
+        "Publicacion nube: $($status.LatestBasePublished)",
+        "Decision local: $($status.LatestLocalDecision) $($status.LatestLocalSource) $($status.LatestLocalLabel) $($status.LatestLocalChannel)",
         "Logs: $($status.RuntimeDir)"
       )
       if ($status.LatestError) {
@@ -588,8 +767,10 @@ function Start-AgentGui {
         $lines += $status.LatestAutopilotError
       }
       $statusBox.Text = ($lines -join "`r`n")
+      $diagnosisBox.Text = Get-AgentDiagnosisText $status
     } catch {
       $statusBox.Text = "No pude leer estado: $($_.Exception.Message)"
+      $diagnosisBox.Text = "No pude construir diagnostico: $($_.Exception.Message)"
     }
   }
 

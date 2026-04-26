@@ -483,6 +483,7 @@ function Build-EventsOnce {
   $now = (Get-Date).ToUniversalTime().ToString("o")
   $dayKey = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
   $events = @()
+  $localMessages = @()
   $totalLines = 0
   $skippedChannels = @()
   $regionSummaries = @()
@@ -539,20 +540,22 @@ function Build-EventsOnce {
 
     foreach ($line in $lines) {
       $messageHash = (Get-Sha256 "$($region.ChannelId)|$dayKey|$line").Substring(0, 18)
+      $messageData = [pscustomobject]@{
+        channelId = $region.ChannelId
+        contactName = $conversationTitle
+        conversationType = $conversationType
+        conversationId = $conversationId
+        messageKey = "visual-$messageHash"
+        senderName = "Lectura visual"
+        direction = "unknown"
+        text = $line
+        sentAt = $now
+        dayKey = $dayKey
+      }
+      $localMessages += $messageData
       $events += [pscustomobject]@{
         type = "whatsapp_message"
-        data = [pscustomobject]@{
-          channelId = $region.ChannelId
-          contactName = $conversationTitle
-          conversationType = $conversationType
-          conversationId = $conversationId
-          messageKey = "visual-$messageHash"
-          senderName = "Lectura visual"
-          direction = "unknown"
-          text = $line
-          sentAt = $now
-          dayKey = $dayKey
-        }
+        data = $messageData
       }
     }
 
@@ -584,6 +587,7 @@ function Build-EventsOnce {
   return [pscustomobject]@{
     Config = $config
     Events = $events
+    LocalMessages = $localMessages
     TotalLines = $totalLines
     Regions = $regionSummaries
     CaptureRoot = $captureRoot
@@ -624,6 +628,7 @@ function Run-Once {
     EventFile = $eventFile
     Lines = $result.TotalLines
     Regions = $result.Regions
+    LocalMessages = @($result.LocalMessages | Select-Object -First 80)
     CaptureRoot = $result.CaptureRoot
   }
 }

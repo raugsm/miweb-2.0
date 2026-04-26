@@ -67,10 +67,12 @@ scripts\visual-agent\visual-autopilot.ps1
 El flujo del modo vivo es:
 
 1. respeta los 3 WhatsApp que ya dejaste alineados;
-2. captura pantalla y sube eventos a `ariadgsm.com`;
-3. revisa la cabina para atender alertas de pago/deuda/precio;
-4. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
-5. repite el ciclo cada 3 a 5 segundos por defecto.
+2. captura pantalla y lee OCR;
+3. toma una decision local rapida sobre pago/deuda/precio sin esperar a la nube;
+4. si encuentra una accion, busca el chat visible y lo abre;
+5. sube eventos a `ariadgsm.com` para historial y cabina;
+6. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
+7. repite el ciclo cada 3 a 5 segundos por defecto.
 
 Por seguridad, el nivel actual sigue siendo de lectura. El modo vivo puede mover el mouse y abrir chats, pero no escribe ni envia mensajes.
 
@@ -81,6 +83,10 @@ El aprendizaje profundo excluye grupos contables repetitivos como `Pagos Mexico`
 La lectura base tambien filtra esas filas de pagos cuando aparecen como texto de pantalla, para que no disparen alertas falsas ni contaminen el aprendizaje como si fueran chats de clientes.
 
 El modo vivo no hace scroll de aprendizaje. Cuando necesitas entrenar la IA con historial, usa **Aprender chats**: abre la conversacion, toma una lectura, sube el scroll para buscar mensajes anteriores y repite la lectura de forma controlada.
+
+La ventana principal muestra una seccion **Que paso**. Ahi explica si el modo vivo detecto algo localmente, que texto uso, que busquedas intento y por que no movio el mouse cuando no encontro una fila visible.
+
+La decision local usa reglas rapidas primero para no perder velocidad. Si esta PC tiene `OPENAI_API_KEY` configurada, el modo vivo tambien puede pedir una decision OpenAI directa sobre el OCR reciente cuando las reglas no ven una accion clara, sin esperar a que la nube procese la captura.
 
 El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.
 
