@@ -1,0 +1,84 @@
+# Capturador visual AriadGSM
+
+Este capturador reconstruye el paso que ya habia llegado a funcionar: leer pantalla, convertir texto visible en eventos y alimentar `https://ariadgsm.com`.
+
+## Estado
+
+- `ariadgsm.com` autoriza el `OPERATIVA_AGENT_KEY` de Railway.
+- La nube ya contiene eventos reales previos de `Lectura visual`, `visible_window` y `agent_status`.
+- En GitHub no hay otra rama con el capturador anterior; por eso se agrego un capturador nuevo local.
+- El nuevo script usa OCR nativo de Windows y divide el monitor ultrawide en 3 secciones: `wa-1`, `wa-2`, `wa-3`.
+
+## Archivo principal
+
+```text
+scripts\visual-agent\visual-screen-capture.ps1
+```
+
+## Control visual con puntero
+
+El control del mouse existe en modo seguro y no hace clics a menos que se use `-Execute`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-pointer-control.ps1 -Channel wa-2 -Action Preview
+```
+
+Para enfocar una seccion:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-pointer-control.ps1 -Channel wa-2 -Action FocusChannel -Execute
+```
+
+Para abrir una fila de chat por posicion vertical aproximada:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-pointer-control.ps1 -Channel wa-2 -Action OpenChatRow -RowRatio 0.28 -Execute
+```
+
+La siguiente mejora sera unir OCR con coordenadas para que el agente pueda escoger una fila por texto, no solo por posicion.
+
+## Prueba sin enviar a nube
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-screen-capture.ps1
+```
+
+Esto crea capturas y un JSON de vista previa en:
+
+```text
+scripts\visual-agent\captures-dryrun
+```
+
+Por defecto el capturador recorta cada tercio para leer la zona de conversacion y evitar lista de chats, barras y pestanas. Si necesitas diagnosticar una seccion completa:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-screen-capture.ps1 -FullSection
+```
+
+Si una seccion parece ser Codex, Railway, YouTube u otra pagina, el capturador la omite para no enviar ruido a la nube.
+
+## Enviar una lectura real a ariadgsm.com
+
+Solo hacerlo cuando los 3 WhatsApp esten visibles, uno por seccion de pantalla:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-screen-capture.ps1 -Send
+```
+
+El script escribe eventos en `cloud-inbox` y luego ejecuta `visual-agent.js --once`.
+
+## Modo observacion continua
+
+Cuando la lectura este limpia:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-screen-capture.ps1 -Send -Watch -PollSeconds 60
+```
+
+## Como ayudar antes de enviar
+
+1. Deja visibles solo los 3 WhatsApp que se deben observar.
+2. Acomoda cada uno en una tercera parte del monitor.
+3. Evita dejar Railway, YouTube u otras paginas encima de las secciones.
+4. Abre chats reales o listas que quieras que el agente aprenda.
+5. Ejecuta primero sin `-Send` y revisa que el JSON no tenga demasiado ruido.

@@ -42,6 +42,130 @@ const DEFAULT_RECEIVERS = [
   { id: "receiver-mx", name: "Receptor Mexico", country: "Mexico", currency: "MXN", active: true },
 ];
 
+const MESSAGE_CLASSIFIERS = [
+  {
+    id: "payment_or_receipt",
+    label: "Pago / comprobante",
+    title: "Validar pago o comprobante",
+    action: "Validar pago",
+    priority: "alta",
+    keywords: [
+      "pago",
+      "pague",
+      "pagué",
+      "pagado",
+      "comprobante",
+      "transferencia",
+      "deposito",
+      "depósito",
+      "yape",
+      "plin",
+      "nequi",
+      "bancolombia",
+      "nacion",
+      "banco",
+    ],
+    patterns: [/\b\d+(?:[.,]\d+)?\s*(usd|usdt|soles|pen|mxn|cop|clp)\b/i],
+  },
+  {
+    id: "accounting_debt",
+    label: "Cuenta / deuda",
+    title: "Revisar cuenta o deuda",
+    action: "Registrar cuenta",
+    priority: "alta",
+    keywords: [
+      "deuda",
+      "nueva deuda",
+      "debe",
+      "saldo",
+      "cuenta",
+      "semanal",
+      "reembolso",
+      "rembolso",
+      "devolver",
+      "devolucion",
+      "devolución",
+    ],
+    patterns: [],
+  },
+  {
+    id: "price_request",
+    label: "Pregunta precio",
+    title: "Cliente pide precio",
+    action: "Responder precio",
+    priority: "media",
+    keywords: ["cuanto", "cuánto", "vale", "sale", "precio", "costo", "cotiza", "cobras", "tarifa"],
+    patterns: [/\b(cu[aá]nto|cuanto)\b.*\b(sale|vale|cuesta|es)\b/i, /\b(fr[pi]|unlock|liberaci[oó]n|reset)\b.*\?/i],
+  },
+  {
+    id: "device_or_imei",
+    label: "Modelo / IMEI",
+    title: "Completar datos del equipo",
+    action: "Completar ficha",
+    priority: "media",
+    keywords: ["imei", "brand", "model", "modelo", "motorola", "samsung", "xiaomi", "huawei", "honor", "tecno", "infinix", "iphone", "moto"],
+    patterns: [/\b\d{14,16}\b/, /\b(g\d{1,3}|a\d{2,3}|p\d{2,3}|redmi|note\s*\d+|iphone\s*\d+)\b/i],
+  },
+  {
+    id: "technical_process",
+    label: "Proceso tecnico",
+    title: "Abrir o actualizar proceso tecnico",
+    action: "Abrir proceso",
+    priority: "media",
+    keywords: [
+      "frp",
+      "unlock",
+      "liberacion",
+      "liberación",
+      "factory reset",
+      "reset",
+      "mdm",
+      "bypass",
+      "firmware",
+      "flash",
+      "flahs",
+      "rom",
+      "brom",
+      "bootloader",
+      "oem",
+      "root",
+      "kg",
+      "knox",
+      "icloud",
+      "mi account",
+      "conecta",
+    ],
+    patterns: [],
+  },
+  {
+    id: "provider_offer",
+    label: "Oferta proveedor",
+    title: "Guardar oferta de proveedor",
+    action: "Guardar oferta",
+    priority: "baja",
+    keywords: ["proveedor", "service price update", "level", "instant success", "lista blanca", "subio", "subió", "api"],
+    patterns: [],
+  },
+  {
+    id: "procedure_reference",
+    label: "Procedimiento",
+    title: "Guardar procedimiento o archivo tecnico",
+    action: "Guardar procedimiento",
+    priority: "media",
+    keywords: ["youtube", "youtu.be", "drive.google", "mifirm", "descargar", "archivo", "archivos", "procedimiento", "pasos"],
+    patterns: [/https?:\/\//i],
+  },
+  {
+    id: "process_update",
+    label: "Estado proceso",
+    title: "Actualizar estado del proceso",
+    action: "Actualizar proceso",
+    priority: "media",
+    keywords: ["done", "listo", "completado", "salio", "salió", "ya esta", "ya está", "pendiente", "en proceso"],
+    patterns: [/\bard\d{2,}/i],
+  },
+];
+
 function getDayKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
@@ -75,6 +199,125 @@ function normalizeAmount(value) {
 
 function normalizeCurrency(value, fallback = "USD") {
   return String(value || fallback).trim().toUpperCase();
+}
+
+function normalizeForMatch(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function extractMessageSignals(text) {
+  const raw = String(text || "");
+  const lower = normalizeForMatch(raw);
+  const amounts = raw.match(/\b\d+(?:[.,]\d+)?\s*(?:usd|usdt|soles|pen|mxn|cop|clp)\b/gi) || [];
+  const imeis = raw.match(/\b\d{14,16}\b/g) || [];
+  const links = raw.match(/https?:\/\/\S+|(?:drive|wa|youtu)\.[^\s]+/gi) || [];
+  const devices = [];
+
+  for (const match of raw.matchAll(/\b(?:moto\s*)?(?:g\d{1,3}|a\d{2,3}|p\d{2,3}|redmi\s*[\w\s-]{0,12}|note\s*\d+|iphone\s*\d+|samsung\s*[\w-]{1,12}|xiaomi\s*[\w-]{1,12})\b/gi)) {
+    devices.push(match[0].trim());
+  }
+
+  return {
+    lower,
+    amounts: [...new Set(amounts)],
+    imeis: [...new Set(imeis)],
+    links: [...new Set(links)],
+    devices: [...new Set(devices)].slice(0, 5),
+  };
+}
+
+function classifyWhatsappMessage(data) {
+  const text = String(data.text || "");
+  const signals = extractMessageSignals(text);
+  const matches = [];
+
+  for (const classifier of MESSAGE_CLASSIFIERS) {
+    let score = 0;
+    const reasons = [];
+
+    for (const keyword of classifier.keywords || []) {
+      if (signals.lower.includes(normalizeForMatch(keyword))) {
+        score += keyword.length > 8 ? 2 : 1;
+        reasons.push(keyword);
+      }
+    }
+
+    for (const pattern of classifier.patterns || []) {
+      if (pattern.test(text)) {
+        score += 2;
+        reasons.push(pattern.toString());
+      }
+    }
+
+    if (classifier.id === "device_or_imei") {
+      score += signals.imeis.length * 2 + signals.devices.length;
+    }
+
+    if (classifier.id === "procedure_reference") {
+      score += signals.links.length;
+    }
+
+    if (classifier.id === "provider_offer" && /(service price update|proveedor|instant success|lista blanca|subio|subió)/i.test(signals.lower)) {
+      score += 3;
+    }
+
+    if (classifier.id === "technical_process" && /(operation|factory reset|frp|unlock|brom|firmware|flash|rom)/i.test(signals.lower)) {
+      score += 4;
+    }
+
+    if (score > 0) {
+      matches.push({
+        id: classifier.id,
+        label: classifier.label,
+        title: classifier.title,
+        action: classifier.action,
+        priority: classifier.priority,
+        score,
+        confidence: Math.min(0.95, 0.48 + score * 0.08),
+        reasons: [...new Set(reasons)].slice(0, 5),
+      });
+    }
+  }
+
+  matches.sort((left, right) => {
+    const priorityWeight = { alta: 3, media: 2, baja: 1 };
+    return right.score - left.score || (priorityWeight[right.priority] || 0) - (priorityWeight[left.priority] || 0);
+  });
+
+  const primary = matches[0] || {
+    id: "no_action",
+    label: "Sin accion clara",
+    title: "Mensaje observado",
+    action: "Observar",
+    priority: "baja",
+    score: 0,
+    confidence: 0.35,
+    reasons: [],
+  };
+
+  return {
+    intent: primary.id,
+    label: primary.label,
+    action: primary.action,
+    priority: primary.priority,
+    confidence: primary.confidence,
+    requiresHumanReview: primary.id !== "no_action",
+    reasons: primary.reasons,
+    matches: matches.slice(0, 3).map((item) => ({
+      intent: item.id,
+      label: item.label,
+      confidence: item.confidence,
+    })),
+    extracted: {
+      amounts: signals.amounts,
+      imeis: signals.imeis,
+      links: signals.links,
+      devices: signals.devices,
+    },
+  };
 }
 
 function normalizeState(rawState) {
@@ -263,9 +506,13 @@ function ingestWhatsappMessage(state, data) {
   const existing = state.messages.find((item) => item.conversationId === conversation.id && item.messageKey === messageKey);
 
   if (existing) {
+    if (!existing.classification) {
+      existing.classification = classifyWhatsappMessage(existing);
+    }
     return existing;
   }
 
+  const classification = classifyWhatsappMessage({ ...data, channelId: conversation.channelId });
   const message = {
     id: createId("msg"),
     conversationId: conversation.id,
@@ -279,6 +526,7 @@ function ingestWhatsappMessage(state, data) {
     dayKey: data.dayKey || getDayKey(data.sentAt ? new Date(data.sentAt) : new Date()),
     hash: hashText(`${conversation.id}:${messageKey}:${data.text || ""}`),
     processed: Boolean(data.processed),
+    classification,
   };
 
   state.messages.unshift(message);
@@ -314,6 +562,20 @@ function ingestWhatsappMessage(state, data) {
       priority: "media",
       relatedEntityType: "message",
       relatedEntityId: message.id,
+    });
+  }
+
+  if (classification.requiresHumanReview) {
+    const classifier = MESSAGE_CLASSIFIERS.find((item) => item.id === classification.intent);
+    addReviewItem(state, {
+      type: `message_${classification.intent}`,
+      title: classifier?.title || classification.label,
+      description: message.text,
+      confidence: classification.confidence,
+      priority: classification.priority,
+      relatedEntityType: "message",
+      relatedEntityId: message.id,
+      dedupeKey: `message-classification:${message.hash}:${classification.intent}`,
     });
   }
 
@@ -770,6 +1032,42 @@ function mapReviewToQueue(item) {
   };
 }
 
+function mapMessageToInsight(state, message) {
+  const classification = message.classification || classifyWhatsappMessage(message);
+  const conversation = state.conversations.find((item) => item.id === message.conversationId);
+  const channel = state.channels.find((item) => item.id === message.channelId);
+  return {
+    id: message.id,
+    messageKey: message.messageKey,
+    channelId: message.channelId,
+    channel: channel?.name || message.channelId,
+    conversationId: message.conversationId,
+    conversationTitle: conversation?.title || message.senderName || "Chat visible",
+    text: message.text,
+    capturedAt: message.capturedAt,
+    sentAt: message.sentAt,
+    classification,
+    suggestedAction: classification.action,
+  };
+}
+
+function buildMessageInsights(state) {
+  const insights = state.messages
+    .map((message) => mapMessageToInsight(state, message))
+    .filter((item) => item.classification.intent !== "no_action");
+
+  const byIntent = insights.reduce((acc, item) => {
+    acc[item.classification.intent] = (acc[item.classification.intent] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    rows: insights.slice(0, 40),
+    byIntent,
+    actionable: insights.length,
+  };
+}
+
 function buildOperativaSnapshot(stateOverride = null) {
   const state = stateOverride ? normalizeState(stateOverride) : readOperativaState();
   const pendingReviews = state.reviewItems.filter((item) => item.status === "pendiente");
@@ -777,12 +1075,15 @@ function buildOperativaSnapshot(stateOverride = null) {
     ["payment_verified", "in_process", "pending_provider", "weekly_billable"].includes(item.status)
   );
   const receivers = buildReceivers(state);
+  const messageInsights = buildMessageInsights(state);
 
   return {
     ...state,
     generatedAt: nowIso(),
     channels: buildChannels(state),
     receivers,
+    messageInsights: messageInsights.rows,
+    messageIntentSummary: messageInsights.byIntent,
     cashbox: buildCashbox(state),
     nowQueue: pendingReviews.slice(0, 12).map(mapReviewToQueue),
     summary: {
@@ -790,12 +1091,14 @@ function buildOperativaSnapshot(stateOverride = null) {
       reviewPending: pendingReviews.length,
       servicesInProgress: servicesInProgress.length,
       receiverPendingCount: receivers.filter((item) => item.pending > 0).length,
+      actionableMessages: messageInsights.actionable,
     },
   };
 }
 
 module.exports = {
   buildOperativaSnapshot,
+  classifyWhatsappMessage,
   createSeedState,
   getDayKey,
   ingestOperativaEvent,

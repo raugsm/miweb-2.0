@@ -1,0 +1,25 @@
+[
+  {
+    "type": "whatsapp_message",
+    "data": {
+      "channelId": "wa-1",
+      "contactName": "Cliente Prueba Nube",
+      "conversationType": "direct",
+      "messageKey": "wa1-cloud-smoke-001",
+      "senderName": "Cliente Prueba Nube",
+      "direction": "client",
+      "text": "Prueba controlada del agente visual conectado a ariadgsm.com.",
+      "sentAt": "2026-04-26T04:30:00.000Z"
+    }
+  },
+  {
+    "type": "checkpoint",
+    "data": {
+      "channelId": "wa-1",
+      "conversationId": "Cliente Prueba Nube",
+      "dayKey": "2026-04-26",
+      "lastMessageKey": "wa1-cloud-smoke-001",
+      "lastCaptureHash": "cloud-smoke-001"
+    }
+  }
+]

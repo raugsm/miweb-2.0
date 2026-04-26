@@ -40,6 +40,8 @@ function createEmptyData(message) {
       message: message || "Cabina lista. Esperando datos reales del agente visual.",
     },
     nowQueue: [],
+    messageInsights: [],
+    messageIntentSummary: {},
     cashbox: {},
     reviewItems: [],
     serviceOrders: [],
@@ -86,6 +88,7 @@ function renderSummary() {
   setText("reviewPending", summary.reviewPending ?? 0);
   setText("servicesInProgress", summary.servicesInProgress ?? 0);
   setText("receiverPendingCount", summary.receiverPendingCount ?? 0);
+  setText("actionableMessages", summary.actionableMessages ?? 0);
   setText("lastUpdate", `Ultima lectura: ${formatDate(state.data?.generatedAt)}`);
 }
 
@@ -148,6 +151,55 @@ function renderReviewItems() {
         <span class="tag">${escapeHtml(item.status || "pendiente")}</span>
         <span class="tag medium">${formatConfidence(item.confidence)}</span>
       </div>
+    </article>
+  `);
+}
+
+function renderMessageInsights() {
+  renderList("messageInsights", state.data?.messageInsights || [], "Todavia no hay mensajes clasificados.", (item) => {
+    const classification = item.classification || {};
+    const extracted = classification.extracted || {};
+    const chips = [
+      item.channel,
+      item.conversationTitle,
+      classification.label,
+      classification.priority,
+      formatConfidence(classification.confidence),
+      ...(extracted.amounts || []).slice(0, 2),
+      ...(extracted.devices || []).slice(0, 2),
+    ].filter(Boolean);
+
+    return `
+      <article class="list-row">
+        <h4>${escapeHtml(classification.action || item.suggestedAction || "Revisar")}</h4>
+        <p>${escapeHtml(item.text)}</p>
+        <div class="row-meta">
+          ${chips.map((chip) => `<span class="tag ${priorityClass(chip)}">${escapeHtml(chip)}</span>`).join("")}
+        </div>
+      </article>
+    `;
+  });
+}
+
+function renderIntentSummary() {
+  const labels = {
+    payment_or_receipt: "Pagos",
+    accounting_debt: "Cuentas",
+    price_request: "Precios",
+    device_or_imei: "Modelos / IMEI",
+    technical_process: "Tecnico",
+    provider_offer: "Ofertas",
+    procedure_reference: "Procedimientos",
+    process_update: "Estados",
+  };
+  const rows = Object.entries(state.data?.messageIntentSummary || {})
+    .sort((left, right) => right[1] - left[1])
+    .map(([intent, count]) => ({ intent, count, label: labels[intent] || intent }));
+
+  renderList("intentSummary", rows, "Sin categorias todavia.", (item) => `
+    <article class="list-row">
+      <h4>${escapeHtml(item.label)}</h4>
+      <p>${formatNumber(item.count)} mensajes detectados</p>
     </article>
   `);
 }
@@ -259,6 +311,8 @@ function buildDataFromDashboard(payload) {
       status: item.status,
       financialState: "pendiente_contabilidad",
     })),
+    messageInsights: [],
+    messageIntentSummary: {},
     receivers: createEmptyData().receivers,
     weeklyAccounts: [
       {
@@ -278,6 +332,8 @@ function renderAll() {
   renderAgent();
   renderNowQueue();
   renderCashbox();
+  renderMessageInsights();
+  renderIntentSummary();
   renderReviewItems();
   renderServices();
   renderChannels();
