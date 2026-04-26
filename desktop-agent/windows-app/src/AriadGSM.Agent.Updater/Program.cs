@@ -72,6 +72,7 @@ internal static class Program
         var currentDir = RequiredDirectory(args.Value("--current-dir"), "--current-dir");
         var packageSource = RequiredValue(args.Value("--package"), "--package");
         var restart = args.Value("--restart");
+        var noRestart = args.Has("--no-restart");
         var sha256 = args.Value("--sha256") ?? string.Empty;
 
         WriteState(stateFile, UpdateState.Applying("Esperando que AriadGSM Agent cierre."));
@@ -133,21 +134,48 @@ internal static class Program
             : Path.Combine(currentDir, "AriadGSM Agent.exe");
         WriteState(stateFile, UpdateState.Applied($"Actualizacion aplicada. Respaldo: {backupDir}"));
 
+        if (noRestart)
+        {
+            WriteState(stateFile, UpdateState.Applied($"Actualizacion aplicada. Reinicio omitido por --no-restart. Respaldo: {backupDir}"));
+            return;
+        }
+
         if (File.Exists(restartPath))
         {
+            if (!LooksLikeWindowsExecutable(restartPath))
+            {
+                WriteState(stateFile, UpdateState.Applied($"Actualizacion aplicada, pero no reinicie porque el archivo no parece un ejecutable Windows valido: {restartPath}. Respaldo: {backupDir}"));
+                return;
+            }
+
             try
             {
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = restartPath,
                     WorkingDirectory = currentDir,
-                    UseShellExecute = true
+                    UseShellExecute = false,
+                    CreateNoWindow = true
                 });
             }
             catch (Exception exception)
             {
                 WriteState(stateFile, UpdateState.Applied($"Actualizacion aplicada, pero no pude reiniciar: {exception.Message}. Respaldo: {backupDir}"));
             }
+        }
+    }
+
+    private static bool LooksLikeWindowsExecutable(string path)
+    {
+        try
+        {
+            Span<byte> header = stackalloc byte[2];
+            using var stream = File.OpenRead(path);
+            return stream.Read(header) == 2 && header[0] == (byte)'M' && header[1] == (byte)'Z';
+        }
+        catch
+        {
+            return false;
         }
     }
 
