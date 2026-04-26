@@ -28,6 +28,8 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageEnhance, ImageGrab, ImageOps
 
+import reader_core
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
@@ -488,6 +490,49 @@ def build_learning_items(event: dict[str, Any], decision: dict[str, Any]) -> lis
     return items
 
 
+def apply_reading_event(
+    event: dict[str, Any],
+    last_decision: dict[str, Any],
+    seen_learning_ids: set[str],
+) -> tuple[dict[str, Any], dict[str, Any], int]:
+    selected_lines = [str(line) for line in event.get("acceptedLines") or [] if str(line).strip()]
+    if selected_lines:
+        messages = make_messages(str(event.get("channelId") or ""), selected_lines)
+        last_decision = agent_local.rule_decision(messages, 3)
+        event_decision = last_decision
+    else:
+        event_decision = {
+            "Status": "no_local_action",
+            "Source": "reader_core",
+            "TargetChannel": event.get("channelId"),
+            "Reason": "Sin lineas utiles para decidir.",
+        }
+    event["decision"] = event_decision
+    fresh_learning = append_learning_items(build_learning_items(event, event_decision), seen_learning_ids)
+    return event, last_decision, len(fresh_learning)
+
+
+def event_from_structured_observation(observation: dict[str, Any]) -> dict[str, Any]:
+    channel_id = str(observation.get("channelId") or "")
+    base_event = {
+        "capturedAt": observation.get("capturedAt") or now_iso(),
+        "processedAt": now_iso(),
+        "channelId": channel_id,
+        "name": observation.get("conversationTitle") or channel_id,
+        "rect": [],
+        "imagePath": "",
+        "ocrImagePath": "",
+        "ocrScale": None,
+        "ocrEnhanced": False,
+        "change": {"mean": 0.0, "changedRatio": 0.0, "score": 0.0},
+        "rawLines": [],
+        "acceptedLines": [],
+        "ignoredLines": [],
+        "decision": {},
+    }
+    return reader_core.observation_to_event(observation, base_event)
+
+
 def load_recent_learning_ids(limit: int = 3000) -> set[str]:
     if not LEARNING_LEDGER_FILE.exists():
         return set()
@@ -624,8 +669,9 @@ def render_report(state: dict[str, Any], output_path: Path) -> None:
     for event in reversed(events[-80:]):
         accepted = "<br>".join(esc(line) for line in event.get("acceptedLines", [])) or "<span class='muted'>Sin texto aceptado</span>"
         ignored = "<br>".join(f"{esc(item.get('Clean'))} <span class='muted'>({esc(item.get('Reason'))})</span>" for item in event.get("ignoredLines", [])[:8])
-        image = Path(event.get("imagePath", ""))
-        image_src = image.resolve().as_uri() if image.exists() else ""
+        image_path = str(event.get("imagePath") or "")
+        image = Path(image_path) if image_path else None
+        image_src = image.resolve().as_uri() if image and image.is_file() else ""
         rows.append(
             f"""
             <article class="event">
@@ -672,7 +718,7 @@ def render_report(state: dict[str, Any], output_path: Path) -> None:
 </head>
 <body>
   <header>
-    <div><h1>AriadGSM Ojo Vivo</h1><div class="muted">Streaming visual por cambios, sin DOM</div></div>
+    <div><h1>AriadGSM Ojo Vivo</h1><div class="muted">Reader Core estructurado + OCR de respaldo</div></div>
     <div class="muted">Actualizado: {esc(state.get('updatedAt'))}</div>
   </header>
   <main>
@@ -737,6 +783,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--fingerprint-height", type=int, default=96)
     parser.add_argument("--buffer-events", type=int, default=160)
     parser.add_argument("--full-section", action="store_true")
+    parser.add_argument("--reader-core-max-age-seconds", type=float, default=10.0)
+    parser.add_argument("--reader-core-min-structured-confidence", type=float, default=0.86)
     args = parser.parse_args(argv)
     if args.live:
         if args.interval_ms == 750:
@@ -766,6 +814,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     args.ocr_language_list = [item.strip() for item in str(args.ocr_languages or "").split(",") if item.strip()]
     args.record_quality = max(25, min(90, args.record_quality))
     args.record_interval_ms = max(100, args.record_interval_ms)
+    args.reader_core_max_age_seconds = max(1.0, args.reader_core_max_age_seconds)
+    args.reader_core_min_structured_confidence = max(0.0, min(1.0, args.reader_core_min_structured_confidence))
     return args
 
 
@@ -784,6 +834,7 @@ def build_state(
     recorded_frames: int,
     learned_items: int,
     learning_summary: dict[str, Any] | None,
+    reader_core_sources: dict[str, int],
     completed: bool = False,
 ) -> dict[str, Any]:
     return {
@@ -808,6 +859,13 @@ def build_state(
         "ocrEnhance": bool(args.ocr_enhance),
         "ocrLanguages": list(getattr(args, "ocr_language_list", [])),
         "ocrMaxEngines": args.ocr_max_engines,
+        "readerCore": {
+            "priority": ["structured", "ocr", "ai_verifier_pending"],
+            "maxStructuredAgeSeconds": args.reader_core_max_age_seconds,
+            "minStructuredConfidence": args.reader_core_min_structured_confidence,
+            "sources": reader_core_sources,
+            "stateFile": str(reader_core.STATE_FILE),
+        },
         "visionStorageRoot": str(vision_storage_root),
         "storageCleanup": storage_cleanup,
         "regions": [{"channelId": r.channel_id, "name": r.name, "rect": list(r.rect)} for r in regions],
@@ -839,8 +897,10 @@ def main(argv: list[str]) -> int:
     ocr_runs = 0
     recorded_frames = 0
     learned_items = 0
+    reader_core_sources: dict[str, int] = {}
     learning_summary = render_learning_report()
     seen_learning_ids = load_recent_learning_ids()
+    seen_structured_observation_keys: set[str] = set()
     last_decision: dict[str, Any] = {"Status": "no_local_action", "Source": "eyes_stream", "Reason": "Sin lectura todavia."}
     start = time.monotonic()
     last_state_write = 0.0
@@ -855,6 +915,31 @@ def main(argv: list[str]) -> int:
             while True:
                 now_mono = time.monotonic()
                 event_added = False
+                structured_by_channel = reader_core.latest_by_channel(
+                    reader_core.read_structured_observations(args.reader_core_max_age_seconds)
+                )
+
+                for observation in structured_by_channel.values():
+                    if float(observation.get("confidence") or 0.0) < args.reader_core_min_structured_confidence:
+                        continue
+                    observation_key = reader_core.observation_key(observation)
+                    if observation_key in seen_structured_observation_keys:
+                        continue
+                    seen_structured_observation_keys.add(observation_key)
+                    event = event_from_structured_observation(observation)
+                    event, last_decision, fresh_count = apply_reading_event(event, last_decision, seen_learning_ids)
+                    if fresh_count:
+                        learned_items += fresh_count
+                        learning_summary = render_learning_report()
+                    events.append(event)
+                    selected_source = str((event.get("readerCore") or {}).get("selectedSource") or "structured")
+                    reader_core_sources[selected_source] = reader_core_sources.get(selected_source, 0) + 1
+                    event_added = True
+                    log(
+                        f"{event.get('channelId')}: lector {selected_source} "
+                        f"({(event.get('readerCore') or {}).get('confidence')}) directo, "
+                        f"utiles {len(event.get('acceptedLines') or [])}."
+                    )
 
                 for future in [item for item in pending_frames if item.done()]:
                     pending_frames.pop(future, None)
@@ -886,10 +971,7 @@ def main(argv: list[str]) -> int:
                         ignored = [item for item in decisions if not item["Accepted"]]
 
                     accepted = [item["Clean"] for item in decisions if item["Accepted"]]
-                    if accepted:
-                        messages = make_messages(job["region"].channel_id, accepted)
-                        last_decision = agent_local.rule_decision(messages, 3)
-                    event = {
+                    ocr_event = {
                         "capturedAt": job["capturedAt"],
                         "processedAt": now_iso(),
                         "channelId": job["region"].channel_id,
@@ -905,14 +987,30 @@ def main(argv: list[str]) -> int:
                         "ignoredLines": ignored,
                         "decision": last_decision,
                     }
-                    fresh_learning = append_learning_items(build_learning_items(event, last_decision), seen_learning_ids)
-                    if fresh_learning:
-                        learned_items += len(fresh_learning)
+                    candidate_structured = dict(structured_by_channel)
+                    structured_for_channel = candidate_structured.get(job["region"].channel_id)
+                    if structured_for_channel and reader_core.observation_key(structured_for_channel) in seen_structured_observation_keys:
+                        candidate_structured.pop(job["region"].channel_id, None)
+                    event = reader_core.select_reading(
+                        ocr_event,
+                        candidate_structured,
+                        args.reader_core_min_structured_confidence,
+                    )
+                    selected_source = str((event.get("readerCore") or {}).get("selectedSource") or "ocr")
+                    reader_core_sources[selected_source] = reader_core_sources.get(selected_source, 0) + 1
+                    event, last_decision, fresh_count = apply_reading_event(event, last_decision, seen_learning_ids)
+                    selected_lines = [str(line) for line in event.get("acceptedLines") or [] if str(line).strip()]
+                    if fresh_count:
+                        learned_items += fresh_count
                         learning_summary = render_learning_report()
                     events.append(event)
                     ocr_runs += 1
                     event_added = True
-                    log(f"{job['region'].channel_id}: cambio {job['change']['score']:.2f}, OCR {len(raw_lines)} lineas, utiles {len(accepted)}.")
+                    confidence = (event.get("readerCore") or {}).get("confidence")
+                    log(
+                        f"{job['region'].channel_id}: cambio {job['change']['score']:.2f}, "
+                        f"lector {selected_source} ({confidence}), OCR {len(raw_lines)} lineas, utiles {len(selected_lines)}."
+                    )
 
                 expired = (not args.watch) and (now_mono - start) >= args.duration_seconds
                 if not expired:
@@ -979,6 +1077,7 @@ def main(argv: list[str]) -> int:
                         recorded_frames,
                         learned_items,
                         learning_summary,
+                        reader_core_sources,
                     )
                     write_state(state)
                     last_state_write = now_mono
@@ -1002,6 +1101,7 @@ def main(argv: list[str]) -> int:
         recorded_frames,
         learned_items,
         learning_summary,
+        reader_core_sources,
         completed=True,
     )
     write_state(state)

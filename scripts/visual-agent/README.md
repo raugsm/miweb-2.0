@@ -60,6 +60,23 @@ El aprendizaje visible queda en `runtime\learning-ledger\latest.html` y tambien 
 
 Cada aprendizaje guarda tambien perfil linguistico: idioma probable, pais sugerido por palabras/servicios regionales y jerga detectada. Eso permite que la IA aprenda diferencias como `pana`, `parce`, `compa`, `yape`, `plin`, `nequi`, `pix`, `zelle` o formas de pedir precio segun pais.
 
+## Reader Core
+
+`reader_core.py` es el nucleo de lectura. Su prioridad es:
+
+1. texto visible estructurado desde DOM/extensiones/accesibilidad;
+2. OCR como respaldo;
+3. verificador IA en una fase posterior.
+
+El contrato seguro del Reader Core no lee cookies, tokens ni sesiones. Solo acepta observaciones locales de mensajes visibles. Una extension o lector estructurado futuro puede escribir observaciones en `runtime\reader-core\structured-observations.jsonl`; `eyes-stream.py` las procesa directo cuando tienen confianza suficiente y son recientes, y usa OCR como respaldo/comparacion.
+
+Prueba local:
+
+```powershell
+python .\scripts\visual-agent\reader_core.py --write-sample --channel-id wa-1 --text "Parce cuanto vale liberar un Samsung?"
+python .\scripts\visual-agent\reader_core.py --status
+```
+
 ## Idiomas OCR
 
 Windows OCR solo puede leer idiomas instalados en el sistema. Para instalar los idiomas recomendados:

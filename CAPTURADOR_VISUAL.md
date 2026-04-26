@@ -39,7 +39,7 @@ scripts\visual-agent\agent-local.py
 
 En cada ciclo el motor Python respeta los WhatsApp que ya dejaste alineados, captura pantalla, toma una decision local rapida sobre pago/deuda/precio y atiende alertas clasificadas. No hace aprendizaje profundo ni scroll largo mientras trabaja en vivo. No escribe mensajes al cliente.
 
-La decision local usa el OCR recien capturado, antes de esperar la ida y vuelta con la nube. Primero aplica reglas rapidas en `agent-local.py`; si `OPENAI_API_KEY` existe en esta PC, puede usar OpenAI como segundo escalon cuando no hay senal clara. Si detecta algo pero no encuentra una fila visible para abrir, el launcher lo muestra en **Que paso** con el texto y las busquedas intentadas.
+La decision local usa la lectura reciente del Reader Core, antes de esperar la ida y vuelta con la nube. Primero aplica reglas rapidas en `agent-local.py`; si `OPENAI_API_KEY` existe en esta PC, puede usar OpenAI como segundo escalon cuando no hay senal clara. Si detecta algo pero no encuentra una fila visible para abrir, el launcher lo muestra en **Que paso** con el texto y las busquedas intentadas.
 
 El visual debugger se abre desde **Ver ojos** y deja un reporte en `scripts\visual-agent\runtime\visual-debugger\latest.html`. Ese reporte muestra cada captura, las lineas aceptadas, las ignoradas y el motivo exacto del filtro.
 
@@ -48,6 +48,8 @@ El modo **Ojo vivo** usa `eyes-stream.py`: mira la pantalla en modo rapido cada 
 El aprendizaje visible queda en `scripts\visual-agent\runtime\learning-ledger\latest.html`. Ahi se revisa que mensajes fueron aprendidos como contexto, precio, pago o deuda antes de confiar en la contabilidad automatica.
 
 Ese aprendizaje tambien registra idioma probable, pais sugerido y jerga detectada para que la IA pueda adaptar interpretacion por region.
+
+El Reader Core queda como capa de precision: si existe lectura estructurada reciente de WhatsApp Web, se procesa directo antes que OCR. OCR queda como respaldo visual cuando no hay DOM/accesibilidad disponible.
 
 El boton **Modo vivo** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 

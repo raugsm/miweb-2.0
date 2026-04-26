@@ -249,6 +249,11 @@ function Get-AgentStatus {
     LatestEyesRecordedFrames = if ($latestEyesState -and $null -ne $latestEyesState.recordedFrames) { $latestEyesState.recordedFrames } else { $null }
     LatestEyesStorage = if ($latestEyesState -and $latestEyesState.visionStorageRoot) { $latestEyesState.visionStorageRoot } else { $null }
     LatestEyesLearnedItems = if ($latestEyesState -and $null -ne $latestEyesState.learnedItems) { $latestEyesState.learnedItems } else { $null }
+    LatestReaderCoreSources = if ($latestEyesState -and $latestEyesState.readerCore -and $latestEyesState.readerCore.sources) {
+      (($latestEyesState.readerCore.sources.PSObject.Properties | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ", ")
+    } else {
+      $null
+    }
     LatestLearningReport = if ($latestEyesState -and $latestEyesState.learningSummary -and $latestEyesState.learningSummary.report) { $latestEyesState.learningSummary.report } else { $null }
     LatestLearningAccounting = if ($latestEyesState -and $latestEyesState.learningSummary -and $null -ne $latestEyesState.learningSummary.accountingItems) { $latestEyesState.learningSummary.accountingItems } else { $null }
     LatestEyesUpdatedAt = if ($latestEyesState) { $latestEyesState.updatedAt } else { $null }
@@ -323,6 +328,9 @@ function Get-AgentDiagnosisText {
     $lines += "Ojo vivo: $($Status.LatestEyesStatus) $($Status.LatestEyesMode), intervalo $($Status.LatestEyesIntervalMs)ms, frames $($Status.LatestEyesFrames), grabados $($Status.LatestEyesRecordedFrames), OCR $($Status.LatestEyesOcrRuns), aprendidos $($Status.LatestEyesLearnedItems), pendientes $($Status.LatestEyesPendingOcr), decision $($Status.LatestEyesDecision) $($Status.LatestEyesChannel)."
     if ($Status.LatestEyesStorage) {
       $lines += "Almacen visual: $($Status.LatestEyesStorage)"
+    }
+    if ($Status.LatestReaderCoreSources) {
+      $lines += "Reader Core: $($Status.LatestReaderCoreSources)"
     }
     if ($Status.LatestLearningReport) {
       $lines += "Aprendizaje visible: $($Status.LatestLearningReport)"
@@ -969,6 +977,7 @@ function Start-AgentGui {
         "Publicacion nube: $($status.LatestBasePublished)",
         "Decision local: $($status.LatestLocalDecision) $($status.LatestLocalSource) $($status.LatestLocalLabel) $($status.LatestLocalChannel)",
         "Ojos: $($status.LatestEyesStatus) $($status.LatestEyesMode) $($status.LatestEyesIntervalMs)ms | frames $($status.LatestEyesFrames) grabados $($status.LatestEyesRecordedFrames) OCR $($status.LatestEyesOcrRuns) aprendidos $($status.LatestEyesLearnedItems) pendientes $($status.LatestEyesPendingOcr) | decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
+        "Reader Core: $($status.LatestReaderCoreSources)",
         "Aprendizaje: contabilidad $($status.LatestLearningAccounting) | reporte $($status.LatestLearningReport)",
         "Almacen visual: $($status.LatestEyesStorage)",
         "Logs: $($status.RuntimeDir)"

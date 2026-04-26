@@ -87,7 +87,7 @@ El modo vivo no hace scroll de aprendizaje. Cuando necesitas entrenar la IA con 
 
 La ventana principal muestra una seccion **Que paso**. Ahi explica si el modo vivo detecto algo localmente, que texto uso, que busquedas intento y por que no movio el mouse cuando no encontro una fila visible.
 
-La decision local usa reglas rapidas en Python primero para no perder velocidad. Si esta PC tiene `OPENAI_API_KEY` configurada, el modo vivo tambien puede pedir una decision OpenAI directa sobre el OCR reciente cuando las reglas no ven una accion clara, sin esperar a que la nube procese la captura.
+La decision local usa reglas rapidas en Python primero para no perder velocidad. Si esta PC tiene `OPENAI_API_KEY` configurada, el modo vivo tambien puede pedir una decision OpenAI directa sobre la lectura reciente cuando las reglas no ven una accion clara, sin esperar a que la nube procese la captura.
 
 PowerShell queda como lanzador y puente de Windows. El ciclo vivo, el estado y la decision principal ya viven en Python.
 
@@ -130,7 +130,7 @@ El boton **Ojo vivo** inicia un observador continuo distinto al capturador puntu
 - marca cualquier region sin firma de WhatsApp como `no_whatsapp_signature`, aunque sea Codex, navegador u otro programa;
 - deja un reporte vivo en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
 
-Este modo no usa DOM ni lee sesiones internas del navegador. Es vision local por streaming visual.
+Este modo no lee sesiones internas del navegador. Por defecto trabaja con vision local por streaming visual; si el Reader Core recibe texto visible estructurado de WhatsApp Web, lo usa antes que OCR.
 
 Prueba manual corta:
 
@@ -149,6 +149,8 @@ El historial visual completo queda local en disco y rota por defecto con limite 
 El boton **Aprendizaje** abre el reporte local de lo que el agente aprendio: contexto de cliente, preguntas de precio, pagos y deudas detectadas. Ese reporte es la vista de control antes de usarlo como contabilidad total.
 
 Cada registro de aprendizaje incluye perfil linguistico: idioma probable, pais sugerido y jerga detectada. Esto ayuda a que el sistema aprenda formas reales de hablar por pais, no solo comandos fijos.
+
+El **Reader Core** decide que fuente de lectura usar: primero texto visible estructurado de DOM/accesibilidad, luego OCR, y mas adelante verificacion IA para lecturas dudosas. Cuando llega una observacion estructurada reciente y confiable, el modo vivo puede procesarla directo sin esperar un OCR.
 
 Para instalar idiomas OCR recomendados de Windows se usa:
 
