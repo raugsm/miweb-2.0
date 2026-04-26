@@ -240,8 +240,11 @@ function Get-AgentStatus {
     LatestIntentNotes = if ($latestAutopilotState -and $latestAutopilotState.Intent -and $latestAutopilotState.Intent.Notes) { (@($latestAutopilotState.Intent.Notes) -join " ") } else { "" }
     LatestAutopilotLearning = if ($latestAutopilotState -and $latestAutopilotState.Learning) { $latestAutopilotState.Learning.Status } else { $null }
     LatestEyesStatus = if ($latestEyesState) { $latestEyesState.Status } else { $null }
+    LatestEyesMode = if ($latestEyesState -and $latestEyesState.Mode) { $latestEyesState.Mode } else { $null }
     LatestEyesFrames = if ($latestEyesState) { $latestEyesState.frames } else { $null }
     LatestEyesOcrRuns = if ($latestEyesState) { $latestEyesState.ocrRuns } else { $null }
+    LatestEyesPendingOcr = if ($latestEyesState -and $null -ne $latestEyesState.pendingOcr) { $latestEyesState.pendingOcr } else { $null }
+    LatestEyesIntervalMs = if ($latestEyesState -and $latestEyesState.captureIntervalMs) { $latestEyesState.captureIntervalMs } else { $null }
     LatestEyesUpdatedAt = if ($latestEyesState) { $latestEyesState.updatedAt } else { $null }
     LatestEyesDecision = if ($latestEyesState -and $latestEyesState.lastDecision) { $latestEyesState.lastDecision.Status } else { $null }
     LatestEyesChannel = if ($latestEyesState -and $latestEyesState.lastDecision) { $latestEyesState.lastDecision.TargetChannel } else { $null }
@@ -311,7 +314,7 @@ function Get-AgentDiagnosisText {
   }
 
   if ($Status.LatestEyesStatus) {
-    $lines += "Ojo vivo: $($Status.LatestEyesStatus), frames $($Status.LatestEyesFrames), OCR $($Status.LatestEyesOcrRuns), decision $($Status.LatestEyesDecision) $($Status.LatestEyesChannel)."
+    $lines += "Ojo vivo: $($Status.LatestEyesStatus) $($Status.LatestEyesMode), intervalo $($Status.LatestEyesIntervalMs)ms, frames $($Status.LatestEyesFrames), OCR $($Status.LatestEyesOcrRuns), pendientes $($Status.LatestEyesPendingOcr), decision $($Status.LatestEyesDecision) $($Status.LatestEyesChannel)."
   }
 
   if (-not $Status.AutopilotRunning) {
@@ -442,7 +445,7 @@ function Start-EyesStream {
   $runner = Join-Path $RuntimeDir "eyes-stream-runner.ps1"
   @(
     '$ErrorActionPreference = "Continue"',
-    "& '$pythonPath' '$EyesStreamScript' --watch --config-path '$ConfigPath' --interval-ms 750 --change-threshold 9 --ocr-cooldown-seconds 1.5 *>> '$EyesOutLog'"
+    "& '$pythonPath' '$EyesStreamScript' --watch --live --config-path '$ConfigPath' *>> '$EyesOutLog'"
   ) | Set-Content -LiteralPath $runner -Encoding UTF8
 
   $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
@@ -655,7 +658,7 @@ function Invoke-EyesSample {
   $eyesOut = Join-Path $RuntimeDir ("eyes-sample-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
   $eyesErr = Join-Path $RuntimeDir ("eyes-sample-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
   $pythonPath = Get-PythonPath
-  $command = "& '$pythonPath' '$EyesStreamScript' --config-path '$ConfigPath' --duration-seconds 8 --interval-ms 750 --change-threshold 9 --ocr-cooldown-seconds 1.5"
+  $command = "& '$pythonPath' '$EyesStreamScript' --config-path '$ConfigPath' --duration-seconds 8 --live"
   $process = Start-HiddenProcess -Arguments @("-Command", $command) -CaptureOutput
   $stdout = $process.StandardOutput.ReadToEnd()
   $stderr = $process.StandardError.ReadToEnd()
@@ -936,7 +939,7 @@ function Start-AgentGui {
         "Ultimo modo: $($status.LatestAutopilotMode) motor $($status.LatestAutopilotEngine) ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
         "Publicacion nube: $($status.LatestBasePublished)",
         "Decision local: $($status.LatestLocalDecision) $($status.LatestLocalSource) $($status.LatestLocalLabel) $($status.LatestLocalChannel)",
-        "Ojos: $($status.LatestEyesStatus) frames $($status.LatestEyesFrames) OCR $($status.LatestEyesOcrRuns) decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
+        "Ojos: $($status.LatestEyesStatus) $($status.LatestEyesMode) $($status.LatestEyesIntervalMs)ms | frames $($status.LatestEyesFrames) OCR $($status.LatestEyesOcrRuns) pendientes $($status.LatestEyesPendingOcr) | decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
         "Logs: $($status.RuntimeDir)"
       )
       if ($status.LatestError) {

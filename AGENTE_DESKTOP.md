@@ -117,10 +117,10 @@ python .\scripts\visual-agent\visual-debugger.py --open
 
 El boton **Ojo vivo** inicia un observador continuo distinto al capturador puntual. Este modo:
 
-- captura pantalla de forma continua cada 0.75 segundos;
+- captura pantalla en modo vivo rapido cada 100ms por defecto;
 - divide el monitor en las 3 zonas de WhatsApp;
 - calcula diferencia visual por region;
-- ejecuta OCR solo cuando una zona cambia;
+- ejecuta OCR solo cuando una zona cambia y lo procesa en segundo plano para no frenar la captura;
 - guarda un buffer reciente de eventos visuales;
 - acepta una region solo si encuentra firma visual de WhatsApp (`Escribe un mensaje`, buscador de chats, pestañas de lista o avisos propios de WhatsApp);
 - marca cualquier region sin firma de WhatsApp como `no_whatsapp_signature`, aunque sea Codex, navegador u otro programa;
@@ -132,6 +132,12 @@ Prueba manual corta:
 
 ```powershell
 python .\scripts\visual-agent\eyes-stream.py --duration-seconds 8
+```
+
+Para probar el modo mas cercano a tiempo real:
+
+```powershell
+python .\scripts\visual-agent\eyes-stream.py --duration-seconds 8 --live
 ```
 
 El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.

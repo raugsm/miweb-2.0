@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 from collections import deque
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -314,15 +315,63 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AriadGSM continuous visual eyes")
     parser.add_argument("--config-path", default=str(DEFAULT_CONFIG))
     parser.add_argument("--watch", action="store_true")
+    parser.add_argument("--live", action="store_true", help="Preset rapido para operacion en vivo.")
     parser.add_argument("--duration-seconds", type=float, default=15.0)
     parser.add_argument("--interval-ms", type=int, default=750)
     parser.add_argument("--change-threshold", type=float, default=9.0)
     parser.add_argument("--ocr-cooldown-seconds", type=float, default=2.0)
+    parser.add_argument("--ocr-workers", type=int, default=1)
+    parser.add_argument("--max-pending-ocr", type=int, default=4)
+    parser.add_argument("--state-interval-ms", type=int, default=750)
     parser.add_argument("--fingerprint-width", type=int, default=96)
     parser.add_argument("--fingerprint-height", type=int, default=96)
     parser.add_argument("--buffer-events", type=int, default=160)
     parser.add_argument("--full-section", action="store_true")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.live:
+        if args.interval_ms == 750:
+            args.interval_ms = 100
+        if args.change_threshold == 9.0:
+            args.change_threshold = 4.5
+        if args.ocr_cooldown_seconds == 2.0:
+            args.ocr_cooldown_seconds = 0.35
+        if args.ocr_workers == 1:
+            args.ocr_workers = 2
+        if args.max_pending_ocr == 4:
+            args.max_pending_ocr = 6
+        if args.state_interval_ms == 750:
+            args.state_interval_ms = 500
+    return args
+
+
+def build_state(
+    args: argparse.Namespace,
+    session_dir: Path,
+    frames: int,
+    ocr_runs: int,
+    regions: list[Region],
+    events: deque[dict[str, Any]],
+    last_decision: dict[str, Any],
+    pending_ocr: dict[Future[list[str]], dict[str, Any]],
+    completed: bool = False,
+) -> dict[str, Any]:
+    return {
+        "Status": "completed" if completed else ("running" if args.watch else "completed"),
+        "Engine": "eyes_stream",
+        "Mode": "live" if args.live else "sample",
+        "updatedAt": now_iso(),
+        "sessionDir": str(session_dir),
+        "frames": frames,
+        "ocrRuns": ocr_runs,
+        "pendingOcr": len(pending_ocr),
+        "captureIntervalMs": args.interval_ms,
+        "ocrCooldownSeconds": args.ocr_cooldown_seconds,
+        "ocrWorkers": args.ocr_workers,
+        "regions": [{"channelId": r.channel_id, "name": r.name, "rect": list(r.rect)} for r in regions],
+        "events": list(events),
+        "lastDecision": last_decision,
+        "report": str(EYES_DIR / "latest.html"),
+    }
 
 
 def main(argv: list[str]) -> int:
@@ -336,84 +385,109 @@ def main(argv: list[str]) -> int:
     regions = build_regions(config, first.size, args.full_section)
     fingerprints: dict[str, np.ndarray] = {}
     last_ocr: dict[str, float] = {}
+    pending_ocr: dict[Future[list[str]], dict[str, Any]] = {}
+    pending_channels: set[str] = set()
     events: deque[dict[str, Any]] = deque(maxlen=args.buffer_events)
     frames = 0
     ocr_runs = 0
     last_decision: dict[str, Any] = {"Status": "no_local_action", "Source": "eyes_stream", "Reason": "Sin lectura todavia."}
     start = time.monotonic()
-    log(f"Ojo vivo iniciado: {first.size[0]}x{first.size[1]}, {len(regions)} regiones, intervalo {args.interval_ms}ms.")
+    last_state_write = 0.0
+    log(
+        f"Ojo vivo iniciado: {first.size[0]}x{first.size[1]}, {len(regions)} regiones, "
+        f"intervalo {args.interval_ms}ms, OCR workers {args.ocr_workers}."
+    )
 
-    while True:
-        image = ImageGrab.grab(all_screens=True)
-        frames += 1
-        now_mono = time.monotonic()
-        for region in regions:
-            crop = image.crop(region.rect)
-            fp = fingerprint(crop, (args.fingerprint_width, args.fingerprint_height))
-            change = change_score(fingerprints.get(region.channel_id), fp)
-            fingerprints[region.channel_id] = fp
-            should_ocr = change["score"] >= args.change_threshold and (now_mono - last_ocr.get(region.channel_id, 0.0)) >= args.ocr_cooldown_seconds
-            if not should_ocr:
-                continue
-            last_ocr[region.channel_id] = now_mono
-            image_path = crop_dir / f"{stamp()}-{region.channel_id}.png"
-            crop.save(image_path)
-            try:
-                raw_lines = run_ocr(image_path)
-            except Exception as exc:
-                raw_lines = []
-                decisions = [{"Raw": "", "Clean": "", "Accepted": False, "Reason": f"ocr_error: {exc}"}]
-                ignored = decisions
-            else:
-                blocked_reason = blocked_section_reason(raw_lines)
-                if blocked_reason:
-                    decisions = [
-                        {"Raw": line, "Clean": re.sub(r"\s+", " ", line).strip(), "Accepted": False, "Reason": blocked_reason}
-                        for line in raw_lines
-                    ]
+    with ThreadPoolExecutor(max_workers=max(1, args.ocr_workers)) as executor:
+        while True:
+            now_mono = time.monotonic()
+            event_added = False
+
+            for future in [item for item in pending_ocr if item.done()]:
+                job = pending_ocr.pop(future)
+                pending_channels.discard(job["region"].channel_id)
+                try:
+                    raw_lines = future.result()
+                except Exception as exc:
+                    raw_lines = []
+                    decisions = [{"Raw": "", "Clean": "", "Accepted": False, "Reason": f"ocr_error: {exc}"}]
+                    ignored = decisions
                 else:
-                    decisions = [line_decision(line) for line in raw_lines]
-                ignored = [item for item in decisions if not item["Accepted"]]
-            accepted = [item["Clean"] for item in decisions if item["Accepted"]]
-            if accepted:
-                messages = make_messages(region.channel_id, accepted)
-                last_decision = agent_local.rule_decision(messages, 3)
-            event = {
-                "capturedAt": now_iso(),
-                "channelId": region.channel_id,
-                "name": region.name,
-                "rect": list(region.rect),
-                "imagePath": str(image_path),
-                "change": change,
-                "rawLines": raw_lines,
-                "acceptedLines": accepted,
-                "ignoredLines": ignored,
-                "decision": last_decision,
-            }
-            events.append(event)
-            ocr_runs += 1
-            log(f"{region.channel_id}: cambio {change['score']:.2f}, OCR {len(raw_lines)} lineas, utiles {len(accepted)}.")
+                    blocked_reason = blocked_section_reason(raw_lines)
+                    if blocked_reason:
+                        decisions = [
+                            {"Raw": line, "Clean": re.sub(r"\s+", " ", line).strip(), "Accepted": False, "Reason": blocked_reason}
+                            for line in raw_lines
+                        ]
+                    else:
+                        decisions = [line_decision(line) for line in raw_lines]
+                    ignored = [item for item in decisions if not item["Accepted"]]
 
-        state = {
-            "Status": "running" if args.watch else "completed",
-            "Engine": "eyes_stream",
-            "updatedAt": now_iso(),
-            "sessionDir": str(session_dir),
-            "frames": frames,
-            "ocrRuns": ocr_runs,
-            "regions": [{"channelId": r.channel_id, "name": r.name, "rect": list(r.rect)} for r in regions],
-            "events": list(events),
-            "lastDecision": last_decision,
-            "report": str(EYES_DIR / "latest.html"),
-        }
-        write_state(state)
+                accepted = [item["Clean"] for item in decisions if item["Accepted"]]
+                if accepted:
+                    messages = make_messages(job["region"].channel_id, accepted)
+                    last_decision = agent_local.rule_decision(messages, 3)
+                event = {
+                    "capturedAt": job["capturedAt"],
+                    "processedAt": now_iso(),
+                    "channelId": job["region"].channel_id,
+                    "name": job["region"].name,
+                    "rect": list(job["region"].rect),
+                    "imagePath": str(job["imagePath"]),
+                    "change": job["change"],
+                    "rawLines": raw_lines,
+                    "acceptedLines": accepted,
+                    "ignoredLines": ignored,
+                    "decision": last_decision,
+                }
+                events.append(event)
+                ocr_runs += 1
+                event_added = True
+                log(f"{job['region'].channel_id}: cambio {job['change']['score']:.2f}, OCR {len(raw_lines)} lineas, utiles {len(accepted)}.")
 
-        if not args.watch and (time.monotonic() - start) >= args.duration_seconds:
-            break
-        time.sleep(max(0.05, args.interval_ms / 1000.0))
+            expired = (not args.watch) and (now_mono - start) >= args.duration_seconds
+            if not expired:
+                image = ImageGrab.grab(all_screens=True)
+                frames += 1
+                candidates: list[tuple[float, Region, Image.Image, dict[str, float]]] = []
+                for region in regions:
+                    crop = image.crop(region.rect)
+                    fp = fingerprint(crop, (args.fingerprint_width, args.fingerprint_height))
+                    change = change_score(fingerprints.get(region.channel_id), fp)
+                    fingerprints[region.channel_id] = fp
+                    should_ocr = (
+                        change["score"] >= args.change_threshold
+                        and (now_mono - last_ocr.get(region.channel_id, 0.0)) >= args.ocr_cooldown_seconds
+                        and region.channel_id not in pending_channels
+                    )
+                    if should_ocr:
+                        candidates.append((change["score"], region, crop, change))
 
-    state["Status"] = "completed"
-    state["updatedAt"] = now_iso()
+                slots = max(0, args.max_pending_ocr - len(pending_ocr))
+                for _, region, crop, change in sorted(candidates, key=lambda item: item[0], reverse=True)[:slots]:
+                    last_ocr[region.channel_id] = now_mono
+                    image_path = crop_dir / f"{stamp()}-{region.channel_id}.png"
+                    crop.save(image_path)
+                    future = executor.submit(run_ocr, image_path)
+                    pending_ocr[future] = {
+                        "region": region,
+                        "imagePath": image_path,
+                        "change": change,
+                        "capturedAt": now_iso(),
+                    }
+                    pending_channels.add(region.channel_id)
+
+            should_write_state = event_added or (now_mono - last_state_write) >= (args.state_interval_ms / 1000.0)
+            if should_write_state:
+                state = build_state(args, session_dir, frames, ocr_runs, regions, events, last_decision, pending_ocr)
+                write_state(state)
+                last_state_write = now_mono
+
+            if expired and not pending_ocr:
+                break
+            time.sleep(max(0.02, args.interval_ms / 1000.0))
+
+    state = build_state(args, session_dir, frames, ocr_runs, regions, events, last_decision, pending_ocr, completed=True)
     write_state(state)
     print(json.dumps(state, ensure_ascii=False, indent=2))
     return 0

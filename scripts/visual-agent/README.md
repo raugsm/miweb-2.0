@@ -52,7 +52,7 @@ Observador continuo por streaming visual:
 python .\scripts\visual-agent\eyes-stream.py --duration-seconds 8
 ```
 
-Para dejarlo corriendo desde el launcher usa **Ojo vivo**. El proceso compara cambios por region, exige firma visual de WhatsApp antes de aceptar texto, ejecuta OCR bajo demanda y escribe `runtime\eyes-stream.state.json` y `runtime\eyes-stream\latest.html`.
+Para dejarlo corriendo desde el launcher usa **Ojo vivo**. El launcher usa `--live`: captura cada 100ms por defecto, compara cambios por region, exige firma visual de WhatsApp antes de aceptar texto, ejecuta OCR bajo demanda en segundo plano y escribe `runtime\eyes-stream.state.json` y `runtime\eyes-stream\latest.html`.
 
 ## Ejecutar en observacion continua
 

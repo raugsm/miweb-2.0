@@ -43,7 +43,7 @@ La decision local usa el OCR recien capturado, antes de esperar la ida y vuelta 
 
 El visual debugger se abre desde **Ver ojos** y deja un reporte en `scripts\visual-agent\runtime\visual-debugger\latest.html`. Ese reporte muestra cada captura, las lineas aceptadas, las ignoradas y el motivo exacto del filtro.
 
-El modo **Ojo vivo** usa `eyes-stream.py`: mira la pantalla cada 0.75 segundos, compara cambios por region y solo corre OCR cuando algo se mueve. Su reporte queda en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
+El modo **Ojo vivo** usa `eyes-stream.py`: mira la pantalla en modo rapido cada 100ms por defecto, compara cambios por region y corre OCR en segundo plano solo cuando algo se mueve. Su reporte queda en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
 
 El boton **Modo vivo** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
