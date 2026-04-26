@@ -70,6 +70,16 @@ Cada aprendizaje guarda tambien perfil linguistico: idioma probable, pais sugeri
 
 El contrato seguro del Reader Core no lee cookies, tokens ni sesiones. Solo acepta observaciones locales de mensajes visibles. Una extension o lector estructurado futuro puede escribir observaciones en `runtime\reader-core\structured-observations.jsonl`; `eyes-stream.py` las procesa directo cuando tienen confianza suficiente y son recientes, y usa OCR como respaldo/comparacion.
 
+`browser-accessibility-reader.ps1` alimenta ese archivo leyendo solo el arbol de accesibilidad visible de Windows. Soporta WhatsApp Web visible en Google Chrome, Microsoft Edge y Mozilla Firefox. Ordena las ventanas de izquierda a derecha y las asigna a `wa-1`, `wa-2` y `wa-3`. No abre DevTools, no usa cookies, no lee almacenamiento interno del navegador y no toca sesiones.
+
+Prueba del lector visible sin escribir:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\browser-accessibility-reader.ps1 -NoWrite
+```
+
+El boton **Ojo vivo** y el boton **Modo vivo** lo arrancan en segundo plano junto con el streaming visual.
+
 Prueba local:
 
 ```powershell

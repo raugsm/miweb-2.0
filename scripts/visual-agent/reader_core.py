@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -110,6 +111,16 @@ def append_structured_observation(payload: dict[str, Any]) -> dict[str, Any]:
         handle.write(json.dumps(observation, ensure_ascii=False, separators=(",", ":")) + "\n")
     write_state({"lastStructuredObservation": observation})
     return observation
+
+
+def append_structured_payload(payload: Any) -> list[dict[str, Any]]:
+    payloads = payload if isinstance(payload, list) else [payload]
+    written: list[dict[str, Any]] = []
+    for item in payloads:
+        if not isinstance(item, dict):
+            continue
+        written.append(append_structured_observation(item))
+    return written
 
 
 def read_structured_observations(max_age_seconds: float = 10.0, limit: int = 300) -> list[dict[str, Any]]:
@@ -238,6 +249,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AriadGSM Reader Core")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--write-sample", action="store_true")
+    parser.add_argument("--write-json-file", default="")
+    parser.add_argument("--write-json-stdin", action="store_true")
     parser.add_argument("--channel-id", default="wa-1")
     parser.add_argument("--text", default="Cuanto vale liberar un Samsung por IMEI?")
     parser.add_argument("--source", choices=sorted(STRUCTURED_SOURCES), default="dom")
@@ -246,6 +259,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    if args.write_json_file or args.write_json_stdin:
+        if args.write_json_stdin:
+            payload = json.load(sys.stdin)
+        else:
+            payload = json.loads(Path(args.write_json_file).read_text(encoding="utf-8-sig"))
+        written = append_structured_payload(payload)
+        print(json.dumps({"Status": "written", "count": len(written), "observations": written}, ensure_ascii=False, indent=2))
+        return 0
     if args.write_sample:
         observation = append_structured_observation(
             {

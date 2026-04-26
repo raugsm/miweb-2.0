@@ -330,6 +330,7 @@ def blocked_section_reason(raw_lines: list[str]) -> str | None:
         "codex_en_zona": ["codex", "tareas completadas", "revisar cambios", "scripts/visual-agent"],
         "launcher_en_zona": ["ariadgsm agent desktop", "modo vivo:", "que paso", "busquedas probadas"],
         "navegador_no_chat": ["youtube", "github", "railway", "deployments", "variables"],
+        "whatsapp_welcome": ["whatsapp business en la web", "organiza", "cuenta de empresa"],
     }
     for reason, needles in patterns.items():
         if any(needle in text for needle in needles):

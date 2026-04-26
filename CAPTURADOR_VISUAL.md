@@ -43,13 +43,13 @@ La decision local usa la lectura reciente del Reader Core, antes de esperar la i
 
 El visual debugger se abre desde **Ver ojos** y deja un reporte en `scripts\visual-agent\runtime\visual-debugger\latest.html`. Ese reporte muestra cada captura, las lineas aceptadas, las ignoradas y el motivo exacto del filtro.
 
-El modo **Ojo vivo** usa `eyes-stream.py`: mira la pantalla en modo rapido cada 100ms por defecto, compara cambios por region y corre OCR en segundo plano solo cuando algo se mueve. Antes del OCR prepara una version mejorada del recorte con escala 2x, contraste y nitidez. El lector puede probar varios idiomas OCR instalados, por defecto `es-MX`, `en-US` y `pt-BR`. Tambien guarda una caja negra visual local comprimida en `D:\AriadGSM\vision-buffer` cuando la unidad D: existe, con rotacion por antiguedad y espacio. Su reporte queda en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
+El modo **Ojo vivo** usa `eyes-stream.py`: mira la pantalla en modo rapido cada 100ms por defecto, compara cambios por region y corre OCR en segundo plano solo cuando algo se mueve. Tambien arranca `browser-accessibility-reader.ps1`, que lee texto visible de WhatsApp Web en Chrome, Edge y Firefox/Mozilla por accesibilidad de Windows. Antes del OCR prepara una version mejorada del recorte con escala 2x, contraste y nitidez. El lector puede probar varios idiomas OCR instalados, por defecto `es-MX`, `en-US` y `pt-BR`. Tambien guarda una caja negra visual local comprimida en `D:\AriadGSM\vision-buffer` cuando la unidad D: existe, con rotacion por antiguedad y espacio. Su reporte queda en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
 
 El aprendizaje visible queda en `scripts\visual-agent\runtime\learning-ledger\latest.html`. Ahi se revisa que mensajes fueron aprendidos como contexto, precio, pago o deuda antes de confiar en la contabilidad automatica.
 
 Ese aprendizaje tambien registra idioma probable, pais sugerido y jerga detectada para que la IA pueda adaptar interpretacion por region.
 
-El Reader Core queda como capa de precision: si existe lectura estructurada reciente de WhatsApp Web, se procesa directo antes que OCR. OCR queda como respaldo visual cuando no hay DOM/accesibilidad disponible.
+El Reader Core queda como capa de precision: si existe lectura estructurada reciente de WhatsApp Web, se procesa directo antes que OCR. OCR queda como respaldo visual cuando no hay accesibilidad/DOM disponible. El contrato es visible-only: no lee cookies, tokens, sesiones ni almacenamiento interno del navegador.
 
 El boton **Modo vivo** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
@@ -69,7 +69,7 @@ Ciclo real:
 python .\scripts\visual-agent\agent-local.py --mode Live --max-cycles 1 --execute --send
 ```
 
-El launcher tiene el boton **Modo vivo** para dejarlo corriendo en segundo plano. **Detener** lo apaga.
+El launcher tiene el boton **Modo vivo** para dejarlo corriendo en segundo plano. Ese boton tambien levanta Ojo vivo y el lector visible de navegadores. **Detener** lo apaga todo.
 
 ## Control visual con puntero
 

@@ -17,6 +17,10 @@
       "^Pagos?\\s+(MX|CL|CO|PE)\\b.*$"
     ]
   },
+  "readerCore": {
+    "browserProcesses": ["chrome", "msedge", "firefox"],
+    "accessibilityIntervalMilliseconds": 450
+  },
   "channels": [
     {
       "id": "wa-1",

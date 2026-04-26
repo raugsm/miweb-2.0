@@ -68,12 +68,13 @@ El flujo del modo vivo es:
 
 1. respeta los 3 WhatsApp que ya dejaste alineados;
 2. ejecuta el motor local Python `scripts/visual-agent/agent-local.py`;
-3. captura pantalla y lee OCR;
-4. toma una decision local rapida sobre pago/deuda/precio sin esperar a la nube;
-5. si encuentra una accion, busca el chat visible y lo abre;
-6. sube eventos a `ariadgsm.com` para historial y cabina;
-7. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
-8. repite el ciclo cada 3 a 5 segundos por defecto.
+3. inicia el lector visible de navegadores para Chrome, Edge y Firefox/Mozilla;
+4. captura pantalla y lee OCR solo como respaldo visual;
+5. toma una decision local rapida sobre pago/deuda/precio sin esperar a la nube;
+6. si encuentra una accion, busca el chat visible y lo abre;
+7. sube eventos a `ariadgsm.com` para historial y cabina;
+8. evita aprendizaje profundo y scroll largo durante la atencion en vivo;
+9. repite el ciclo cada 3 a 5 segundos por defecto.
 
 Por seguridad, el nivel actual sigue siendo de lectura. El modo vivo puede mover el mouse y abrir chats, pero no escribe ni envia mensajes.
 
@@ -131,6 +132,8 @@ El boton **Ojo vivo** inicia un observador continuo distinto al capturador puntu
 - deja un reporte vivo en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
 
 Este modo no lee sesiones internas del navegador. Por defecto trabaja con vision local por streaming visual; si el Reader Core recibe texto visible estructurado de WhatsApp Web, lo usa antes que OCR.
+
+El lector visible de navegadores es `scripts\visual-agent\browser-accessibility-reader.ps1`. Lee solo el arbol de accesibilidad visible de Windows para Google Chrome, Microsoft Edge y Mozilla Firefox, ordena las ventanas de izquierda a derecha y las asigna a `wa-1`, `wa-2` y `wa-3`. No abre DevTools, no lee cookies, no lee tokens y no toca almacenamiento interno del navegador.
 
 Prueba manual corta:
 

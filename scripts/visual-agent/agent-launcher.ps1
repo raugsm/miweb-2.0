@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "StartEyes", "StopEyes", "EyesSample", "VisualDebug", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
+  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "StartEyes", "StopEyes", "StartReader", "StopReader", "ReaderOnce", "EyesSample", "VisualDebug", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
   [int]$PollSeconds = 30,
   [switch]$StartMinimized
@@ -16,6 +16,7 @@ $AutopilotScript = Join-Path $ScriptDir "visual-autopilot.ps1"
 $PythonAgentScript = Join-Path $ScriptDir "agent-local.py"
 $VisualDebuggerScript = Join-Path $ScriptDir "visual-debugger.py"
 $EyesStreamScript = Join-Path $ScriptDir "eyes-stream.py"
+$BrowserReaderScript = Join-Path $ScriptDir "browser-accessibility-reader.ps1"
 $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
 $PidFile = Join-Path $RuntimeDir "agent-watch.pid"
@@ -29,6 +30,10 @@ $EyesPidFile = Join-Path $RuntimeDir "eyes-stream.pid"
 $EyesOutLog = Join-Path $RuntimeDir "eyes-stream.out.log"
 $EyesErrLog = Join-Path $RuntimeDir "eyes-stream.err.log"
 $EyesStateFile = Join-Path $RuntimeDir "eyes-stream.state.json"
+$BrowserReaderPidFile = Join-Path $RuntimeDir "browser-accessibility-reader.pid"
+$BrowserReaderOutLog = Join-Path $RuntimeDir "browser-accessibility-reader.out.log"
+$BrowserReaderErrLog = Join-Path $RuntimeDir "browser-accessibility-reader.err.log"
+$BrowserReaderStateFile = Join-Path $RuntimeDir "reader-core\accessibility-reader.state.json"
 $LearningReportFile = Join-Path $RuntimeDir "learning-ledger\latest.html"
 
 function Ensure-RuntimeDir {
@@ -140,6 +145,10 @@ function Get-EyesProcess {
   return Get-ProcessFromPidFile $EyesPidFile
 }
 
+function Get-BrowserReaderProcess {
+  return Get-ProcessFromPidFile $BrowserReaderPidFile
+}
+
 function Get-ProcessFromPidFile {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -175,6 +184,7 @@ function Get-AgentStatus {
   $process = Get-AgentProcess
   $autopilotProcess = Get-AutopilotProcess
   $eyesProcess = Get-EyesProcess
+  $browserReaderProcess = Get-BrowserReaderProcess
   $latestCapture = Get-LatestFile (Join-Path $ScriptDir "captures") "screen-events-*.json"
   $latestProcessed = Get-LatestFile (Join-Path $ScriptDir "cloud-processed") "*screen-events-*.json"
   $latestError = if (Test-Path -LiteralPath $StderrLog) {
@@ -203,6 +213,14 @@ function Get-AgentStatus {
       $latestEyesState = $null
     }
   }
+  $latestBrowserReaderState = $null
+  if (Test-Path -LiteralPath $BrowserReaderStateFile) {
+    try {
+      $latestBrowserReaderState = Get-Content -LiteralPath $BrowserReaderStateFile -Raw | ConvertFrom-Json
+    } catch {
+      $latestBrowserReaderState = $null
+    }
+  }
 
   return [pscustomobject]@{
     Running = [bool]$process
@@ -211,6 +229,8 @@ function Get-AgentStatus {
     AutopilotProcessId = if ($autopilotProcess) { $autopilotProcess.Id } else { $null }
     EyesRunning = [bool]$eyesProcess
     EyesProcessId = if ($eyesProcess) { $eyesProcess.Id } else { $null }
+    BrowserReaderRunning = [bool]$browserReaderProcess
+    BrowserReaderProcessId = if ($browserReaderProcess) { $browserReaderProcess.Id } else { $null }
     Configured = $configStatus.Configured
     ConfigMessage = $configStatus.Message
     CloudUrl = $configStatus.CloudUrl
@@ -254,6 +274,15 @@ function Get-AgentStatus {
     } else {
       $null
     }
+    LatestBrowserReaderStatus = if ($latestBrowserReaderState) { $latestBrowserReaderState.Status } else { $null }
+    LatestBrowserReaderWindows = if ($latestBrowserReaderState -and $null -ne $latestBrowserReaderState.whatsappWindows) { $latestBrowserReaderState.whatsappWindows } else { $null }
+    LatestBrowserReaderWritten = if ($latestBrowserReaderState -and $null -ne $latestBrowserReaderState.observationsWritten) { $latestBrowserReaderState.observationsWritten } else { $null }
+    LatestBrowserReaderBrowsers = if ($latestBrowserReaderState -and $latestBrowserReaderState.observations) {
+      (@($latestBrowserReaderState.observations) | ForEach-Object { "$($_.channelId):$($_.browser)" }) -join ", "
+    } else {
+      $null
+    }
+    LatestBrowserReaderError = if ($latestBrowserReaderState -and $latestBrowserReaderState.lastError) { $latestBrowserReaderState.lastError } else { "" }
     LatestLearningReport = if ($latestEyesState -and $latestEyesState.learningSummary -and $latestEyesState.learningSummary.report) { $latestEyesState.learningSummary.report } else { $null }
     LatestLearningAccounting = if ($latestEyesState -and $latestEyesState.learningSummary -and $null -ne $latestEyesState.learningSummary.accountingItems) { $latestEyesState.learningSummary.accountingItems } else { $null }
     LatestEyesUpdatedAt = if ($latestEyesState) { $latestEyesState.updatedAt } else { $null }
@@ -277,6 +306,9 @@ function Get-AgentDiagnosisText {
   }
   if ($Status.LatestAutopilotError) {
     $lines += "Error del modo vivo: $($Status.LatestAutopilotError)"
+  }
+  if ($Status.LatestBrowserReaderError) {
+    $lines += "Error del lector visible: $($Status.LatestBrowserReaderError)"
   }
 
   if (-not $Status.LatestAutopilotCycle) {
@@ -331,6 +363,9 @@ function Get-AgentDiagnosisText {
     }
     if ($Status.LatestReaderCoreSources) {
       $lines += "Reader Core: $($Status.LatestReaderCoreSources)"
+    }
+    if ($Status.LatestBrowserReaderStatus) {
+      $lines += "Lector visible: $($Status.LatestBrowserReaderStatus), WhatsApp visibles $($Status.LatestBrowserReaderWindows), observaciones $($Status.LatestBrowserReaderWritten), navegadores $($Status.LatestBrowserReaderBrowsers)."
     }
     if ($Status.LatestLearningReport) {
       $lines += "Aprendizaje visible: $($Status.LatestLearningReport)"
@@ -414,6 +449,7 @@ function Start-Autopilot {
   }
 
   $pythonPath = Get-PythonPath
+  Start-EyesStream | Out-Null
   $runner = Join-Path $RuntimeDir "agent-autopilot-runner.ps1"
   $livePollSeconds = [Math]::Max(3, [Math]::Min(5, $PollSeconds))
   @(
@@ -451,10 +487,89 @@ function Stop-Autopilot {
   return Get-AgentStatus
 }
 
+function Start-BrowserVisibleReader {
+  Ensure-RuntimeDir
+  $existing = Get-BrowserReaderProcess
+  if ($existing) {
+    return Get-AgentStatus
+  }
+  if (-not (Test-Path -LiteralPath $BrowserReaderScript)) {
+    throw "No encontre browser-accessibility-reader.ps1"
+  }
+
+  $pythonPath = Get-PythonPath
+  $runner = Join-Path $RuntimeDir "browser-accessibility-reader-runner.ps1"
+  @(
+    '$ErrorActionPreference = "Continue"',
+    "& '$BrowserReaderScript' -Watch -ConfigPath '$ConfigPath' -PythonPath '$pythonPath' -IntervalMilliseconds 450 -MaxCycles 0 *>> '$BrowserReaderOutLog'"
+  ) | Set-Content -LiteralPath $runner -Encoding UTF8
+
+  $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
+    " -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " +
+    (Quote-CmdArgument $runner)
+
+  $startup = ([WMIClass]"Win32_ProcessStartup").CreateInstance()
+  $startup.ShowWindow = 0
+  $result = ([WMIClass]"Win32_Process").Create($commandLine, $ProjectRoot, $startup)
+  if ($result.ReturnValue -ne 0) {
+    throw "No pude iniciar el lector visible. Win32_Process retorno $($result.ReturnValue)."
+  }
+
+  $process = Get-Process -Id $result.ProcessId -ErrorAction Stop
+  Set-Content -LiteralPath $BrowserReaderPidFile -Value $process.Id -Encoding ASCII
+  Start-Sleep -Milliseconds 300
+  return Get-AgentStatus
+}
+
+function Stop-BrowserVisibleReader {
+  Ensure-RuntimeDir
+  $process = Get-BrowserReaderProcess
+  if ($process) {
+    Stop-Process -Id $process.Id -Force
+  }
+  if (Test-Path -LiteralPath $BrowserReaderPidFile) {
+    Remove-Item -LiteralPath $BrowserReaderPidFile -Force
+  }
+  if (Test-Path -LiteralPath $BrowserReaderStateFile) {
+    try {
+      $readerState = Get-Content -LiteralPath $BrowserReaderStateFile -Raw | ConvertFrom-Json
+      $readerState.Status = "stopped"
+      $readerState.updatedAt = (Get-Date).ToUniversalTime().ToString("o")
+      $readerState | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $BrowserReaderStateFile -Encoding UTF8
+    } catch {
+    }
+  }
+  Start-Sleep -Milliseconds 200
+  return Get-AgentStatus
+}
+
+function Invoke-BrowserReaderOnce {
+  Ensure-RuntimeDir
+  if (-not (Test-Path -LiteralPath $BrowserReaderScript)) {
+    throw "No encontre browser-accessibility-reader.ps1"
+  }
+
+  $readerOut = Join-Path $RuntimeDir ("browser-reader-once-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $readerErr = Join-Path $RuntimeDir ("browser-reader-once-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $pythonPath = Get-PythonPath
+  $process = Start-HiddenProcess -Arguments @("-File", $BrowserReaderScript, "-ConfigPath", $ConfigPath, "-PythonPath", $pythonPath) -CaptureOutput
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  Set-Content -LiteralPath $readerOut -Value $stdout -Encoding UTF8
+  Set-Content -LiteralPath $readerErr -Value $stderr -Encoding UTF8
+  if ([int]$process.ExitCode -ne 0) {
+    $errorText = if ($stderr) { $stderr } else { $stdout }
+    throw "El lector visible fallo con codigo $($process.ExitCode). $errorText"
+  }
+  return Get-AgentStatus
+}
+
 function Start-EyesStream {
   Ensure-RuntimeDir
   $existing = Get-EyesProcess
   if ($existing) {
+    Start-BrowserVisibleReader | Out-Null
     return Get-AgentStatus
   }
   if (-not (Test-Path -LiteralPath $EyesStreamScript)) {
@@ -462,6 +577,7 @@ function Start-EyesStream {
   }
 
   $pythonPath = Get-PythonPath
+  Start-BrowserVisibleReader | Out-Null
   $runner = Join-Path $RuntimeDir "eyes-stream-runner.ps1"
   @(
     '$ErrorActionPreference = "Continue"',
@@ -487,6 +603,7 @@ function Start-EyesStream {
 
 function Stop-EyesStream {
   Ensure-RuntimeDir
+  Stop-BrowserVisibleReader | Out-Null
   $process = Get-EyesProcess
   if ($process) {
     Stop-Process -Id $process.Id -Force
@@ -969,6 +1086,7 @@ function Start-AgentGui {
         "Observador: " + $(if ($status.Running) { "ACTIVO (PID $($status.ProcessId))" } else { "DETENIDO" }),
         "Modo vivo: " + $(if ($status.AutopilotRunning) { "ACTIVO (PID $($status.AutopilotProcessId))" } else { "DETENIDO" }),
         "Ojo vivo: " + $(if ($status.EyesRunning) { "ACTIVO (PID $($status.EyesProcessId))" } else { "DETENIDO" }),
+        "Lector visible: " + $(if ($status.BrowserReaderRunning) { "ACTIVO (PID $($status.BrowserReaderProcessId))" } else { "DETENIDO" }),
         "Config: $($status.ConfigMessage)",
         "Nube: $($status.CloudUrl)",
         "Ultima captura: $($status.LatestCapture)",
@@ -978,6 +1096,7 @@ function Start-AgentGui {
         "Decision local: $($status.LatestLocalDecision) $($status.LatestLocalSource) $($status.LatestLocalLabel) $($status.LatestLocalChannel)",
         "Ojos: $($status.LatestEyesStatus) $($status.LatestEyesMode) $($status.LatestEyesIntervalMs)ms | frames $($status.LatestEyesFrames) grabados $($status.LatestEyesRecordedFrames) OCR $($status.LatestEyesOcrRuns) aprendidos $($status.LatestEyesLearnedItems) pendientes $($status.LatestEyesPendingOcr) | decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
         "Reader Core: $($status.LatestReaderCoreSources)",
+        "Lector navegador: $($status.LatestBrowserReaderStatus) | WhatsApp $($status.LatestBrowserReaderWindows) | obs $($status.LatestBrowserReaderWritten) | $($status.LatestBrowserReaderBrowsers)",
         "Aprendizaje: contabilidad $($status.LatestLearningAccounting) | reporte $($status.LatestLearningReport)",
         "Almacen visual: $($status.LatestEyesStorage)",
         "Logs: $($status.RuntimeDir)"
@@ -1068,6 +1187,9 @@ switch ($Action) {
   "AutopilotOnce" { Invoke-AutopilotOnce | ConvertTo-Json -Depth 5 }
   "StartEyes" { Start-EyesStream | ConvertTo-Json -Depth 5 }
   "StopEyes" { Stop-EyesStream | ConvertTo-Json -Depth 5 }
+  "StartReader" { Start-BrowserVisibleReader | ConvertTo-Json -Depth 5 }
+  "StopReader" { Stop-BrowserVisibleReader | ConvertTo-Json -Depth 5 }
+  "ReaderOnce" { Invoke-BrowserReaderOnce | ConvertTo-Json -Depth 5 }
   "EyesSample" { Invoke-EyesSample | ConvertTo-Json -Depth 5 }
   "VisualDebug" { Invoke-VisualDebug | ConvertTo-Json -Depth 5 }
   "OpenPanel" { Open-AgentPanel }
