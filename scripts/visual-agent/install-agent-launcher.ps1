@@ -28,6 +28,22 @@ function New-AgentShortcut {
   $shortcut.Description = $Description
   $shortcut.IconLocation = "$WScriptPath,0"
   $shortcut.Save()
+  Set-ShortcutRunAsAdmin $ShortcutPath
+}
+
+function Set-ShortcutRunAsAdmin {
+  param([string]$ShortcutPath)
+  if (-not (Test-Path -LiteralPath $ShortcutPath)) {
+    return
+  }
+
+  $bytes = [System.IO.File]::ReadAllBytes($ShortcutPath)
+  if ($bytes.Length -le 0x15) {
+    return
+  }
+
+  $bytes[0x15] = $bytes[0x15] -bor 0x20
+  [System.IO.File]::WriteAllBytes($ShortcutPath, $bytes)
 }
 
 $desktop = [Environment]::GetFolderPath("Desktop")
