@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>AriadGSM.Vision.Cli</AssemblyName>
+    <RootNamespace>AriadGSM.Vision.Cli</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AriadGSM.Vision.Core\AriadGSM.Vision.Core.csproj" />
+  </ItemGroup>
+</Project>
+

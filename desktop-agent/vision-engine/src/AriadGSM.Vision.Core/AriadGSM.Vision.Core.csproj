@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>AriadGSM.Vision.Core</AssemblyName>
+    <RootNamespace>AriadGSM.Vision</RootNamespace>
+  </PropertyGroup>
+</Project>
+

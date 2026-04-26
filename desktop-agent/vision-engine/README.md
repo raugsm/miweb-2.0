@@ -2,14 +2,37 @@
 
 Final owner: C#/.NET.
 
-Purpose:
+This is the real local eye of AriadGSM. It must see the desktop, preserve short-lived local visual evidence, detect changes, and emit `vision_event` contracts. It must not reason about the business, move the mouse, answer customers, or upload raw frames to the cloud by default.
 
-- capture the desktop live without visible shells;
-- detect changed regions and windows;
-- store raw frames only as temporary local evidence;
-- keep raw frames under `D:\AriadGSM\vision-buffer` when available;
-- emit `vision_event` contracts;
-- never upload raw frames to the cloud by default.
+## Project Shape
 
-Python `eyes-stream.py` remains the temporary prototype until this engine is replaced by .NET.
+```text
+AriadGSM.Vision.sln
+global.json
+Directory.Build.props
 
+src/
+  AriadGSM.Vision.Core/
+  AriadGSM.Vision.Worker/
+  AriadGSM.Vision.Cli/
+
+tests/
+  AriadGSM.Vision.Tests/
+
+config/
+  vision.example.json
+
+docs/
+  DESIGN.md
+```
+
+## Runtime Policy
+
+- raw frames are local temporary evidence;
+- default storage root: `D:\AriadGSM\vision-buffer`;
+- default retention: 1 hour;
+- default cap: 40 GB;
+- cloud raw frame upload: disabled;
+- output contract: `desktop-agent/contracts/vision-event.schema.json`.
+
+Python `scripts/visual-agent/eyes-stream.py` remains only as a temporary prototype until this .NET engine replaces it.

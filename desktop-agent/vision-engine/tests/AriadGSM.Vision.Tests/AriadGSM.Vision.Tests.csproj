@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>AriadGSM.Vision.Tests</AssemblyName>
+    <RootNamespace>AriadGSM.Vision.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AriadGSM.Vision.Core\AriadGSM.Vision.Core.csproj" />
+  </ItemGroup>
+</Project>
+

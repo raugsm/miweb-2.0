@@ -1,0 +1,9 @@
+{
+  "storageRoot": "D:\\AriadGSM\\vision-buffer",
+  "retentionHours": 1,
+  "maxStorageGb": 40,
+  "captureIntervalMs": 100,
+  "rawFramesUploadedToCloud": false,
+  "eventsFile": "desktop-agent\\runtime\\vision-events.jsonl"
+}
+
