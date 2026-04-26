@@ -1,7 +1,8 @@
 param(
   [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
-  [int]$PollSeconds = 60
+  [int]$PollSeconds = 60,
+  [switch]$StartMinimized
 )
 
 $ErrorActionPreference = "Stop"
@@ -360,19 +361,27 @@ function Start-AgentGui {
   }
 
   function Run-GuiAction {
-    param([scriptblock]$Operation)
+    param(
+      [scriptblock]$Operation,
+      [switch]$MinimizeAfterSuccess
+    )
+    $succeeded = $false
     try {
       $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
       [void]$Operation.Invoke()
+      $succeeded = $true
     } catch {
       [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "AriadGSM Agent", "OK", "Warning") | Out-Null
     } finally {
       $form.Cursor = [System.Windows.Forms.Cursors]::Default
       Refresh-Ui
+      if ($succeeded -and $MinimizeAfterSuccess) {
+        $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+      }
     }
   }
 
-  $buttonStart.Add_Click({ Run-GuiAction { Start-AgentWatch | Out-Null } })
+  $buttonStart.Add_Click({ Run-GuiAction { Start-AgentWatch | Out-Null } -MinimizeAfterSuccess })
   $buttonStop.Add_Click({ Run-GuiAction { Stop-AgentWatch | Out-Null } })
   $buttonOnce.Add_Click({ Run-GuiAction { Invoke-RunOnce | Out-Null } })
   $buttonPanel.Add_Click({ Open-AgentPanel })
@@ -383,6 +392,12 @@ function Start-AgentGui {
   $timer.Interval = 5000
   $timer.Add_Tick({ Refresh-Ui })
   $timer.Start()
+
+  $form.Add_Shown({
+    if ($StartMinimized) {
+      $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+    }
+  })
 
   Refresh-Ui
   [void]$form.ShowDialog()

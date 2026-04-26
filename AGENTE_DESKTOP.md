@@ -18,6 +18,8 @@ El launcher permite:
 - abrir la cabina en `ariadgsm.com`;
 - abrir logs locales.
 
+Cuando se presiona **Iniciar observador**, la ventana se minimiza sola para dejar libre la pantalla de los 3 WhatsApp.
+
 ## Instalar acceso directo
 
 ```powershell
@@ -47,6 +49,24 @@ Nivel actual del agente:
 4. Puede calcular/coordenar clics con permiso explicito.
 
 Todavia no escribe mensajes ni envia respuestas a clientes.
+
+## Mouse y lectura de conversaciones
+
+El agente ya tiene control basico de puntero en:
+
+```text
+scripts\visual-agent\visual-pointer-control.ps1
+```
+
+Por seguridad, el script no mueve nada en modo `Preview`. Para hacer clic necesita `-Execute`.
+
+Ejemplo para abrir una fila visible en el WhatsApp central:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-pointer-control.ps1 -Channel wa-2 -Action OpenChatRow -RowRatio 0.28 -Execute
+```
+
+La siguiente etapa sera seleccionar chats por texto detectado, no solo por posicion aproximada.
 
 ## Logs
 

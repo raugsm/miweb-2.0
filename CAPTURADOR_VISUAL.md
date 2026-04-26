@@ -50,6 +50,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-pointer-c
 ```
 
 La siguiente mejora sera unir OCR con coordenadas para que el agente pueda escoger una fila por texto, no solo por posicion.
+Por ahora no escribe ni envia mensajes; solo puede enfocar/abrir una zona con permiso explicito.
 
 ## Prueba sin enviar a nube
 
