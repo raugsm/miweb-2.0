@@ -8,8 +8,10 @@ PowerShell remains as a temporary Windows launcher and compatibility bridge. The
 desktop-agent/
   ariadgsm_agent/        Python core: memory, decisions, learning, service loop
   contracts/             Stable event contracts between sensors and the core
-  vision-engine/         Future C#/.NET live eyes and temporary visual buffer
-  perception-engine/     Future object detector for chats, messages, buttons
+  vision-engine/         C#/.NET live eyes and temporary visual buffer
+  perception-engine/     C#/.NET object reader for chats, messages, buttons
+  cognitive-core/        Python reasoning, learning and customer patterns
+  operating-core/        Python business cases, tasks and priorities
   hands-engine/          Future C#/.NET mouse, keyboard and verification layer
   windows-app/           Future C#/.NET desktop UI and tray app
   windows-service/       Future C#/.NET background service
@@ -54,6 +56,15 @@ Then it stores normalized memory in SQLite:
 desktop-agent\runtime\agent-memory.sqlite
 ```
 
+## Engine Runs
+
+```powershell
+python -m ariadgsm_agent.cognitive --json
+python -m ariadgsm_agent.operating --json
+```
+
+The Cognitive Core reads `conversation-events.jsonl`, writes auditable decisions, emits learning events and updates local customer profiles.
+
 ## Safety Contract
 
 The Python core does not read browser cookies, tokens, local storage, WhatsApp sessions or hidden browser internals. It consumes only visible observations produced by Reader Core or future Windows bridge sensors.
@@ -61,6 +72,6 @@ The Python core does not read browser cookies, tokens, local storage, WhatsApp s
 ## Next Migration Steps
 
 1. Keep contracts stable in `desktop-agent/contracts`.
-2. Replace PowerShell vision and UI Automation with `vision-engine`, `perception-engine` and `hands-engine`.
+2. Connect `hands-engine` to verified actions.
 3. Move the launcher UI to `windows-app` and background execution to `windows-service`.
 4. Package with `installer` so the final program does not require manual shells.

@@ -36,7 +36,8 @@ Accounting Core
   Converts evidence into payment/debt records with confidence and status.
 
 Cognitive Core
-  Understands, plans, decides, learns and asks for confirmation when needed.
+  Understands conversations, weighs business signals, plans the next safe action,
+  stores customer patterns and asks for confirmation when needed.
 
 Hands Engine
   Moves mouse, keyboard, focus and scroll, then verifies the result.
@@ -95,4 +96,3 @@ The code can evolve, but these contracts are the spine. If WhatsApp changes, the
 7. Hands Engine with verification.
 8. Windows App and service.
 9. Installer and updater.
-

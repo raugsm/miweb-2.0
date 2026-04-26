@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 from ariadgsm_agent.architecture import CONTRACT_NAMES, LAYERS
 from ariadgsm_agent.contracts import sample_event, validate_contract
-from ariadgsm_agent.cognitive import decision_event_from_conversation
+from ariadgsm_agent.cognitive import CognitiveCore, CognitiveStore, decision_event_from_conversation, run_cognitive_once
 from ariadgsm_agent.operating import OperatingCore, OperatingStore, run_operating_once
 from ariadgsm_agent.supervisor import SupervisorPolicy
 from ariadgsm_agent.timeline import ConversationTimeline
@@ -38,6 +38,32 @@ def main() -> int:
     assert decision["eventType"] == "decision_event"
     assert not validate_contract(decision, "decision_event")
 
+    signal_conversation = dict(conversation)
+    signal_conversation["conversationEventId"] = "conversation-cognitive-test"
+    signal_conversation["conversationId"] = "wa-1-cliente-cognitive"
+    signal_conversation["conversationTitle"] = "Cliente Cognitive"
+    signal_conversation["messages"] = [
+        {
+            "messageId": "cog-1",
+            "text": "Ya hice pago de 25 usdt para liberar Samsung en Mexico",
+            "direction": "client",
+            "signals": [
+                {"kind": "payment", "value": "pago", "confidence": 0.94},
+                {"kind": "amount", "value": "25 USDT", "confidence": 0.84},
+                {"kind": "service", "value": "samsung", "confidence": 0.8},
+                {"kind": "country", "value": "MX", "confidence": 0.72},
+            ],
+        }
+    ]
+    cognitive = CognitiveCore()
+    assessment = cognitive.assess_conversation(signal_conversation, SupervisorPolicy(autonomy_level=2))
+    assert assessment.intent == "accounting_payment"
+    assert assessment.requires_human_confirmation
+    assert assessment.learning_events
+    assert not validate_contract(assessment.decision_event, "decision_event")
+    for learning_event in assessment.learning_events:
+        assert not validate_contract(learning_event, "learning_event")
+
     operating = OperatingCore()
     update = operating.process_conversation(conversation, autonomy_level=2)
     assert update.case.status == "customer_waiting"
@@ -56,15 +82,27 @@ def main() -> int:
         root = Path(tmp)
         conversation_file = root / "conversation-events.jsonl"
         decision_file = root / "decision-events.jsonl"
+        cognitive_decision_file = root / "cognitive-decision-events.jsonl"
+        learning_file = root / "learning-events.jsonl"
         accounting_file = root / "accounting-events.jsonl"
         state_file = root / "operating-state.json"
+        cognitive_state_file = root / "cognitive-state.json"
         db_file = root / "operating.sqlite"
+        cognitive_db_file = root / "cognitive.sqlite"
         payment_conversation = dict(conversation)
         payment_conversation["conversationEventId"] = "conversation-payment-test"
         payment_conversation["conversationId"] = "wa-1-cliente-pago"
         payment_conversation["conversationTitle"] = "Cliente Pago"
         payment_conversation["messages"] = [
-            {"messageId": "pay-1", "text": "Ya hice el pago de 25 usdt", "direction": "client"}
+            {
+                "messageId": "pay-1",
+                "text": "Ya hice el pago de 25 usdt",
+                "direction": "client",
+                "signals": [
+                    {"kind": "payment", "value": "pago", "confidence": 0.94},
+                    {"kind": "amount", "value": "25 USDT", "confidence": 0.84},
+                ],
+            }
         ]
         conversation_file.write_text(
             json.dumps(conversation, ensure_ascii=False) + "\n"
@@ -107,6 +145,39 @@ def main() -> int:
             assert summary["accountingDrafts"] == 1
         finally:
             store.close()
+
+        cognitive_state = run_cognitive_once(
+            conversation_file,
+            cognitive_decision_file,
+            learning_file,
+            cognitive_state_file,
+            cognitive_db_file,
+            autonomy_level=2,
+        )
+        assert cognitive_state["status"] == "ok"
+        assert cognitive_state["summary"]["decisions"] == 2
+        assert cognitive_state["summary"]["clientProfiles"] == 2
+        assert cognitive_decision_file.exists()
+        assert learning_file.exists()
+
+        repeated_cognitive = run_cognitive_once(
+            conversation_file,
+            cognitive_decision_file,
+            learning_file,
+            cognitive_state_file,
+            cognitive_db_file,
+            autonomy_level=2,
+        )
+        assert repeated_cognitive["ingested"]["events"] == 0
+        assert repeated_cognitive["ingested"]["duplicates"] == 2
+
+        cognitive_store = CognitiveStore(cognitive_db_file)
+        try:
+            summary = cognitive_store.summary()
+            assert summary["decisions"] == 2
+            assert summary["learningEvents"] >= 1
+        finally:
+            cognitive_store.close()
     print("architecture contracts OK")
     return 0
 

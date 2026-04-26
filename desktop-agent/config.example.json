@@ -15,6 +15,14 @@
     "db": "./desktop-agent/runtime/operating-core.sqlite",
     "limit": 200
   },
+  "cognitiveCore": {
+    "conversationEventsFile": "./desktop-agent/runtime/conversation-events.jsonl",
+    "decisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
+    "learningEventsFile": "./desktop-agent/runtime/learning-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/cognitive-state.json",
+    "db": "./desktop-agent/runtime/cognitive-core.sqlite",
+    "limit": 200
+  },
   "service": {
     "intervalSeconds": 0.75,
     "maxCycles": 0
