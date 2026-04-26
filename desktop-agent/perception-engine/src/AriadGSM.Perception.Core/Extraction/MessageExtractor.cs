@@ -4,34 +4,44 @@ using System.Text.RegularExpressions;
 using AriadGSM.Perception.ChannelResolution;
 using AriadGSM.Perception.Config;
 using AriadGSM.Perception.Reader;
+using AriadGSM.Perception.Semantics;
 
 namespace AriadGSM.Perception.Extraction;
 
 public sealed partial class MessageExtractor
 {
     private readonly PerceptionOptions _options;
+    private readonly BusinessSemanticAnalyzer _semanticAnalyzer = new();
 
     public MessageExtractor(PerceptionOptions options)
     {
         _options = options;
     }
 
-    public IReadOnlyList<ExtractedMessage> Extract(ReaderCoreResult readerResult, ResolvedChannel channel)
+    public MessageExtractionResult Extract(ReaderCoreResult readerResult, ResolvedChannel channel)
     {
         var messages = new List<ExtractedMessage>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var reasons = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var index = 0;
         foreach (var line in readerResult.Lines)
         {
             var cleaned = Clean(line.Text);
-            if (!IsInsideConversationArea(line, channel) || !IsUsefulMessage(cleaned))
+            if (!IsInsideConversationArea(line, channel))
             {
+                Reject(reasons, "outside_conversation_area");
+                continue;
+            }
+            if (!IsUsefulMessage(cleaned))
+            {
+                Reject(reasons, "not_message_text");
                 continue;
             }
 
-            var (direction, text) = DetectDirection(cleaned);
+            var (direction, text) = DetectDirection(cleaned, line, channel);
             if (!IsUsefulMessage(text))
             {
+                Reject(reasons, "not_message_text_after_direction");
                 continue;
             }
 
@@ -44,6 +54,7 @@ public sealed partial class MessageExtractor
             var dedupeKey = $"{channel.ChannelId}|{direction}|{text}";
             if (!seen.Add(dedupeKey))
             {
+                Reject(reasons, "duplicate");
                 continue;
             }
 
@@ -55,16 +66,23 @@ public sealed partial class MessageExtractor
                 null,
                 confidence,
                 line.Bounds,
-                line.Source));
+                line.Source,
+                _semanticAnalyzer.Analyze(text)));
             index++;
         }
 
-        return messages;
+        return new MessageExtractionResult(
+            messages,
+            new ExtractionDiagnostics(
+                readerResult.Lines.Count,
+                messages.Count,
+                reasons.Values.Sum(),
+                reasons));
     }
 
-    private static (string Direction, string Text) DetectDirection(string text)
+    private static (string Direction, string Text) DetectDirection(string text, ReaderTextLine line, ResolvedChannel channel)
     {
-        var agentPrefixes = new[] { "Tu:", "Tú:", "You:", "Yo:" };
+        var agentPrefixes = new[] { "Tu:", "T\u00C3\u00BA:", "You:", "Yo:" };
         foreach (var prefix in agentPrefixes)
         {
             if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -73,12 +91,28 @@ public sealed partial class MessageExtractor
             }
         }
 
+        if (line.Bounds is not null)
+        {
+            var window = channel.Candidate.Window.Bounds;
+            var bubbleCenter = line.Bounds.Left + (line.Bounds.Width / 2);
+            var agentThreshold = window.Left + (int)(window.Width * 0.68);
+            var clientThreshold = window.Left + (int)(window.Width * 0.58);
+            if (bubbleCenter >= agentThreshold)
+            {
+                return ("agent", text);
+            }
+            if (bubbleCenter <= clientThreshold)
+            {
+                return ("client", text);
+            }
+        }
+
         return ("unknown", text);
     }
 
-    private static bool IsUsefulMessage(string text)
+    private bool IsUsefulMessage(string text)
     {
-        if (text.Length < 3)
+        if (text.Length < Math.Max(1, _options.MinimumUsefulTextLength))
         {
             return false;
         }
@@ -133,14 +167,22 @@ public sealed partial class MessageExtractor
             "adjuntar",
             "attach",
             "emoji",
-            "micrófono",
+            "micr\u00C3\u00B3fono",
             "microphone",
             "notificaciones",
             "notifications",
             "perfil",
             "profile",
             "archivados",
-            "archived"
+            "archived",
+            "copiar ruta",
+            "copy link",
+            "seleccionar",
+            "select messages",
+            "mensajes no leidos",
+            "unread messages",
+            "chat fijado",
+            "pinned chat"
         };
         return tokens.Any(lowered.Contains);
     }
@@ -148,8 +190,18 @@ public sealed partial class MessageExtractor
     private static string Clean(string text)
     {
         var clean = string.Join(" ", text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim();
-        clean = clean.Trim('-', '–', '—', '|', ':', ';', ',', '.', ' ');
+        clean = clean
+            .Replace("\u00E2\u20AC\u201C", "-", StringComparison.Ordinal)
+            .Replace("\u00E2\u20AC\u201D", "-", StringComparison.Ordinal)
+            .Replace("T\u00C3\u00BA:", "Tu:", StringComparison.OrdinalIgnoreCase);
+        clean = clean.Trim('-', '|', ':', ';', ',', '.', ' ');
         return clean;
+    }
+
+    private static void Reject(IDictionary<string, int> reasons, string reason)
+    {
+        reasons.TryGetValue(reason, out var count);
+        reasons[reason] = count + 1;
     }
 
     private static string CreateMessageId(string channelId, string text, int index)
@@ -165,6 +217,6 @@ public sealed partial class MessageExtractor
     [GeneratedRegex(@"^\(?\d+\)?$")]
     private static partial Regex CounterOnlyRegex();
 
-    [GeneratedRegex(@"^(whatsapp|whatsapp business|buscar|search|chats|estados|status|calls|llamadas|comunidades|communities|nuevo chat|new chat|escribe un mensaje|type a message|mensaje|message|foto|photo|audio|chat fijado|pinned chat|cifrado|encrypted|hoy|ayer|today|yesterday|google chrome|microsoft edge|mozilla firefox|codex|telegram)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(whatsapp|whatsapp business|buscar|search|chats|estados|status|calls|llamadas|comunidades|communities|nuevo chat|new chat|escribe un mensaje|type a message|mensaje|message|foto|photo|audio|chat fijado|pinned chat|cifrado|encrypted|hoy|ayer|today|yesterday|google chrome|microsoft edge|mozilla firefox|codex|telegram|copiar ruta|copy link)$", RegexOptions.IgnoreCase)]
     private static partial Regex NoiseRegex();
 }

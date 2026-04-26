@@ -1,3 +1,5 @@
+using AriadGSM.Perception.Semantics;
+
 namespace AriadGSM.Perception.Conversation;
 
 public sealed record ConversationMessage(
@@ -6,7 +8,8 @@ public sealed record ConversationMessage(
     string Direction,
     string? SenderName = null,
     DateTimeOffset? SentAt = null,
-    double Confidence = 0);
+    double Confidence = 0,
+    IReadOnlyList<BusinessSignal>? Signals = null);
 
 public sealed record ConversationTimeline(
     int HistoryLimitDays,

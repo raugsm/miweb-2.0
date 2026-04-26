@@ -16,7 +16,7 @@ public sealed class AccessibilityReaderCore : IReaderCore
         _options = options;
     }
 
-    public ValueTask<ReaderCoreResult> ReadAsync(ResolvedChannel channel, CancellationToken cancellationToken = default)
+    public ValueTask<ReaderCoreResult> ReadAsync(ResolvedChannel channel, ReaderContext context, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 

@@ -9,7 +9,7 @@ var pipeline = new PerceptionPipeline(options);
 if (once)
 {
     var state = await pipeline.RunOnceAsync();
-    Console.WriteLine($"AriadGSM Perception Worker: {state.Status}, whatsapp_windows={state.WhatsAppWindowsDetected}, events={state.PerceptionEventsWritten}, conversations={state.ConversationEventsWritten}, messages={state.MessagesExtracted}, channels={string.Join(",", state.ChannelIds)}");
+    Console.WriteLine($"AriadGSM Perception Worker: {state.Status}, whatsapp_windows={state.WhatsAppWindowsDetected}, events={state.PerceptionEventsWritten}, conversations={state.ConversationEventsWritten}, messages={state.MessagesExtracted}, channels={string.Join(",", state.ChannelIds)}, extraction={state.LastExtractionSummary}");
     if (!string.IsNullOrWhiteSpace(state.LastError))
     {
         Console.WriteLine($"error={state.LastError}");

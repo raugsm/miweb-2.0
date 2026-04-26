@@ -101,6 +101,10 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
                 "text": "Cuanto vale liberar Samsung?",
                 "direction": "client",
                 "confidence": 0.9,
+                "signals": [
+                    {"kind": "price_request", "value": "cuanto", "confidence": 0.88},
+                    {"kind": "service", "value": "samsung", "confidence": 0.8},
+                ],
             }
         ],
         "timeline": {
@@ -161,4 +165,3 @@ def sample_event(contract_name: str) -> dict[str, Any]:
     if contract_name not in SAMPLE_EVENTS:
         raise KeyError(f"Contrato desconocido: {contract_name}")
     return deepcopy(SAMPLE_EVENTS[contract_name])
-

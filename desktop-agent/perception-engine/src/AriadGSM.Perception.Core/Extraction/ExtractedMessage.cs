@@ -1,4 +1,5 @@
 using AriadGSM.Perception.VisionInput;
+using AriadGSM.Perception.Semantics;
 
 namespace AriadGSM.Perception.Extraction;
 
@@ -10,4 +11,5 @@ public sealed record ExtractedMessage(
     DateTimeOffset? SentAt,
     double Confidence,
     VisionBounds? Bounds,
-    string Source);
+    string Source,
+    IReadOnlyList<BusinessSignal> Signals);

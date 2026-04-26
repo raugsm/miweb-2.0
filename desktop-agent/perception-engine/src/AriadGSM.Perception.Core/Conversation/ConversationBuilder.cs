@@ -27,7 +27,8 @@ public sealed class ConversationBuilder
                 message.Direction,
                 message.SenderName,
                 message.SentAt,
-                message.Confidence))
+                message.Confidence,
+                message.Signals))
             .ToArray();
         var title = CleanTitle(channel.Candidate.Window.Title);
         var conversationId = $"{channel.ChannelId}-{ShortHash(title)}";

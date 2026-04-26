@@ -16,7 +16,7 @@ switch (command)
         var sampleOptions = PerceptionOptions.Load(configPath);
         var samplePipeline = new PerceptionPipeline(sampleOptions);
         var sampleState = await samplePipeline.RunOnceAsync();
-        Console.WriteLine($"sample {sampleState.Status}: whatsapp_windows={sampleState.WhatsAppWindowsDetected}, channels={string.Join(",", sampleState.ChannelIds)}, reader={sampleState.LastReaderStatus}, lines={sampleState.ReaderLinesObserved}, messages={sampleState.MessagesExtracted}, conversations={sampleState.ConversationEventsWritten}, source={sampleState.LastSourceVisionEventId}");
+        Console.WriteLine($"sample {sampleState.Status}: whatsapp_windows={sampleState.WhatsAppWindowsDetected}, channels={string.Join(",", sampleState.ChannelIds)}, reader={sampleState.LastReaderStatus}, extraction={sampleState.LastExtractionSummary}, lines={sampleState.ReaderLinesObserved}, messages={sampleState.MessagesExtracted}, conversations={sampleState.ConversationEventsWritten}, source={sampleState.LastSourceVisionEventId}");
         if (!string.IsNullOrWhiteSpace(sampleState.LastError))
         {
             Console.WriteLine($"error={sampleState.LastError}");

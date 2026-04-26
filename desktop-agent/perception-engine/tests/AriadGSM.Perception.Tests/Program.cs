@@ -1,5 +1,6 @@
-using System.Text.Json;
 using System.IO;
+using System.Text.Json;
+using AriadGSM.Perception.ChannelResolution;
 using AriadGSM.Perception.Conversation;
 using AriadGSM.Perception.Config;
 using AriadGSM.Perception.Events;
@@ -11,6 +12,7 @@ using AriadGSM.Perception.WindowIdentity;
 TestWhatsAppIdentity();
 await TestPipelineContract();
 await TestReaderExtractorConversationPipeline();
+await TestOcrFallbackCommandReader();
 await TestContinuousDedupe();
 
 Console.WriteLine("AriadGSM Perception tests OK");
@@ -119,23 +121,76 @@ static async Task TestReaderExtractorConversationPipeline()
         [
             new ReaderTextLine("WhatsApp Business", "Text", null, 0.9, "test"),
             new ReaderTextLine("10:42", "Text", null, 0.9, "test"),
+            new ReaderTextLine("chat fijado", "Text", new VisionBounds(420, 220, 220, 32), 0.9, "test"),
             new ReaderTextLine("Cuanto cuesta liberar iPhone 14?", "Text", new VisionBounds(420, 300, 420, 44), 0.9, "test"),
-            new ReaderTextLine("Tú: Te sale 80 dolares y demora 30 minutos", "Text", new VisionBounds(680, 380, 380, 44), 0.9, "test"),
+            new ReaderTextLine("T\u00C3\u00BA: Te sale 80 dolares y demora 30 minutos", "Text", new VisionBounds(680, 380, 380, 44), 0.9, "test"),
+            new ReaderTextLine("Ya hice pago de 25 usdt para liberar Samsung urgente en Mexico", "Text", new VisionBounds(420, 460, 560, 44), 0.9, "test"),
             new ReaderTextLine("foto", "Text", null, 0.9, "test")
         ]);
         var pipeline = new PerceptionPipeline(options, reader);
         var state = await pipeline.RunOnceAsync();
         Assert(state.Status == "ok", "reader pipeline should finish ok");
-        Assert(state.ReaderLinesObserved == 5, "reader should observe five lines");
-        Assert(state.MessagesExtracted == 2, "extractor should keep two useful messages");
+        Assert(state.ReaderLinesObserved == 7, "reader should observe seven lines");
+        Assert(state.MessagesExtracted == 3, "extractor should keep three useful messages");
+        Assert(state.LastExtractionSummary.Contains("not_message_text", StringComparison.OrdinalIgnoreCase), "extractor diagnostics should explain rejected UI lines");
         Assert(state.ConversationEventsWritten == 1, "conversation builder should write one conversation");
 
         var conversationJson = await File.ReadAllTextAsync(conversationEvents);
         var conversation = JsonSerializer.Deserialize<ConversationEvent>(conversationJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert(conversation is not null, "conversation event should deserialize");
         Assert(ConversationContractValidator.Validate(conversation!).Count == 0, "conversation should satisfy contract");
-        Assert(conversation!.Messages.Count == 2, "conversation should contain two messages");
+        Assert(conversation!.Messages.Count == 3, "conversation should contain three messages");
         Assert(conversation.Messages.Any(message => message.Direction == "agent"), "agent direction should be detected from prefix");
+        Assert(conversation.Messages.Any(message => message.Direction == "client"), "client direction should be inferred from bubble position");
+        Assert(conversation.Messages.Any(message => message.Signals?.Any(signal => signal.Kind == "payment") == true), "payment semantic signal should be attached");
+        Assert(conversation.Messages.Any(message => message.Signals?.Any(signal => signal.Kind == "country" && signal.Value == "MX") == true), "country semantic signal should be attached");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestOcrFallbackCommandReader()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-perception-ocr-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var frame = Path.Combine(root, "frame.bmp");
+    var script = Path.Combine(root, "fake-ocr.cmd");
+    try
+    {
+        await File.WriteAllTextAsync(frame, "fake image");
+        await File.WriteAllTextAsync(script, "@echo OCR pago 33 usdt^|400^|300^|300^|40^|0.91\r\n");
+        var options = new PerceptionOptions
+        {
+            OcrCommand = "cmd.exe",
+            OcrArguments = $"/c \"\"{script}\"\"",
+            OcrTimeoutMs = 2000
+        };
+        var reader = new OcrFallbackReaderCore(options);
+        var window = new VisionWindow(300, "msedge", "(2) WhatsApp Business - Microsoft Edge", new VisionBounds(0, 0, 1140, 1390));
+        var channel = new ResolvedChannel(
+            "wa-1",
+            new WhatsAppWindowCandidate(window, 0.95, "test"),
+            0.95,
+            "test");
+        var visionEvent = new VisionEventEnvelope(
+            "vision_event",
+            "vision-ocr-test",
+            DateTimeOffset.UtcNow,
+            "screen_capture",
+            true,
+            new VisionFrameEvidence("frame-ocr", frame, 1140, 1390, "hash", true),
+            new VisionRetentionEvidence(false, 1, 40),
+            Windows: [window]);
+        var result = await reader.ReadAsync(channel, new ReaderContext(visionEvent));
+        Assert(result.Status == "ok", "OCR command fallback should return ok");
+        Assert(result.Lines.Count == 1, "OCR fallback should parse one text line");
+        Assert(result.Lines[0].Text.Contains("33 usdt", StringComparison.OrdinalIgnoreCase), "OCR fallback should preserve text");
+        Assert(result.Lines[0].Bounds is not null, "OCR fallback should parse bounds");
     }
     finally
     {

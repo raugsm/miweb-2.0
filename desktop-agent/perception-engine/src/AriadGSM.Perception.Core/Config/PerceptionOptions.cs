@@ -30,6 +30,16 @@ public sealed class PerceptionOptions
 
     public double MinimumMessageConfidence { get; init; } = 0.55;
 
+    public int MinimumReaderLinesForGoodRead { get; init; } = 6;
+
+    public bool EnableOcrFallback { get; init; } = true;
+
+    public string OcrCommand { get; init; } = string.Empty;
+
+    public string OcrArguments { get; init; } = "{image} {left} {top} {width} {height}";
+
+    public int OcrTimeoutMs { get; init; } = 4000;
+
     public IReadOnlyList<ChannelMapping> ChannelMappings { get; init; } =
     [
         new("wa-1", "msedge", "WhatsApp"),

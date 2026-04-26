@@ -15,6 +15,7 @@ public sealed record PerceptionHealthState(
     string ConversationEventsFile,
     string LastSourceVisionEventId,
     string LastReaderStatus,
+    string LastExtractionSummary,
     string LastError);
 
 public sealed record PerceptionRunSummary(
@@ -32,4 +33,5 @@ public sealed record PerceptionRunSummary(
     IReadOnlyList<string> LastChannelIds,
     string LastSourceVisionEventId,
     string LastReaderStatus,
+    string LastExtractionSummary,
     string LastError);

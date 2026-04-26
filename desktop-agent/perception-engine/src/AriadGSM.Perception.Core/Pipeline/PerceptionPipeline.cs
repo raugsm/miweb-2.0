@@ -32,6 +32,7 @@ public sealed class PerceptionPipeline
     private int _lastMessagesExtracted;
     private IReadOnlyList<string> _lastChannelIds = [];
     private string _lastReaderStatus = string.Empty;
+    private string _lastExtractionSummary = string.Empty;
     private string _lastError = string.Empty;
 
     public PerceptionPipeline(PerceptionOptions options, IReaderCore? readerCore = null)
@@ -41,7 +42,10 @@ public sealed class PerceptionPipeline
         _channelResolver = new ChannelResolver(options.ChannelMappings);
         _writer = new PerceptionEventWriter(options.PerceptionEventsFile);
         _conversationWriter = new ConversationEventWriter(options.ConversationEventsFile);
-        _readerCore = readerCore ?? new AccessibilityReaderCore(options);
+        _readerCore = readerCore ?? new CompositeReaderCore(
+            new AccessibilityReaderCore(options),
+            new OcrFallbackReaderCore(options),
+            options);
         _messageExtractor = new MessageExtractor(options);
         _conversationBuilder = new ConversationBuilder(options);
     }
@@ -97,6 +101,7 @@ public sealed class PerceptionPipeline
             _lastChannelIds,
             _lastProcessedVisionEventId,
             _lastReaderStatus,
+            _lastExtractionSummary,
             _lastError);
     }
 
@@ -128,6 +133,7 @@ public sealed class PerceptionPipeline
                     _options.ConversationEventsFile,
                     visionEvent.VisionEventId,
                     _lastReaderStatus,
+                    _lastExtractionSummary,
                     string.Empty);
                 return await WriteStateAsync(idleState, cancellationToken).ConfigureAwait(false);
             }
@@ -136,12 +142,13 @@ public sealed class PerceptionPipeline
             var candidates = _windowDetector.Detect(visionEvent.VisibleWindows, _options.MinimumWhatsAppConfidence);
             var channels = _channelResolver.Resolve(candidates);
             var reads = new List<ChannelReadResult>();
+            var readerContext = new ReaderContext(visionEvent);
             foreach (var channel in channels)
             {
-                var readerResult = await _readerCore.ReadAsync(channel, cancellationToken).ConfigureAwait(false);
-                var messages = _messageExtractor.Extract(readerResult, channel);
-                var conversation = _conversationBuilder.Build(channel, readerResult, messages);
-                reads.Add(new ChannelReadResult(channel, readerResult, messages, conversation));
+                var readerResult = await _readerCore.ReadAsync(channel, readerContext, cancellationToken).ConfigureAwait(false);
+                var extraction = _messageExtractor.Extract(readerResult, channel);
+                var conversation = _conversationBuilder.Build(channel, readerResult, extraction.Messages);
+                reads.Add(new ChannelReadResult(channel, readerResult, extraction, conversation));
             }
 
             var perceptionEvent = CreatePerceptionEvent(visionEvent, reads);
@@ -154,7 +161,7 @@ public sealed class PerceptionPipeline
             await _writer.AppendAsync(perceptionEvent, cancellationToken).ConfigureAwait(false);
             foreach (var read in reads)
             {
-                if (read.Messages.Count == 0)
+                if (read.Extraction.Messages.Count == 0)
                 {
                     continue;
                 }
@@ -174,8 +181,11 @@ public sealed class PerceptionPipeline
             _lastWhatsAppWindowsDetected = candidates.Count;
             _lastChannelIds = channels.Select(channel => channel.ChannelId).ToArray();
             _lastReaderLinesObserved = reads.Sum(read => read.ReaderResult.Lines.Count);
-            _lastMessagesExtracted = reads.Sum(read => read.Messages.Count);
+            _lastMessagesExtracted = reads.Sum(read => read.Extraction.Messages.Count);
             _lastReaderStatus = reads.Count == 0 ? "no_whatsapp_channels" : string.Join(",", reads.Select(read => $"{read.Channel.ChannelId}:{read.ReaderResult.Status}"));
+            _lastExtractionSummary = reads.Count == 0
+                ? "no_whatsapp_channels"
+                : string.Join(" | ", reads.Select(read => $"{read.Channel.ChannelId}:{read.Extraction.Diagnostics.Summary()}"));
             _lastError = string.Empty;
             var state = new PerceptionHealthState(
                 "ok",
@@ -192,6 +202,7 @@ public sealed class PerceptionPipeline
                 _options.ConversationEventsFile,
                 visionEvent.VisionEventId,
                 _lastReaderStatus,
+                _lastExtractionSummary,
                 string.Empty);
             return await WriteStateAsync(state, cancellationToken).ConfigureAwait(false);
         }
@@ -238,11 +249,17 @@ public sealed class PerceptionPipeline
                     ["readerSource"] = read.ReaderResult.Source,
                     ["readerStatus"] = read.ReaderResult.Status,
                     ["readerLines"] = read.ReaderResult.Lines.Count,
-                    ["messageCount"] = read.Messages.Count,
-                    ["historyLimitDays"] = _options.HistoryLimitDays
+                    ["messageCount"] = read.Extraction.Messages.Count,
+                    ["historyLimitDays"] = _options.HistoryLimitDays,
+                    ["extractionDiagnostics"] = read.Extraction.Diagnostics,
+                    ["signalKinds"] = read.Extraction.Messages
+                        .SelectMany(message => message.Signals)
+                        .Select(signal => signal.Kind)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray()
                 }));
 
-            foreach (var message in read.Messages.Take(80))
+            foreach (var message in read.Extraction.Messages.Take(80))
             {
                 objects.Add(new PerceptionObject(
                     "message_bubble",
@@ -255,7 +272,9 @@ public sealed class PerceptionPipeline
                         ["channelId"] = channel.ChannelId,
                         ["messageId"] = message.MessageId,
                         ["conversationId"] = read.Conversation.ConversationId,
-                        ["source"] = message.Source
+                        ["source"] = message.Source,
+                        ["signals"] = message.Signals,
+                        ["signalKinds"] = message.Signals.Select(signal => signal.Kind).ToArray()
                     }));
             }
         }
@@ -301,6 +320,7 @@ public sealed class PerceptionPipeline
             _options.ConversationEventsFile,
             sourceVisionEventId,
             _lastReaderStatus,
+            _lastExtractionSummary,
             error);
     }
 
@@ -324,6 +344,6 @@ public sealed class PerceptionPipeline
     private sealed record ChannelReadResult(
         ResolvedChannel Channel,
         ReaderCoreResult ReaderResult,
-        IReadOnlyList<ExtractedMessage> Messages,
+        MessageExtractionResult Extraction,
         ConversationEvent Conversation);
 }

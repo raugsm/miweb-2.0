@@ -12,6 +12,11 @@
   "maxReaderLines": 250,
   "minimumUsefulTextLength": 3,
   "minimumMessageConfidence": 0.55,
+  "minimumReaderLinesForGoodRead": 6,
+  "enableOcrFallback": true,
+  "ocrCommand": "",
+  "ocrArguments": "{image} {left} {top} {width} {height}",
+  "ocrTimeoutMs": 4000,
   "channelMappings": [
     {
       "channelId": "wa-1",
