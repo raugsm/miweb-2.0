@@ -43,7 +43,9 @@ La decision local usa el OCR recien capturado, antes de esperar la ida y vuelta 
 
 El visual debugger se abre desde **Ver ojos** y deja un reporte en `scripts\visual-agent\runtime\visual-debugger\latest.html`. Ese reporte muestra cada captura, las lineas aceptadas, las ignoradas y el motivo exacto del filtro.
 
-El modo **Ojo vivo** usa `eyes-stream.py`: mira la pantalla en modo rapido cada 100ms por defecto, compara cambios por region y corre OCR en segundo plano solo cuando algo se mueve. Tambien guarda una caja negra visual local comprimida en `D:\AriadGSM\vision-buffer` cuando la unidad D: existe, con rotacion por antiguedad y espacio. Su reporte queda en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
+El modo **Ojo vivo** usa `eyes-stream.py`: mira la pantalla en modo rapido cada 100ms por defecto, compara cambios por region y corre OCR en segundo plano solo cuando algo se mueve. Antes del OCR prepara una version mejorada del recorte con escala 2x, contraste y nitidez. Tambien guarda una caja negra visual local comprimida en `D:\AriadGSM\vision-buffer` cuando la unidad D: existe, con rotacion por antiguedad y espacio. Su reporte queda en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
+
+El aprendizaje visible queda en `scripts\visual-agent\runtime\learning-ledger\latest.html`. Ahi se revisa que mensajes fueron aprendidos como contexto, precio, pago o deuda antes de confiar en la contabilidad automatica.
 
 El boton **Modo vivo** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 

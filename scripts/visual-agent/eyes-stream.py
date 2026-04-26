@@ -8,6 +8,7 @@ changed regions, OCRs only the changed crops, and keeps a short memory buffer.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import importlib.util
 import json
@@ -25,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PIL import Image, ImageGrab
+from PIL import Image, ImageEnhance, ImageGrab, ImageOps
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -36,6 +37,10 @@ RUNTIME_DIR = SCRIPT_DIR / "runtime"
 EYES_DIR = RUNTIME_DIR / "eyes-stream"
 STATE_FILE = RUNTIME_DIR / "eyes-stream.state.json"
 DEFAULT_VISION_STORAGE = Path("D:/AriadGSM/vision-buffer")
+LEARNING_DIR = RUNTIME_DIR / "learning-ledger"
+LEARNING_LEDGER_FILE = LEARNING_DIR / "learning-ledger.jsonl"
+LEARNING_REPORT_FILE = LEARNING_DIR / "latest.html"
+LEARNING_SUMMARY_FILE = LEARNING_DIR / "summary.json"
 
 
 def load_agent_local():
@@ -235,6 +240,32 @@ def save_recorded_frame(image: Image.Image, image_path: Path, quality: int) -> s
     return str(image_path)
 
 
+def prepare_ocr_image(image: Image.Image, output_path: Path, scale: float, enhance: bool) -> str:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    work = image.convert("RGB")
+    if scale and scale != 1:
+        width = max(1, int(work.width * scale))
+        height = max(1, int(work.height * scale))
+        work = work.resize((width, height), Image.Resampling.LANCZOS)
+    if enhance:
+        work = ImageOps.autocontrast(work)
+        work = ImageEnhance.Contrast(work).enhance(1.35)
+        work = ImageEnhance.Sharpness(work).enhance(1.55)
+    work.save(output_path, format="PNG", optimize=True)
+    return str(output_path)
+
+
+def run_ocr_crop(image: Image.Image, image_path: Path, ocr_path: Path, scale: float, enhance: bool) -> dict[str, Any]:
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(image_path, format="PNG", optimize=True)
+    prepare_ocr_image(image, ocr_path, scale, enhance)
+    return {
+        "lines": run_ocr(ocr_path),
+        "imagePath": str(image_path),
+        "ocrImagePath": str(ocr_path),
+    }
+
+
 def time_only_line(text: str) -> bool:
     value = re.sub(r"\s+", " ", text).strip()
     if not re.search(r"\b[0-9gqloOiIl]{1,2}\s*[:;]\s*[0-9oO]{2}", value) and not re.search(r"\b[apu]\.?\s*(m|rn|nm|urn|um)\.?\b", value, re.I):
@@ -247,10 +278,33 @@ def time_only_line(text: str) -> bool:
 
 def line_decision(text: str) -> dict[str, Any]:
     clean = re.sub(r"\s+", " ", str(text)).strip()
+    value = agent_local.normalize(clean)
     if len(clean) < 6:
         return {"Raw": text, "Clean": clean, "Accepted": False, "Reason": "muy_corta"}
+    exact_ui_noise = {
+        "buscar",
+        "nombre",
+        "ncmbre",
+        "copiar",
+        "copiar ruta acceso",
+        "copiar ruta de acceso",
+    }
+    if value in exact_ui_noise:
+        return {"Raw": text, "Clean": clean, "Accepted": False, "Reason": "interfaz_o_ruido"}
     if not re.search(r"[A-Za-z0-9ÁÉÍÓÚáéíóúÑñ]", clean):
         return {"Raw": text, "Clean": clean, "Accepted": False, "Reason": "sin_texto_util"}
+    if time_only_line(clean):
+        return {"Raw": text, "Clean": clean, "Accepted": False, "Reason": "hora_suelta"}
+    tokens = re.findall(r"[A-Za-z0-9ÃÃ‰ÃÃ“ÃšÃ¡Ã©Ã­Ã³ÃºÃ‘Ã±]+", clean)
+    tokens = re.findall(r"[^\W_]+", clean, flags=re.UNICODE)
+    known_upper_words = {"HUAWEI", "SAMSUNG", "XIAOMI", "HONOR", "TECNO", "INFINIX", "IPHONE", "FRP", "MDM"}
+    meaningful_words = [
+        token
+        for token in tokens
+        if len(token) >= 3 and (any(ch.islower() for ch in token) or token.upper() in known_upper_words)
+    ]
+    if len(tokens) >= 3 and not meaningful_words:
+        return {"Raw": text, "Clean": clean, "Accepted": False, "Reason": "ocr_garbage"}
     if time_only_line(clean):
         return {"Raw": text, "Clean": clean, "Accepted": False, "Reason": "hora_suelta"}
     if agent_local.is_payment_group(clean):
@@ -299,6 +353,184 @@ def make_messages(channel_id: str, lines: list[str]) -> list[dict[str, Any]]:
     return messages
 
 
+def extract_amounts(text: str) -> list[dict[str, Any]]:
+    values: list[dict[str, Any]] = []
+    patterns = [
+        r"\b(?P<currency>usd|usdt|soles|pen|mxn|cop|clp|\$|s/)\s*(?P<amount>\d+(?:[.,]\d+)?)\b",
+        r"\b(?P<amount>\d+(?:[.,]\d+)?)\s*(?P<currency>usd|usdt|soles|pen|mxn|cop|clp)\b",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, flags=re.I):
+            amount_text = match.group("amount").replace(",", ".")
+            try:
+                amount = float(amount_text)
+            except ValueError:
+                continue
+            values.append({"amount": amount, "currency": match.group("currency").upper()})
+    return values
+
+
+def classify_learning_text(text: str, decision: dict[str, Any]) -> tuple[str, str]:
+    value = agent_local.normalize(text)
+    if any(keyword in value for keyword in ["pago", "pague", "pagado", "comprobante", "transferencia", "deposito", "yape", "plin", "nequi", "banco"]):
+        return "accounting_payment", "Pago / comprobante"
+    if any(keyword in value for keyword in ["deuda", "debe", "saldo", "cuenta", "reembolso", "devolver", "refund", "balance"]):
+        return "accounting_debt", "Cuenta / deuda"
+    if any(keyword in value for keyword in ["precio", "costo", "cuanto", "cotiza", "cobras", "tarifa", "price", "prices", "cost"]):
+        return "price_request", "Pregunta precio"
+    if decision.get("Status") == "local_match" and agent_local.normalize(decision.get("Text", "")) == value:
+        return str(decision.get("Intent") or "business_signal"), str(decision.get("Label") or "Senal de negocio")
+    return "conversation_context", "Contexto de cliente"
+
+
+def learning_id(channel_id: str, text: str, learning_type: str) -> str:
+    raw = f"{channel_id}|{learning_type}|{agent_local.normalize(text)}"
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+
+def build_learning_items(event: dict[str, Any], decision: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for text in event.get("acceptedLines") or []:
+        clean = re.sub(r"\s+", " ", str(text)).strip()
+        if not clean:
+            continue
+        learning_type, label = classify_learning_text(clean, decision)
+        item = {
+            "id": learning_id(str(event.get("channelId") or ""), clean, learning_type),
+            "learnedAt": now_iso(),
+            "channelId": event.get("channelId"),
+            "conversationName": event.get("name"),
+            "learningType": learning_type,
+            "label": label,
+            "text": clean,
+            "amounts": extract_amounts(clean),
+            "decisionLinked": agent_local.normalize(decision.get("Text", "")) == agent_local.normalize(clean),
+            "decisionIntent": decision.get("Intent"),
+            "decisionLabel": decision.get("Label"),
+            "sourceImagePath": event.get("imagePath"),
+            "ocrImagePath": event.get("ocrImagePath"),
+            "capturedAt": event.get("capturedAt"),
+        }
+        items.append(item)
+    return items
+
+
+def load_recent_learning_ids(limit: int = 3000) -> set[str]:
+    if not LEARNING_LEDGER_FILE.exists():
+        return set()
+    ids: set[str] = set()
+    try:
+        lines = LEARNING_LEDGER_FILE.read_text(encoding="utf-8").splitlines()[-limit:]
+    except OSError:
+        return ids
+    for line in lines:
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if item.get("id"):
+            ids.add(str(item["id"]))
+    return ids
+
+
+def append_learning_items(items: list[dict[str, Any]], seen_ids: set[str]) -> list[dict[str, Any]]:
+    fresh = [item for item in items if item.get("id") and item["id"] not in seen_ids]
+    if not fresh:
+        return []
+    LEARNING_DIR.mkdir(parents=True, exist_ok=True)
+    with LEARNING_LEDGER_FILE.open("a", encoding="utf-8") as handle:
+        for item in fresh:
+            handle.write(json.dumps(item, ensure_ascii=False, separators=(",", ":")) + "\n")
+            seen_ids.add(str(item["id"]))
+    return fresh
+
+
+def read_learning_tail(limit: int = 300) -> list[dict[str, Any]]:
+    if not LEARNING_LEDGER_FILE.exists():
+        return []
+    try:
+        lines = LEARNING_LEDGER_FILE.read_text(encoding="utf-8").splitlines()[-limit:]
+    except OSError:
+        return []
+    items: list[dict[str, Any]] = []
+    for line in lines:
+        try:
+            items.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return items
+
+
+def render_learning_report() -> dict[str, Any]:
+    items = read_learning_tail(500)
+    counts: dict[str, int] = {}
+    for item in items:
+        key = str(item.get("learningType") or "unknown")
+        counts[key] = counts.get(key, 0) + 1
+    accounting = [item for item in items if str(item.get("learningType") or "").startswith("accounting_")]
+
+    def esc(value: Any) -> str:
+        return html.escape("" if value is None else str(value))
+
+    rows = []
+    for item in reversed(items[-120:]):
+        amounts = ", ".join(f"{value.get('amount')} {value.get('currency')}" for value in item.get("amounts") or [])
+        rows.append(
+            f"<tr><td>{esc(item.get('learnedAt'))}</td><td>{esc(item.get('channelId'))}</td><td>{esc(item.get('label'))}</td><td>{esc(item.get('text'))}</td><td>{esc(amounts)}</td></tr>"
+        )
+    LEARNING_DIR.mkdir(parents=True, exist_ok=True)
+    LEARNING_REPORT_FILE.write_text(
+        f"""<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AriadGSM Aprendizaje Local</title>
+  <style>
+    body {{ margin:0; font-family:"Segoe UI",Arial,sans-serif; background:#eef4ff; color:#101827; }}
+    header {{ background:white; border-bottom:1px solid #d9e3f3; padding:20px 26px; }}
+    main {{ padding:22px; display:grid; gap:16px; }}
+    section {{ background:white; border:1px solid #d9e3f3; border-radius:8px; padding:16px; }}
+    .metrics {{ display:grid; grid-template-columns:repeat(4,minmax(130px,1fr)); gap:10px; }}
+    .metric {{ background:#f4f8ff; border:1px solid #d9e3f3; border-radius:8px; padding:10px; }}
+    .metric b {{ display:block; color:#2478f2; font-size:22px; }}
+    table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+    th,td {{ border-bottom:1px solid #d9e3f3; padding:8px; text-align:left; vertical-align:top; }}
+    th {{ background:#f4f8ff; }}
+  </style>
+</head>
+<body>
+  <header><h1>AriadGSM Aprendizaje Local</h1><p>Registro visible de lo que el agente esta aprendiendo de WhatsApp.</p></header>
+  <main>
+    <section>
+      <div class="metrics">
+        <div class="metric"><b>{len(items)}</b>ultimos aprendizajes</div>
+        <div class="metric"><b>{len(accounting)}</b>contabilidad</div>
+        <div class="metric"><b>{counts.get('accounting_payment', 0)}</b>pagos</div>
+        <div class="metric"><b>{counts.get('accounting_debt', 0)}</b>deudas</div>
+      </div>
+    </section>
+    <section>
+      <h2>Ultimos registros</h2>
+      <table><thead><tr><th>Hora</th><th>Canal</th><th>Tipo</th><th>Texto aprendido</th><th>Monto</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
+    </section>
+  </main>
+</body>
+</html>""",
+        encoding="utf-8",
+    )
+    summary = {
+        "updatedAt": now_iso(),
+        "itemsInReport": len(items),
+        "counts": counts,
+        "accountingItems": len(accounting),
+        "report": str(LEARNING_REPORT_FILE),
+        "ledger": str(LEARNING_LEDGER_FILE),
+    }
+    LEARNING_SUMMARY_FILE.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    return summary
+
+
 def render_report(state: dict[str, Any], output_path: Path) -> None:
     def esc(value: Any) -> str:
         return html.escape("" if value is None else str(value))
@@ -343,7 +575,7 @@ def render_report(state: dict[str, Any], output_path: Path) -> None:
     h1 {{ margin:0; font-size:24px; }}
     main {{ padding:22px; display:grid; gap:16px; }}
     .panel,.event {{ background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:16px; box-shadow:0 10px 26px rgba(19,52,102,.08); }}
-    .metrics {{ display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:10px; margin-top:12px; }}
+    .metrics {{ display:grid; grid-template-columns:repeat(7,minmax(120px,1fr)); gap:10px; margin-top:12px; }}
     .metric {{ background:#f4f8ff; border:1px solid var(--line); border-radius:8px; padding:10px; }}
     .metric b {{ display:block; color:var(--accent); font-size:20px; }}
     .event-head {{ display:flex; gap:12px; align-items:center; color:var(--muted); margin-bottom:10px; }}
@@ -366,11 +598,13 @@ def render_report(state: dict[str, Any], output_path: Path) -> None:
         <div class="metric"><b>{esc(state.get('frames'))}</b>frames</div>
         <div class="metric"><b>{esc(state.get('recordedFrames'))}</b>grabados</div>
         <div class="metric"><b>{esc(state.get('ocrRuns'))}</b>OCR</div>
+        <div class="metric"><b>{esc(state.get('learnedItems'))}</b>aprendidos</div>
         <div class="metric"><b>{esc(len(events))}</b>eventos</div>
         <div class="metric"><b>{esc(decision.get('Status'))}</b>decision</div>
         <div class="metric"><b>{esc(decision.get('TargetChannel'))}</b>canal</div>
       </div>
       <p><b>Almacen visual:</b> {esc(state.get('visionStorageRoot'))}</p>
+      <p><b>Reporte aprendizaje:</b> {esc((state.get('learningSummary') or {}).get('report'))}</p>
       <p><b>Ultima decision:</b> {esc(decision.get('Label') or decision.get('Reason'))} · {esc(decision.get('Text'))}</p>
     </section>
     {''.join(rows)}
@@ -400,6 +634,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--ocr-cooldown-seconds", type=float, default=2.0)
     parser.add_argument("--ocr-workers", type=int, default=1)
     parser.add_argument("--max-pending-ocr", type=int, default=4)
+    parser.add_argument("--ocr-scale", type=float, default=1.0)
+    parser.add_argument("--ocr-enhance", dest="ocr_enhance", action="store_true")
+    parser.add_argument("--no-ocr-enhance", dest="ocr_enhance", action="store_false")
+    parser.set_defaults(ocr_enhance=None)
     parser.add_argument("--state-interval-ms", type=int, default=750)
     parser.add_argument("--record-frames", dest="record_frames", action="store_true")
     parser.add_argument("--no-record-frames", dest="record_frames", action="store_false")
@@ -425,12 +663,19 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             args.ocr_workers = 2
         if args.max_pending_ocr == 4:
             args.max_pending_ocr = 6
+        if args.ocr_scale == 1.0:
+            args.ocr_scale = 2.0
+        if args.ocr_enhance is None:
+            args.ocr_enhance = True
         if args.state_interval_ms == 750:
             args.state_interval_ms = 500
         if args.record_frames is None:
             args.record_frames = True
     if args.record_frames is None:
         args.record_frames = False
+    if args.ocr_enhance is None:
+        args.ocr_enhance = True
+    args.ocr_scale = max(1.0, min(3.0, args.ocr_scale))
     args.record_quality = max(25, min(90, args.record_quality))
     args.record_interval_ms = max(100, args.record_interval_ms)
     return args
@@ -444,11 +689,13 @@ def build_state(
     regions: list[Region],
     events: deque[dict[str, Any]],
     last_decision: dict[str, Any],
-    pending_ocr: dict[Future[list[str]], dict[str, Any]],
+    pending_ocr: dict[Future[dict[str, Any]], dict[str, Any]],
     pending_frames: dict[Future[str], str],
     vision_storage_root: Path,
     storage_cleanup: dict[str, Any],
     recorded_frames: int,
+    learned_items: int,
+    learning_summary: dict[str, Any] | None,
     completed: bool = False,
 ) -> dict[str, Any]:
     return {
@@ -463,10 +710,14 @@ def build_state(
         "pendingFrameSaves": len(pending_frames),
         "recordedFrames": recorded_frames,
         "recordFrames": bool(args.record_frames),
+        "learnedItems": learned_items,
+        "learningSummary": learning_summary or {},
         "captureIntervalMs": args.interval_ms,
         "recordIntervalMs": args.record_interval_ms,
         "ocrCooldownSeconds": args.ocr_cooldown_seconds,
         "ocrWorkers": args.ocr_workers,
+        "ocrScale": args.ocr_scale,
+        "ocrEnhance": bool(args.ocr_enhance),
         "visionStorageRoot": str(vision_storage_root),
         "storageCleanup": storage_cleanup,
         "regions": [{"channelId": r.channel_id, "name": r.name, "rect": list(r.rect)} for r in regions],
@@ -490,13 +741,16 @@ def main(argv: list[str]) -> int:
     regions = build_regions(config, first.size, args.full_section)
     fingerprints: dict[str, np.ndarray] = {}
     last_ocr: dict[str, float] = {}
-    pending_ocr: dict[Future[list[str]], dict[str, Any]] = {}
+    pending_ocr: dict[Future[dict[str, Any]], dict[str, Any]] = {}
     pending_frames: dict[Future[str], str] = {}
     pending_channels: set[str] = set()
     events: deque[dict[str, Any]] = deque(maxlen=args.buffer_events)
     frames = 0
     ocr_runs = 0
     recorded_frames = 0
+    learned_items = 0
+    learning_summary = render_learning_report()
+    seen_learning_ids = load_recent_learning_ids()
     last_decision: dict[str, Any] = {"Status": "no_local_action", "Source": "eyes_stream", "Reason": "Sin lectura todavia."}
     start = time.monotonic()
     last_state_write = 0.0
@@ -523,8 +777,10 @@ def main(argv: list[str]) -> int:
                     job = pending_ocr.pop(future)
                     pending_channels.discard(job["region"].channel_id)
                     try:
-                        raw_lines = future.result()
+                        ocr_payload = future.result()
+                        raw_lines = [str(line) for line in ocr_payload.get("lines", [])]
                     except Exception as exc:
+                        ocr_payload = {}
                         raw_lines = []
                         decisions = [{"Raw": "", "Clean": "", "Accepted": False, "Reason": f"ocr_error: {exc}"}]
                         ignored = decisions
@@ -549,13 +805,20 @@ def main(argv: list[str]) -> int:
                         "channelId": job["region"].channel_id,
                         "name": job["region"].name,
                         "rect": list(job["region"].rect),
-                        "imagePath": str(job["imagePath"]),
+                        "imagePath": str(ocr_payload.get("imagePath") or job["imagePath"]),
+                        "ocrImagePath": str(ocr_payload.get("ocrImagePath") or job["ocrImagePath"]),
+                        "ocrScale": args.ocr_scale,
+                        "ocrEnhanced": bool(args.ocr_enhance),
                         "change": job["change"],
                         "rawLines": raw_lines,
                         "acceptedLines": accepted,
                         "ignoredLines": ignored,
                         "decision": last_decision,
                     }
+                    fresh_learning = append_learning_items(build_learning_items(event, last_decision), seen_learning_ids)
+                    if fresh_learning:
+                        learned_items += len(fresh_learning)
+                        learning_summary = render_learning_report()
                     events.append(event)
                     ocr_runs += 1
                     event_added = True
@@ -589,11 +852,12 @@ def main(argv: list[str]) -> int:
                     for _, region, crop, change in sorted(candidates, key=lambda item: item[0], reverse=True)[:slots]:
                         last_ocr[region.channel_id] = now_mono
                         image_path = crop_dir / f"{stamp()}-{region.channel_id}.png"
-                        crop.save(image_path)
-                        future = executor.submit(run_ocr, image_path)
+                        ocr_path = crop_dir / f"{stamp()}-{region.channel_id}-ocr.png"
+                        future = executor.submit(run_ocr_crop, crop.copy(), image_path, ocr_path, args.ocr_scale, bool(args.ocr_enhance))
                         pending_ocr[future] = {
                             "region": region,
                             "imagePath": image_path,
+                            "ocrImagePath": ocr_path,
                             "change": change,
                             "capturedAt": now_iso(),
                         }
@@ -602,7 +866,20 @@ def main(argv: list[str]) -> int:
                 should_write_state = event_added or (now_mono - last_state_write) >= (args.state_interval_ms / 1000.0)
                 if should_write_state:
                     state = build_state(
-                        args, session_dir, frames, ocr_runs, regions, events, last_decision, pending_ocr, pending_frames, vision_storage_root, storage_cleanup, recorded_frames
+                        args,
+                        session_dir,
+                        frames,
+                        ocr_runs,
+                        regions,
+                        events,
+                        last_decision,
+                        pending_ocr,
+                        pending_frames,
+                        vision_storage_root,
+                        storage_cleanup,
+                        recorded_frames,
+                        learned_items,
+                        learning_summary,
                     )
                     write_state(state)
                     last_state_write = now_mono
@@ -612,7 +889,21 @@ def main(argv: list[str]) -> int:
                 time.sleep(max(0.02, args.interval_ms / 1000.0))
 
     state = build_state(
-        args, session_dir, frames, ocr_runs, regions, events, last_decision, pending_ocr, pending_frames, vision_storage_root, storage_cleanup, recorded_frames, completed=True
+        args,
+        session_dir,
+        frames,
+        ocr_runs,
+        regions,
+        events,
+        last_decision,
+        pending_ocr,
+        pending_frames,
+        vision_storage_root,
+        storage_cleanup,
+        recorded_frames,
+        learned_items,
+        learning_summary,
+        completed=True,
     )
     write_state(state)
     print(json.dumps(state, ensure_ascii=False, indent=2))

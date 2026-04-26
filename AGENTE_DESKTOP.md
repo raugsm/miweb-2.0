@@ -121,7 +121,9 @@ El boton **Ojo vivo** inicia un observador continuo distinto al capturador puntu
 - divide el monitor en las 3 zonas de WhatsApp;
 - calcula diferencia visual por region;
 - ejecuta OCR solo cuando una zona cambia y lo procesa en segundo plano para no frenar la captura;
+- mejora la imagen antes del OCR con escala 2x, contraste y nitidez;
 - guarda una caja negra visual local en `D:\AriadGSM\vision-buffer` cuando existe la unidad D:;
+- registra aprendizaje local visible en `scripts\visual-agent\runtime\learning-ledger\latest.html`;
 - guarda un buffer reciente de eventos visuales;
 - acepta una region solo si encuentra firma visual de WhatsApp (`Escribe un mensaje`, buscador de chats, pestañas de lista o avisos propios de WhatsApp);
 - marca cualquier region sin firma de WhatsApp como `no_whatsapp_signature`, aunque sea Codex, navegador u otro programa;
@@ -142,6 +144,8 @@ python .\scripts\visual-agent\eyes-stream.py --duration-seconds 8 --live
 ```
 
 El historial visual completo queda local en disco y rota por defecto con limite de 7 dias o 500GB. Se puede cambiar con `--retention-hours`, `--max-storage-gb` o `--vision-storage-dir`.
+
+El boton **Aprendizaje** abre el reporte local de lo que el agente aprendio: contexto de cliente, preguntas de precio, pagos y deudas detectadas. Ese reporte es la vista de control antes de usarlo como contabilidad total.
 
 El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.
 

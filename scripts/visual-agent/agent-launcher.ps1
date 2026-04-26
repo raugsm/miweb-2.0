@@ -29,6 +29,7 @@ $EyesPidFile = Join-Path $RuntimeDir "eyes-stream.pid"
 $EyesOutLog = Join-Path $RuntimeDir "eyes-stream.out.log"
 $EyesErrLog = Join-Path $RuntimeDir "eyes-stream.err.log"
 $EyesStateFile = Join-Path $RuntimeDir "eyes-stream.state.json"
+$LearningReportFile = Join-Path $RuntimeDir "learning-ledger\latest.html"
 
 function Ensure-RuntimeDir {
   New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
@@ -247,6 +248,9 @@ function Get-AgentStatus {
     LatestEyesIntervalMs = if ($latestEyesState -and $latestEyesState.captureIntervalMs) { $latestEyesState.captureIntervalMs } else { $null }
     LatestEyesRecordedFrames = if ($latestEyesState -and $null -ne $latestEyesState.recordedFrames) { $latestEyesState.recordedFrames } else { $null }
     LatestEyesStorage = if ($latestEyesState -and $latestEyesState.visionStorageRoot) { $latestEyesState.visionStorageRoot } else { $null }
+    LatestEyesLearnedItems = if ($latestEyesState -and $null -ne $latestEyesState.learnedItems) { $latestEyesState.learnedItems } else { $null }
+    LatestLearningReport = if ($latestEyesState -and $latestEyesState.learningSummary -and $latestEyesState.learningSummary.report) { $latestEyesState.learningSummary.report } else { $null }
+    LatestLearningAccounting = if ($latestEyesState -and $latestEyesState.learningSummary -and $null -ne $latestEyesState.learningSummary.accountingItems) { $latestEyesState.learningSummary.accountingItems } else { $null }
     LatestEyesUpdatedAt = if ($latestEyesState) { $latestEyesState.updatedAt } else { $null }
     LatestEyesDecision = if ($latestEyesState -and $latestEyesState.lastDecision) { $latestEyesState.lastDecision.Status } else { $null }
     LatestEyesChannel = if ($latestEyesState -and $latestEyesState.lastDecision) { $latestEyesState.lastDecision.TargetChannel } else { $null }
@@ -316,9 +320,12 @@ function Get-AgentDiagnosisText {
   }
 
   if ($Status.LatestEyesStatus) {
-    $lines += "Ojo vivo: $($Status.LatestEyesStatus) $($Status.LatestEyesMode), intervalo $($Status.LatestEyesIntervalMs)ms, frames $($Status.LatestEyesFrames), grabados $($Status.LatestEyesRecordedFrames), OCR $($Status.LatestEyesOcrRuns), pendientes $($Status.LatestEyesPendingOcr), decision $($Status.LatestEyesDecision) $($Status.LatestEyesChannel)."
+    $lines += "Ojo vivo: $($Status.LatestEyesStatus) $($Status.LatestEyesMode), intervalo $($Status.LatestEyesIntervalMs)ms, frames $($Status.LatestEyesFrames), grabados $($Status.LatestEyesRecordedFrames), OCR $($Status.LatestEyesOcrRuns), aprendidos $($Status.LatestEyesLearnedItems), pendientes $($Status.LatestEyesPendingOcr), decision $($Status.LatestEyesDecision) $($Status.LatestEyesChannel)."
     if ($Status.LatestEyesStorage) {
       $lines += "Almacen visual: $($Status.LatestEyesStorage)"
+    }
+    if ($Status.LatestLearningReport) {
+      $lines += "Aprendizaje visible: $($Status.LatestLearningReport)"
     }
   }
 
@@ -687,6 +694,14 @@ function Open-LocalPanel {
   Start-Process "http://localhost:3000/operativa-v2.html"
 }
 
+function Open-LearningReport {
+  if (Test-Path -LiteralPath $LearningReportFile) {
+    Start-Process $LearningReportFile
+    return
+  }
+  throw "Aun no hay reporte de aprendizaje. Inicia Ojo vivo y deja que lea mensajes utiles."
+}
+
 function Open-RuntimeFolder {
   Ensure-RuntimeDir
   Start-Process explorer.exe $RuntimeDir
@@ -904,6 +919,15 @@ function Start-AgentGui {
   Set-AgentButtonStyle $buttonLocal
   $form.Controls.Add($buttonLocal)
 
+  $buttonLearning = New-Object System.Windows.Forms.Button
+  $buttonLearning.Text = "Aprendizaje"
+  $buttonLearning.Left = 296
+  $buttonLearning.Top = 410
+  $buttonLearning.Width = 112
+  $buttonLearning.Height = 32
+  Set-AgentButtonStyle $buttonLearning
+  $form.Controls.Add($buttonLearning)
+
   $buttonIntent = New-Object System.Windows.Forms.Button
   $buttonIntent.Text = "Atender alerta"
   $buttonIntent.Left = 160
@@ -944,7 +968,8 @@ function Start-AgentGui {
         "Ultimo modo: $($status.LatestAutopilotMode) motor $($status.LatestAutopilotEngine) ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
         "Publicacion nube: $($status.LatestBasePublished)",
         "Decision local: $($status.LatestLocalDecision) $($status.LatestLocalSource) $($status.LatestLocalLabel) $($status.LatestLocalChannel)",
-        "Ojos: $($status.LatestEyesStatus) $($status.LatestEyesMode) $($status.LatestEyesIntervalMs)ms | frames $($status.LatestEyesFrames) grabados $($status.LatestEyesRecordedFrames) OCR $($status.LatestEyesOcrRuns) pendientes $($status.LatestEyesPendingOcr) | decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
+        "Ojos: $($status.LatestEyesStatus) $($status.LatestEyesMode) $($status.LatestEyesIntervalMs)ms | frames $($status.LatestEyesFrames) grabados $($status.LatestEyesRecordedFrames) OCR $($status.LatestEyesOcrRuns) aprendidos $($status.LatestEyesLearnedItems) pendientes $($status.LatestEyesPendingOcr) | decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
+        "Aprendizaje: contabilidad $($status.LatestLearningAccounting) | reporte $($status.LatestLearningReport)",
         "Almacen visual: $($status.LatestEyesStorage)",
         "Logs: $($status.RuntimeDir)"
       )
@@ -1003,6 +1028,7 @@ function Start-AgentGui {
   $buttonDebug.Add_Click({ Run-GuiAction { Invoke-VisualDebug | Out-Null } })
   $buttonEyes.Add_Click({ Run-GuiAction { Start-EyesStream | Out-Null } -MinimizeAfterSuccess })
   $buttonLocal.Add_Click({ Open-LocalPanel })
+  $buttonLearning.Add_Click({ Run-GuiAction { Open-LearningReport | Out-Null } })
   $buttonLogs.Add_Click({ Open-RuntimeFolder })
 
   $timer = New-Object System.Windows.Forms.Timer
