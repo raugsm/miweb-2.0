@@ -226,6 +226,17 @@ def is_interface_noise(text: str) -> bool:
         "atender alerta",
         "aprender chats",
         "nivel actual",
+        "usa whatsapp en tu telefono",
+        "usa whatsapp en tu teléfono",
+        "escribe un mensaje",
+        "codex",
+        "scripts/visual-agent",
+        "tareas completadas",
+        "revisar cambios",
+        "cambios de seguimiento",
+        "ejecutando el comando",
+        "powershell",
+        "runtime",
     ]
     return any(pattern in value for pattern in patterns)
 

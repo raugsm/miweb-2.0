@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "VisualDebug", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
+  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "StartEyes", "StopEyes", "EyesSample", "VisualDebug", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
   [int]$PollSeconds = 30,
   [switch]$StartMinimized
@@ -15,6 +15,7 @@ $LearningPassScript = Join-Path $ScriptDir "visual-chat-learning-pass.ps1"
 $AutopilotScript = Join-Path $ScriptDir "visual-autopilot.ps1"
 $PythonAgentScript = Join-Path $ScriptDir "agent-local.py"
 $VisualDebuggerScript = Join-Path $ScriptDir "visual-debugger.py"
+$EyesStreamScript = Join-Path $ScriptDir "eyes-stream.py"
 $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
 $PidFile = Join-Path $RuntimeDir "agent-watch.pid"
@@ -24,6 +25,10 @@ $AutopilotPidFile = Join-Path $RuntimeDir "agent-autopilot.pid"
 $AutopilotOutLog = Join-Path $RuntimeDir "agent-autopilot.out.log"
 $AutopilotErrLog = Join-Path $RuntimeDir "agent-autopilot.err.log"
 $AutopilotStateFile = Join-Path $RuntimeDir "agent-autopilot.state.json"
+$EyesPidFile = Join-Path $RuntimeDir "eyes-stream.pid"
+$EyesOutLog = Join-Path $RuntimeDir "eyes-stream.out.log"
+$EyesErrLog = Join-Path $RuntimeDir "eyes-stream.err.log"
+$EyesStateFile = Join-Path $RuntimeDir "eyes-stream.state.json"
 
 function Ensure-RuntimeDir {
   New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
@@ -130,6 +135,10 @@ function Get-AutopilotProcess {
   return Get-ProcessFromPidFile $AutopilotPidFile
 }
 
+function Get-EyesProcess {
+  return Get-ProcessFromPidFile $EyesPidFile
+}
+
 function Get-ProcessFromPidFile {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -164,6 +173,7 @@ function Get-AgentStatus {
   $configStatus = Test-AgentConfig
   $process = Get-AgentProcess
   $autopilotProcess = Get-AutopilotProcess
+  $eyesProcess = Get-EyesProcess
   $latestCapture = Get-LatestFile (Join-Path $ScriptDir "captures") "screen-events-*.json"
   $latestProcessed = Get-LatestFile (Join-Path $ScriptDir "cloud-processed") "*screen-events-*.json"
   $latestError = if (Test-Path -LiteralPath $StderrLog) {
@@ -184,12 +194,22 @@ function Get-AgentStatus {
       $latestAutopilotState = $null
     }
   }
+  $latestEyesState = $null
+  if (Test-Path -LiteralPath $EyesStateFile) {
+    try {
+      $latestEyesState = Get-Content -LiteralPath $EyesStateFile -Raw | ConvertFrom-Json
+    } catch {
+      $latestEyesState = $null
+    }
+  }
 
   return [pscustomobject]@{
     Running = [bool]$process
     ProcessId = if ($process) { $process.Id } else { $null }
     AutopilotRunning = [bool]$autopilotProcess
     AutopilotProcessId = if ($autopilotProcess) { $autopilotProcess.Id } else { $null }
+    EyesRunning = [bool]$eyesProcess
+    EyesProcessId = if ($eyesProcess) { $eyesProcess.Id } else { $null }
     Configured = $configStatus.Configured
     ConfigMessage = $configStatus.Message
     CloudUrl = $configStatus.CloudUrl
@@ -219,6 +239,13 @@ function Get-AgentStatus {
     LatestIntentSelectedQuery = if ($latestAutopilotState -and $latestAutopilotState.Intent) { $latestAutopilotState.Intent.SelectedQuery } else { $null }
     LatestIntentNotes = if ($latestAutopilotState -and $latestAutopilotState.Intent -and $latestAutopilotState.Intent.Notes) { (@($latestAutopilotState.Intent.Notes) -join " ") } else { "" }
     LatestAutopilotLearning = if ($latestAutopilotState -and $latestAutopilotState.Learning) { $latestAutopilotState.Learning.Status } else { $null }
+    LatestEyesStatus = if ($latestEyesState) { $latestEyesState.Status } else { $null }
+    LatestEyesFrames = if ($latestEyesState) { $latestEyesState.frames } else { $null }
+    LatestEyesOcrRuns = if ($latestEyesState) { $latestEyesState.ocrRuns } else { $null }
+    LatestEyesUpdatedAt = if ($latestEyesState) { $latestEyesState.updatedAt } else { $null }
+    LatestEyesDecision = if ($latestEyesState -and $latestEyesState.lastDecision) { $latestEyesState.lastDecision.Status } else { $null }
+    LatestEyesChannel = if ($latestEyesState -and $latestEyesState.lastDecision) { $latestEyesState.lastDecision.TargetChannel } else { $null }
+    LatestEyesReport = if ($latestEyesState) { $latestEyesState.report } else { $null }
   }
 }
 
@@ -281,6 +308,10 @@ function Get-AgentDiagnosisText {
 
   if ($Status.LatestIntentNotes) {
     $lines += "Nota: $($Status.LatestIntentNotes)"
+  }
+
+  if ($Status.LatestEyesStatus) {
+    $lines += "Ojo vivo: $($Status.LatestEyesStatus), frames $($Status.LatestEyesFrames), OCR $($Status.LatestEyesOcrRuns), decision $($Status.LatestEyesDecision) $($Status.LatestEyesChannel)."
   }
 
   if (-not $Status.AutopilotRunning) {
@@ -397,9 +428,67 @@ function Stop-Autopilot {
   return Get-AgentStatus
 }
 
+function Start-EyesStream {
+  Ensure-RuntimeDir
+  $existing = Get-EyesProcess
+  if ($existing) {
+    return Get-AgentStatus
+  }
+  if (-not (Test-Path -LiteralPath $EyesStreamScript)) {
+    throw "No encontre eyes-stream.py"
+  }
+
+  $pythonPath = Get-PythonPath
+  $runner = Join-Path $RuntimeDir "eyes-stream-runner.ps1"
+  @(
+    '$ErrorActionPreference = "Continue"',
+    "& '$pythonPath' '$EyesStreamScript' --watch --config-path '$ConfigPath' --interval-ms 750 --change-threshold 9 --ocr-cooldown-seconds 1.5 *>> '$EyesOutLog'"
+  ) | Set-Content -LiteralPath $runner -Encoding UTF8
+
+  $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
+    " -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " +
+    (Quote-CmdArgument $runner)
+
+  $startup = ([WMIClass]"Win32_ProcessStartup").CreateInstance()
+  $startup.ShowWindow = 0
+  $result = ([WMIClass]"Win32_Process").Create($commandLine, $ProjectRoot, $startup)
+  if ($result.ReturnValue -ne 0) {
+    throw "No pude iniciar Ojo vivo. Win32_Process retorno $($result.ReturnValue)."
+  }
+
+  $process = Get-Process -Id $result.ProcessId -ErrorAction Stop
+  Set-Content -LiteralPath $EyesPidFile -Value $process.Id -Encoding ASCII
+  Start-Sleep -Milliseconds 500
+  return Get-AgentStatus
+}
+
+function Stop-EyesStream {
+  Ensure-RuntimeDir
+  $process = Get-EyesProcess
+  if ($process) {
+    Stop-Process -Id $process.Id -Force
+  }
+  if (Test-Path -LiteralPath $EyesPidFile) {
+    Remove-Item -LiteralPath $EyesPidFile -Force
+  }
+  if (Test-Path -LiteralPath $EyesStateFile) {
+    try {
+      $eyesState = Get-Content -LiteralPath $EyesStateFile -Raw | ConvertFrom-Json
+      $eyesState.Status = "stopped"
+      $eyesState.updatedAt = (Get-Date).ToUniversalTime().ToString("o")
+      $eyesState | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $EyesStateFile -Encoding UTF8
+    } catch {
+      # Keep stop best-effort; the process state is more important than report metadata.
+    }
+  }
+  Start-Sleep -Milliseconds 200
+  return Get-AgentStatus
+}
+
 function Stop-AllAgents {
   Stop-AgentWatch | Out-Null
   Stop-Autopilot | Out-Null
+  Stop-EyesStream | Out-Null
   return Get-AgentStatus
 }
 
@@ -552,6 +641,31 @@ function Invoke-VisualDebug {
   if ([int]$process.ExitCode -ne 0) {
     $errorText = if ($stderr) { $stderr } else { $stdout }
     throw "El visual debugger fallo con codigo $($process.ExitCode). $errorText"
+  }
+
+  return Get-AgentStatus
+}
+
+function Invoke-EyesSample {
+  Ensure-RuntimeDir
+  if (-not (Test-Path -LiteralPath $EyesStreamScript)) {
+    throw "No encontre eyes-stream.py"
+  }
+
+  $eyesOut = Join-Path $RuntimeDir ("eyes-sample-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $eyesErr = Join-Path $RuntimeDir ("eyes-sample-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $pythonPath = Get-PythonPath
+  $command = "& '$pythonPath' '$EyesStreamScript' --config-path '$ConfigPath' --duration-seconds 8 --interval-ms 750 --change-threshold 9 --ocr-cooldown-seconds 1.5"
+  $process = Start-HiddenProcess -Arguments @("-Command", $command) -CaptureOutput
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  Set-Content -LiteralPath $eyesOut -Value $stdout -Encoding UTF8
+  Set-Content -LiteralPath $eyesErr -Value $stderr -Encoding UTF8
+
+  if ([int]$process.ExitCode -ne 0) {
+    $errorText = if ($stderr) { $stderr } else { $stdout }
+    throw "La muestra de Ojo vivo fallo con codigo $($process.ExitCode). $errorText"
   }
 
   return Get-AgentStatus
@@ -764,6 +878,15 @@ function Start-AgentGui {
   Set-AgentButtonStyle $buttonLogs
   $form.Controls.Add($buttonLogs)
 
+  $buttonEyes = New-Object System.Windows.Forms.Button
+  $buttonEyes.Text = "Ojo vivo"
+  $buttonEyes.Left = 640
+  $buttonEyes.Top = 410
+  $buttonEyes.Width = 96
+  $buttonEyes.Height = 32
+  Set-AgentButtonStyle $buttonEyes
+  $form.Controls.Add($buttonEyes)
+
   $buttonLocal = New-Object System.Windows.Forms.Button
   $buttonLocal.Text = "Panel local"
   $buttonLocal.Left = 420
@@ -805,6 +928,7 @@ function Start-AgentGui {
       $lines = @(
         "Observador: " + $(if ($status.Running) { "ACTIVO (PID $($status.ProcessId))" } else { "DETENIDO" }),
         "Modo vivo: " + $(if ($status.AutopilotRunning) { "ACTIVO (PID $($status.AutopilotProcessId))" } else { "DETENIDO" }),
+        "Ojo vivo: " + $(if ($status.EyesRunning) { "ACTIVO (PID $($status.EyesProcessId))" } else { "DETENIDO" }),
         "Config: $($status.ConfigMessage)",
         "Nube: $($status.CloudUrl)",
         "Ultima captura: $($status.LatestCapture)",
@@ -812,6 +936,7 @@ function Start-AgentGui {
         "Ultimo modo: $($status.LatestAutopilotMode) motor $($status.LatestAutopilotEngine) ciclo $($status.LatestAutopilotCycle) $($status.LatestAutopilotStatus) | lineas $($status.LatestAutopilotLines) | alerta $($status.LatestAutopilotIntent) | aprendizaje $($status.LatestAutopilotLearning)",
         "Publicacion nube: $($status.LatestBasePublished)",
         "Decision local: $($status.LatestLocalDecision) $($status.LatestLocalSource) $($status.LatestLocalLabel) $($status.LatestLocalChannel)",
+        "Ojos: $($status.LatestEyesStatus) frames $($status.LatestEyesFrames) OCR $($status.LatestEyesOcrRuns) decision $($status.LatestEyesDecision) $($status.LatestEyesChannel)",
         "Logs: $($status.RuntimeDir)"
       )
       if ($status.LatestError) {
@@ -867,6 +992,7 @@ function Start-AgentGui {
   $buttonLearn.Add_Click({ Run-GuiAction { Invoke-LearnChats | Out-Null } -MinimizeBefore })
   $buttonPanel.Add_Click({ Open-AgentPanel })
   $buttonDebug.Add_Click({ Run-GuiAction { Invoke-VisualDebug | Out-Null } })
+  $buttonEyes.Add_Click({ Run-GuiAction { Start-EyesStream | Out-Null } -MinimizeAfterSuccess })
   $buttonLocal.Add_Click({ Open-LocalPanel })
   $buttonLogs.Add_Click({ Open-RuntimeFolder })
 
@@ -896,6 +1022,9 @@ switch ($Action) {
   "StartAutopilot" { Start-Autopilot | ConvertTo-Json -Depth 5 }
   "StopAutopilot" { Stop-Autopilot | ConvertTo-Json -Depth 5 }
   "AutopilotOnce" { Invoke-AutopilotOnce | ConvertTo-Json -Depth 5 }
+  "StartEyes" { Start-EyesStream | ConvertTo-Json -Depth 5 }
+  "StopEyes" { Stop-EyesStream | ConvertTo-Json -Depth 5 }
+  "EyesSample" { Invoke-EyesSample | ConvertTo-Json -Depth 5 }
   "VisualDebug" { Invoke-VisualDebug | ConvertTo-Json -Depth 5 }
   "OpenPanel" { Open-AgentPanel }
   "OpenLocalPanel" { Open-LocalPanel }

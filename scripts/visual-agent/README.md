@@ -44,6 +44,16 @@ python .\scripts\visual-agent\visual-debugger.py --open
 
 Genera `runtime\visual-debugger\latest.html` con capturas por canal, lineas OCR aceptadas/ignoradas y la decision local.
 
+## Ojo vivo
+
+Observador continuo por streaming visual:
+
+```powershell
+python .\scripts\visual-agent\eyes-stream.py --duration-seconds 8
+```
+
+Para dejarlo corriendo desde el launcher usa **Ojo vivo**. El proceso compara cambios por region, ejecuta OCR bajo demanda y escribe `runtime\eyes-stream.state.json` y `runtime\eyes-stream\latest.html`.
+
 ## Ejecutar en observacion continua
 
 ```powershell
