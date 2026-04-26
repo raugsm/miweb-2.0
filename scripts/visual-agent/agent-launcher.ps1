@@ -27,6 +27,49 @@ function Get-PowerShellPath {
   return (Get-Command powershell.exe -ErrorAction Stop).Source
 }
 
+function Quote-ProcessArgument {
+  param([string]$Value)
+  if ($null -eq $Value) {
+    return '""'
+  }
+  return '"' + ([string]$Value).Replace('\', '\\').Replace('"', '\"') + '"'
+}
+
+function Join-ProcessArguments {
+  param([string[]]$Values)
+  return (($Values | ForEach-Object { Quote-ProcessArgument $_ }) -join " ")
+}
+
+function Quote-CmdArgument {
+  param([string]$Value)
+  return '"' + ([string]$Value).Replace('"', '\"') + '"'
+}
+
+function Start-HiddenProcess {
+  param(
+    [string[]]$Arguments,
+    [switch]$CaptureOutput
+  )
+
+  $info = New-Object System.Diagnostics.ProcessStartInfo
+  $info.FileName = Get-PowerShellPath
+  $info.Arguments = Join-ProcessArguments (@("-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden") + $Arguments)
+  $info.WorkingDirectory = $ProjectRoot
+  $info.UseShellExecute = $false
+  $info.CreateNoWindow = $true
+  $info.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+
+  if ($CaptureOutput) {
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+  }
+
+  $process = New-Object System.Diagnostics.Process
+  $process.StartInfo = $info
+  [void]$process.Start()
+  return $process
+}
+
 function Test-AgentConfig {
   if (-not (Test-Path -LiteralPath $ConfigPath)) {
     return [pscustomobject]@{
@@ -121,26 +164,24 @@ function Start-AgentWatch {
     throw "No encontre visual-screen-capture.ps1"
   }
 
-  $psExe = Get-PowerShellPath
-  $arguments = @(
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-File",
-    $CaptureScript,
-    "-Send",
-    "-Watch",
-    "-PollSeconds",
-    [string]$PollSeconds
-  )
+  $watchRunner = Join-Path $RuntimeDir "agent-watch-runner.ps1"
+  @(
+    '$ErrorActionPreference = "Continue"',
+    "& '$CaptureScript' -Send -Watch -PollSeconds $PollSeconds *>> '$StdoutLog'"
+  ) | Set-Content -LiteralPath $watchRunner -Encoding UTF8
 
-  $process = Start-Process -FilePath $psExe `
-    -ArgumentList $arguments `
-    -WorkingDirectory $ProjectRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $StdoutLog `
-    -RedirectStandardError $StderrLog `
-    -PassThru
+  $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
+    " -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " +
+    (Quote-CmdArgument $watchRunner)
+
+  $startup = ([WMIClass]"Win32_ProcessStartup").CreateInstance()
+  $startup.ShowWindow = 0
+  $result = ([WMIClass]"Win32_Process").Create($commandLine, $ProjectRoot, $startup)
+  if ($result.ReturnValue -ne 0) {
+    throw "No pude iniciar el observador. Win32_Process retorno $($result.ReturnValue)."
+  }
+
+  $process = Get-Process -Id $result.ProcessId -ErrorAction Stop
 
   Set-Content -LiteralPath $PidFile -Value $process.Id -Encoding ASCII
   Start-Sleep -Milliseconds 400
@@ -167,20 +208,17 @@ function Invoke-RunOnce {
     throw $configStatus.Message
   }
 
-  $psExe = Get-PowerShellPath
   $onceOut = Join-Path $RuntimeDir ("run-once-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
   $onceErr = Join-Path $RuntimeDir ("run-once-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
-  $process = Start-Process -FilePath $psExe `
-    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $CaptureScript, "-Send") `
-    -WorkingDirectory $ProjectRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $onceOut `
-    -RedirectStandardError $onceErr `
-    -PassThru
+  $process = Start-HiddenProcess -Arguments @("-File", $CaptureScript, "-Send") -CaptureOutput
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
   $process.WaitForExit()
+  Set-Content -LiteralPath $onceOut -Value $stdout -Encoding UTF8
+  Set-Content -LiteralPath $onceErr -Value $stderr -Encoding UTF8
 
-  if ($process.ExitCode -ne 0) {
-    $errorText = if (Test-Path -LiteralPath $onceErr) { Get-Content -LiteralPath $onceErr -Raw } else { "" }
+  if ([int]$process.ExitCode -ne 0) {
+    $errorText = if ($stderr) { $stderr } else { $stdout }
     throw "La lectura una vez fallo con codigo $($process.ExitCode). $errorText"
   }
 
