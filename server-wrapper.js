@@ -62,7 +62,9 @@ function getAgentToken(req) {
 }
 
 function isAgentTokenAllowed(req) {
-  const expectedToken = String(process.env.OPERATIVA_AGENT_TOKEN || "").trim();
+  const expectedToken = String(
+    process.env.OPERATIVA_AGENT_KEY || process.env.OPERATIVA_AGENT_TOKEN || ""
+  ).trim();
   return Boolean(expectedToken && safeTokenEquals(getAgentToken(req), expectedToken));
 }
 
