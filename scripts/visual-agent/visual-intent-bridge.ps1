@@ -16,7 +16,7 @@ param(
   [string]$Query = "",
   [int]$MaxResults = 8,
   [int]$MaxQueries = 8,
-  [int]$WaitSeconds = 2,
+  [double]$WaitSeconds = 0.8,
   [int]$MaxLinesPerChannel = 30,
   [switch]$Execute,
   [switch]$CaptureAfterOpen,

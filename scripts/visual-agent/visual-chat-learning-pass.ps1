@@ -4,7 +4,7 @@ param(
   [string[]]$Channels = @("wa-1", "wa-2", "wa-3"),
   [int]$MaxChatsPerChannel = 2,
   [int]$MaxLinesPerChat = 40,
-  [int]$WaitSeconds = 2,
+  [double]$WaitSeconds = 0.8,
   [switch]$Execute,
   [switch]$Send
 )

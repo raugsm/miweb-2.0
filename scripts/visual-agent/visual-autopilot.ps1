@@ -1,12 +1,16 @@
 param(
   [string]$ConfigPath = "",
   [switch]$Watch,
-  [int]$PollSeconds = 120,
+  [int]$PollSeconds = 30,
   [int]$MaxCycles = 1,
-  [int]$LearningEveryCycles = 2,
+  [int]$LearningEveryCycles = 6,
   [int]$MaxChatsPerChannel = 1,
-  [int]$MaxLinesPerChat = 40,
-  [int]$MaxLinesPerCapture = 30,
+  [int]$MaxLinesPerChat = 25,
+  [int]$MaxLinesPerCapture = 20,
+  [int]$IntentMaxQueries = 3,
+  [double]$IntentWaitSeconds = 0.8,
+  [double]$LearningWaitSeconds = 0.8,
+  [switch]$LearnOnFirstCycle,
   [switch]$Execute,
   [switch]$Send,
   [switch]$OpenWhatsApp,
@@ -100,6 +104,8 @@ function Invoke-IntentStep {
   $params = @{
     ConfigPath = $ConfigPath
     MaxLinesPerChannel = $MaxLinesPerCapture
+    MaxQueries = $IntentMaxQueries
+    WaitSeconds = $IntentWaitSeconds
   }
   if ($Execute) {
     $params.Execute = $true
@@ -117,6 +123,7 @@ function Invoke-LearningStep {
     ConfigPath = $ConfigPath
     MaxChatsPerChannel = $MaxChatsPerChannel
     MaxLinesPerChat = $MaxLinesPerChat
+    WaitSeconds = $LearningWaitSeconds
   }
   if ($Execute) {
     $params.Execute = $true
@@ -144,17 +151,57 @@ function Get-LaunchTargets {
 
   if (-not $targets.Count) {
     $targets = @(
-      [pscustomobject]@{ Name = "WhatsApp"; Command = "whatsapp:" },
-      [pscustomobject]@{ Name = "WhatsApp Web"; Command = "https://web.whatsapp.com" }
+      [pscustomobject]@{ Name = "WhatsApp"; Command = "whatsapp:" }
     )
   }
 
   return $targets
 }
 
+function Get-WhatsAppWindows {
+  $windows = @(Get-Process -ErrorAction SilentlyContinue |
+      Where-Object {
+        $_.MainWindowHandle -ne [IntPtr]::Zero -and
+        $_.MainWindowTitle -match "WhatsApp"
+      } |
+      ForEach-Object {
+        $priority = switch -Regex ($_.ProcessName) {
+          "^WhatsApp" { 0; break }
+          "^msedgewebview2$" { 1; break }
+          "^chrome$|^msedge$" { 2; break }
+          default { 3 }
+        }
+        [pscustomobject]@{
+          Process = $_
+          ProcessName = $_.ProcessName
+          ProcessId = $_.Id
+          Title = $_.MainWindowTitle
+          Handle = $_.MainWindowHandle
+          Priority = $priority
+        }
+      } |
+      Sort-Object Priority, ProcessName, ProcessId)
+
+  return $windows
+}
+
 function Open-WhatsAppTargets {
   param($Config)
   $opened = @()
+  $existingWindows = @(Get-WhatsAppWindows)
+  if ($existingWindows.Count) {
+    return @(
+      [pscustomobject]@{
+        Name = "WhatsApp visible"
+        Command = "skip"
+        Opened = $false
+        Error = $null
+        Skipped = $true
+        Reason = "Ya hay $($existingWindows.Count) ventana(s) visible(s) de WhatsApp."
+      }
+    )
+  }
+
   foreach ($target in @(Get-LaunchTargets $Config)) {
     try {
       Start-Process $target.Command
@@ -178,22 +225,17 @@ function Open-WhatsAppTargets {
 
 function Arrange-WhatsAppWindows {
   $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-  $windows = @(Get-Process -ErrorAction SilentlyContinue |
-      Where-Object {
-        $_.MainWindowHandle -ne [IntPtr]::Zero -and
-        $_.MainWindowTitle -match "WhatsApp"
-      } |
-      Sort-Object ProcessName, Id |
-      Select-Object -First 3)
+  $windows = @(Get-WhatsAppWindows | Select-Object -First 3)
 
   $arranged = @()
-  if (-not $windows.Count) {
+  if ($windows.Count -lt 3) {
     return $arranged
   }
 
   $regionWidth = [Math]::Floor($screen.Width / 3)
   for ($i = 0; $i -lt $windows.Count; $i++) {
-    $process = $windows[$i]
+    $window = $windows[$i]
+    $process = $window.Process
     $left = $screen.Left + ($regionWidth * $i)
     $width = if ($i -eq 2) { $screen.Right - $left } else { $regionWidth }
     [void][VisualAutopilotWindow]::ShowWindow($process.MainWindowHandle, 9)
@@ -221,7 +263,9 @@ function Invoke-AutopilotCycle {
   if ($CycleNumber -eq 1 -and $OpenWhatsApp) {
     Write-AutopilotLine "Abriendo destinos de WhatsApp configurados."
     $openedTargets = @(Open-WhatsAppTargets $Config)
-    Start-Sleep -Seconds 4
+    if (@($openedTargets | Where-Object { $_.Opened }).Count) {
+      Start-Sleep -Seconds 4
+    }
   }
 
   if ($ArrangeWindows) {
@@ -245,7 +289,7 @@ function Invoke-AutopilotCycle {
   }
 
   $learning = $null
-  if ($CycleNumber -eq 1 -or ($LearningEveryCycles -gt 0 -and (($CycleNumber % $LearningEveryCycles) -eq 0))) {
+  if (($LearnOnFirstCycle -and $CycleNumber -eq 1) -or ($LearningEveryCycles -gt 0 -and (($CycleNumber % $LearningEveryCycles) -eq 0))) {
     Write-AutopilotLine "Ciclo ${CycleNumber}: aprendizaje de chats visibles."
     try {
       $learning = Invoke-LearningStep

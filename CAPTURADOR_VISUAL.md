@@ -37,7 +37,9 @@ El autopiloto coordina las piezas locales en ciclos:
 scripts\visual-agent\visual-autopilot.ps1
 ```
 
-En cada ciclo intenta abrir/acomodar WhatsApp, captura pantalla, atiende alertas clasificadas y aprende chats visibles. No escribe mensajes al cliente.
+En cada ciclo respeta los WhatsApp que ya dejaste alineados, captura pantalla, atiende alertas clasificadas y hace aprendizaje profundo solo cada ciertos ciclos. No escribe mensajes al cliente.
+
+El boton **Autopiloto** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
 Preview seguro:
 
@@ -48,7 +50,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot
 Ciclo real:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send -OpenWhatsApp -ArrangeWindows
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send
 ```
 
 El launcher tiene el boton **Autopiloto** para dejarlo corriendo en segundo plano. **Detener** lo apaga.

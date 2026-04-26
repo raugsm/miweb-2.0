@@ -10,10 +10,6 @@
       {
         "name": "WhatsApp",
         "command": "whatsapp:"
-      },
-      {
-        "name": "WhatsApp Web",
-        "command": "https://web.whatsapp.com"
       }
     ]
   },

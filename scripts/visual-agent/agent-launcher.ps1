@@ -1,7 +1,7 @@
 param(
   [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
-  [int]$PollSeconds = 60,
+  [int]$PollSeconds = 30,
   [switch]$StartMinimized
 )
 
@@ -245,7 +245,7 @@ function Start-Autopilot {
   $runner = Join-Path $RuntimeDir "agent-autopilot-runner.ps1"
   @(
     '$ErrorActionPreference = "Continue"',
-    "& '$AutopilotScript' -Watch -MaxCycles 0 -PollSeconds $PollSeconds -Execute -Send -OpenWhatsApp -ArrangeWindows *>> '$AutopilotOutLog'"
+    "& '$AutopilotScript' -Watch -MaxCycles 0 -PollSeconds $PollSeconds -Execute -Send -LearningEveryCycles 6 -IntentMaxQueries 3 -MaxLinesPerCapture 20 -MaxLinesPerChat 25 *>> '$AutopilotOutLog'"
   ) | Set-Content -LiteralPath $runner -Encoding UTF8
 
   $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
@@ -396,7 +396,7 @@ function Invoke-AutopilotOnce {
 
   $autoOut = Join-Path $RuntimeDir ("autopilot-once-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
   $autoErr = Join-Path $RuntimeDir ("autopilot-once-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
-  $process = Start-HiddenProcess -Arguments @("-File", $AutopilotScript, "-MaxCycles", "1", "-Execute", "-Send", "-OpenWhatsApp", "-ArrangeWindows") -CaptureOutput
+  $process = Start-HiddenProcess -Arguments @("-File", $AutopilotScript, "-MaxCycles", "1", "-Execute", "-Send", "-LearningEveryCycles", "6", "-IntentMaxQueries", "3", "-MaxLinesPerCapture", "20", "-MaxLinesPerChat", "25") -CaptureOutput
   $stdout = $process.StandardOutput.ReadToEnd()
   $stderr = $process.StandardError.ReadToEnd()
   $process.WaitForExit()

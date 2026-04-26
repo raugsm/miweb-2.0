@@ -66,14 +66,15 @@ scripts\visual-agent\visual-autopilot.ps1
 
 El flujo del autopiloto es:
 
-1. intenta abrir los destinos de WhatsApp configurados;
-2. acomoda ventanas visibles cuyo titulo contiene `WhatsApp`;
-3. captura pantalla y sube eventos a `ariadgsm.com`;
-4. revisa la cabina para atender alertas de pago/deuda/precio;
-5. hace una pasada de aprendizaje abriendo chats visibles;
-6. repite el ciclo cada cierto tiempo.
+1. respeta los 3 WhatsApp que ya dejaste alineados;
+2. captura pantalla y sube eventos a `ariadgsm.com`;
+3. revisa la cabina para atender alertas de pago/deuda/precio;
+4. hace aprendizaje profundo solo cada ciertos ciclos;
+5. repite el ciclo cada 30 segundos por defecto.
 
 Por seguridad, el nivel actual sigue siendo de lectura. El autopiloto puede mover el mouse y abrir chats, pero no escribe ni envia mensajes.
+
+Por defecto, el boton **Autopiloto** ya no abre una pestana nueva de Chrome ni reacomoda ventanas. Las opciones `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
 Para una prueba sin mover mouse ni enviar datos:
 
@@ -84,7 +85,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot
 Para correr un ciclo real manual:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send -OpenWhatsApp -ArrangeWindows
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send
 ```
 
 El boton **Detener** apaga tanto el observador como el autopiloto.
