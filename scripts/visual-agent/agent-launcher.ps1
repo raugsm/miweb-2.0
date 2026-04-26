@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
+  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
   [int]$PollSeconds = 60,
   [switch]$StartMinimized
@@ -12,11 +12,15 @@ $ProjectRoot = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
 $CaptureScript = Join-Path $ScriptDir "visual-screen-capture.ps1"
 $IntentBridgeScript = Join-Path $ScriptDir "visual-intent-bridge.ps1"
 $LearningPassScript = Join-Path $ScriptDir "visual-chat-learning-pass.ps1"
+$AutopilotScript = Join-Path $ScriptDir "visual-autopilot.ps1"
 $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
 $PidFile = Join-Path $RuntimeDir "agent-watch.pid"
 $StdoutLog = Join-Path $RuntimeDir "agent-watch.out.log"
 $StderrLog = Join-Path $RuntimeDir "agent-watch.err.log"
+$AutopilotPidFile = Join-Path $RuntimeDir "agent-autopilot.pid"
+$AutopilotOutLog = Join-Path $RuntimeDir "agent-autopilot.out.log"
+$AutopilotErrLog = Join-Path $RuntimeDir "agent-autopilot.err.log"
 
 function Ensure-RuntimeDir {
   New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
@@ -98,11 +102,20 @@ function Test-AgentConfig {
 }
 
 function Get-AgentProcess {
-  if (-not (Test-Path -LiteralPath $PidFile)) {
+  return Get-ProcessFromPidFile $PidFile
+}
+
+function Get-AutopilotProcess {
+  return Get-ProcessFromPidFile $AutopilotPidFile
+}
+
+function Get-ProcessFromPidFile {
+  param([string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) {
     return $null
   }
 
-  $pidText = (Get-Content -LiteralPath $PidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+  $pidText = (Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue | Select-Object -First 1)
   $agentPid = 0
   if (-not [int]::TryParse([string]$pidText, [ref]$agentPid)) {
     return $null
@@ -129,6 +142,7 @@ function Get-AgentStatus {
   Ensure-RuntimeDir
   $configStatus = Test-AgentConfig
   $process = Get-AgentProcess
+  $autopilotProcess = Get-AutopilotProcess
   $latestCapture = Get-LatestFile (Join-Path $ScriptDir "captures") "screen-events-*.json"
   $latestProcessed = Get-LatestFile (Join-Path $ScriptDir "cloud-processed") "*screen-events-*.json"
   $latestError = if (Test-Path -LiteralPath $StderrLog) {
@@ -136,10 +150,17 @@ function Get-AgentStatus {
   } else {
     ""
   }
+  $latestAutopilotError = if (Test-Path -LiteralPath $AutopilotErrLog) {
+    (Get-Content -LiteralPath $AutopilotErrLog -Tail 4 -ErrorAction SilentlyContinue) -join "`n"
+  } else {
+    ""
+  }
 
   return [pscustomobject]@{
     Running = [bool]$process
     ProcessId = if ($process) { $process.Id } else { $null }
+    AutopilotRunning = [bool]$autopilotProcess
+    AutopilotProcessId = if ($autopilotProcess) { $autopilotProcess.Id } else { $null }
     Configured = $configStatus.Configured
     ConfigMessage = $configStatus.Message
     CloudUrl = $configStatus.CloudUrl
@@ -148,6 +169,7 @@ function Get-AgentStatus {
     LatestCapture = if ($latestCapture) { $latestCapture.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
     LatestProcessed = if ($latestProcessed) { $latestProcessed.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
     LatestError = $latestError
+    LatestAutopilotError = $latestAutopilotError
   }
 }
 
@@ -201,6 +223,64 @@ function Stop-AgentWatch {
     Remove-Item -LiteralPath $PidFile -Force
   }
   Start-Sleep -Milliseconds 200
+  return Get-AgentStatus
+}
+
+function Start-Autopilot {
+  Ensure-RuntimeDir
+  $existing = Get-AutopilotProcess
+  if ($existing) {
+    return Get-AgentStatus
+  }
+
+  $configStatus = Test-AgentConfig
+  if (-not $configStatus.Configured) {
+    throw $configStatus.Message
+  }
+
+  if (-not (Test-Path -LiteralPath $AutopilotScript)) {
+    throw "No encontre visual-autopilot.ps1"
+  }
+
+  $runner = Join-Path $RuntimeDir "agent-autopilot-runner.ps1"
+  @(
+    '$ErrorActionPreference = "Continue"',
+    "& '$AutopilotScript' -Watch -MaxCycles 0 -PollSeconds $PollSeconds -Execute -Send -OpenWhatsApp -ArrangeWindows *>> '$AutopilotOutLog'"
+  ) | Set-Content -LiteralPath $runner -Encoding UTF8
+
+  $commandLine = (Quote-CmdArgument (Get-PowerShellPath)) +
+    " -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " +
+    (Quote-CmdArgument $runner)
+
+  $startup = ([WMIClass]"Win32_ProcessStartup").CreateInstance()
+  $startup.ShowWindow = 0
+  $result = ([WMIClass]"Win32_Process").Create($commandLine, $ProjectRoot, $startup)
+  if ($result.ReturnValue -ne 0) {
+    throw "No pude iniciar el autopiloto. Win32_Process retorno $($result.ReturnValue)."
+  }
+
+  $process = Get-Process -Id $result.ProcessId -ErrorAction Stop
+  Set-Content -LiteralPath $AutopilotPidFile -Value $process.Id -Encoding ASCII
+  Start-Sleep -Milliseconds 400
+  return Get-AgentStatus
+}
+
+function Stop-Autopilot {
+  Ensure-RuntimeDir
+  $process = Get-AutopilotProcess
+  if ($process) {
+    Stop-Process -Id $process.Id -Force
+  }
+  if (Test-Path -LiteralPath $AutopilotPidFile) {
+    Remove-Item -LiteralPath $AutopilotPidFile -Force
+  }
+  Start-Sleep -Milliseconds 200
+  return Get-AgentStatus
+}
+
+function Stop-AllAgents {
+  Stop-AgentWatch | Out-Null
+  Stop-Autopilot | Out-Null
   return Get-AgentStatus
 }
 
@@ -304,6 +384,33 @@ function Invoke-LearnChats {
   return Get-AgentStatus
 }
 
+function Invoke-AutopilotOnce {
+  Ensure-RuntimeDir
+  $configStatus = Test-AgentConfig
+  if (-not $configStatus.Configured) {
+    throw $configStatus.Message
+  }
+  if (-not (Test-Path -LiteralPath $AutopilotScript)) {
+    throw "No encontre visual-autopilot.ps1"
+  }
+
+  $autoOut = Join-Path $RuntimeDir ("autopilot-once-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $autoErr = Join-Path $RuntimeDir ("autopilot-once-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $process = Start-HiddenProcess -Arguments @("-File", $AutopilotScript, "-MaxCycles", "1", "-Execute", "-Send", "-OpenWhatsApp", "-ArrangeWindows") -CaptureOutput
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  Set-Content -LiteralPath $autoOut -Value $stdout -Encoding UTF8
+  Set-Content -LiteralPath $autoErr -Value $stderr -Encoding UTF8
+
+  if ([int]$process.ExitCode -ne 0) {
+    $errorText = if ($stderr) { $stderr } else { $stdout }
+    throw "El autopiloto fallo con codigo $($process.ExitCode). $errorText"
+  }
+
+  return Get-AgentStatus
+}
+
 function Open-AgentPanel {
   Start-Process "https://ariadgsm.com/operativa-v2.html"
 }
@@ -330,9 +437,9 @@ function Start-AgentGui {
   $form = New-Object System.Windows.Forms.Form
   $form.Text = "AriadGSM Agent Desktop"
   $form.StartPosition = "CenterScreen"
-  $form.Width = 560
-  $form.Height = 430
-  $form.MinimumSize = New-Object System.Drawing.Size(520, 390)
+  $form.Width = 700
+  $form.Height = 470
+  $form.MinimumSize = New-Object System.Drawing.Size(660, 430)
 
   $title = New-Object System.Windows.Forms.Label
   $title.Text = "AriadGSM Agent Desktop"
@@ -353,7 +460,7 @@ function Start-AgentGui {
   $statusBox = New-Object System.Windows.Forms.TextBox
   $statusBox.Left = 24
   $statusBox.Top = 88
-  $statusBox.Width = 500
+  $statusBox.Width = 640
   $statusBox.Height = 165
   $statusBox.Multiline = $true
   $statusBox.ReadOnly = $true
@@ -362,16 +469,24 @@ function Start-AgentGui {
   $form.Controls.Add($statusBox)
 
   $buttonStart = New-Object System.Windows.Forms.Button
-  $buttonStart.Text = "Iniciar observador"
+  $buttonStart.Text = "Observador"
   $buttonStart.Left = 24
   $buttonStart.Top = 270
-  $buttonStart.Width = 150
+  $buttonStart.Width = 120
   $buttonStart.Height = 34
   $form.Controls.Add($buttonStart)
 
+  $buttonAutopilot = New-Object System.Windows.Forms.Button
+  $buttonAutopilot.Text = "Autopiloto"
+  $buttonAutopilot.Left = 156
+  $buttonAutopilot.Top = 270
+  $buttonAutopilot.Width = 120
+  $buttonAutopilot.Height = 34
+  $form.Controls.Add($buttonAutopilot)
+
   $buttonStop = New-Object System.Windows.Forms.Button
   $buttonStop.Text = "Detener"
-  $buttonStop.Left = 186
+  $buttonStop.Left = 288
   $buttonStop.Top = 270
   $buttonStop.Width = 92
   $buttonStop.Height = 34
@@ -379,7 +494,7 @@ function Start-AgentGui {
 
   $buttonOnce = New-Object System.Windows.Forms.Button
   $buttonOnce.Text = "Leer una vez"
-  $buttonOnce.Left = 290
+  $buttonOnce.Left = 392
   $buttonOnce.Top = 270
   $buttonOnce.Width = 112
   $buttonOnce.Height = 34
@@ -387,7 +502,7 @@ function Start-AgentGui {
 
   $buttonPanel = New-Object System.Windows.Forms.Button
   $buttonPanel.Text = "Abrir cabina"
-  $buttonPanel.Left = 414
+  $buttonPanel.Left = 516
   $buttonPanel.Top = 270
   $buttonPanel.Width = 110
   $buttonPanel.Height = 34
@@ -395,7 +510,7 @@ function Start-AgentGui {
 
   $buttonLogs = New-Object System.Windows.Forms.Button
   $buttonLogs.Text = "Logs"
-  $buttonLogs.Left = 24
+  $buttonLogs.Left = 432
   $buttonLogs.Top = 318
   $buttonLogs.Width = 80
   $buttonLogs.Height = 32
@@ -403,7 +518,7 @@ function Start-AgentGui {
 
   $buttonLocal = New-Object System.Windows.Forms.Button
   $buttonLocal.Text = "Panel local"
-  $buttonLocal.Left = 116
+  $buttonLocal.Left = 296
   $buttonLocal.Top = 318
   $buttonLocal.Width = 100
   $buttonLocal.Height = 32
@@ -411,7 +526,7 @@ function Start-AgentGui {
 
   $buttonIntent = New-Object System.Windows.Forms.Button
   $buttonIntent.Text = "Atender alerta"
-  $buttonIntent.Left = 228
+  $buttonIntent.Left = 160
   $buttonIntent.Top = 318
   $buttonIntent.Width = 124
   $buttonIntent.Height = 32
@@ -419,7 +534,7 @@ function Start-AgentGui {
 
   $buttonLearn = New-Object System.Windows.Forms.Button
   $buttonLearn.Text = "Aprender chats"
-  $buttonLearn.Left = 364
+  $buttonLearn.Left = 24
   $buttonLearn.Top = 318
   $buttonLearn.Width = 124
   $buttonLearn.Height = 32
@@ -429,14 +544,15 @@ function Start-AgentGui {
   $hint.Text = "Nivel actual: observa y abre lecturas. No escribe ni envia mensajes al cliente."
   $hint.AutoSize = $true
   $hint.Left = 24
-  $hint.Top = 362
+  $hint.Top = 370
   $form.Controls.Add($hint)
 
   function Refresh-Ui {
     try {
       $status = Get-AgentStatus
       $lines = @(
-        "Estado: " + $(if ($status.Running) { "ACTIVO (PID $($status.ProcessId))" } else { "DETENIDO" }),
+        "Observador: " + $(if ($status.Running) { "ACTIVO (PID $($status.ProcessId))" } else { "DETENIDO" }),
+        "Autopiloto: " + $(if ($status.AutopilotRunning) { "ACTIVO (PID $($status.AutopilotProcessId))" } else { "DETENIDO" }),
         "Config: $($status.ConfigMessage)",
         "Nube: $($status.CloudUrl)",
         "Ultima captura: $($status.LatestCapture)",
@@ -445,8 +561,13 @@ function Start-AgentGui {
       )
       if ($status.LatestError) {
         $lines += ""
-        $lines += "Ultimo error:"
+        $lines += "Ultimo error observador:"
         $lines += $status.LatestError
+      }
+      if ($status.LatestAutopilotError) {
+        $lines += ""
+        $lines += "Ultimo error autopiloto:"
+        $lines += $status.LatestAutopilotError
       }
       $statusBox.Text = ($lines -join "`r`n")
     } catch {
@@ -482,7 +603,8 @@ function Start-AgentGui {
   }
 
   $buttonStart.Add_Click({ Run-GuiAction { Start-AgentWatch | Out-Null } -MinimizeAfterSuccess })
-  $buttonStop.Add_Click({ Run-GuiAction { Stop-AgentWatch | Out-Null } })
+  $buttonAutopilot.Add_Click({ Run-GuiAction { Start-Autopilot | Out-Null } -MinimizeAfterSuccess })
+  $buttonStop.Add_Click({ Run-GuiAction { Stop-AllAgents | Out-Null } })
   $buttonOnce.Add_Click({ Run-GuiAction { Invoke-RunOnce | Out-Null } })
   $buttonIntent.Add_Click({ Run-GuiAction { Invoke-HandleIntent | Out-Null } -MinimizeBefore })
   $buttonLearn.Add_Click({ Run-GuiAction { Invoke-LearnChats | Out-Null } -MinimizeBefore })
@@ -509,10 +631,13 @@ switch ($Action) {
   "Gui" { Start-AgentGui }
   "Status" { Write-StatusJson }
   "Start" { Start-AgentWatch | ConvertTo-Json -Depth 5 }
-  "Stop" { Stop-AgentWatch | ConvertTo-Json -Depth 5 }
+  "Stop" { Stop-AllAgents | ConvertTo-Json -Depth 5 }
   "RunOnce" { Invoke-RunOnce | ConvertTo-Json -Depth 5 }
   "HandleIntent" { Invoke-HandleIntent | ConvertTo-Json -Depth 5 }
   "LearnChats" { Invoke-LearnChats | ConvertTo-Json -Depth 5 }
+  "StartAutopilot" { Start-Autopilot | ConvertTo-Json -Depth 5 }
+  "StopAutopilot" { Stop-Autopilot | ConvertTo-Json -Depth 5 }
+  "AutopilotOnce" { Invoke-AutopilotOnce | ConvertTo-Json -Depth 5 }
   "OpenPanel" { Open-AgentPanel }
   "OpenLocalPanel" { Open-LocalPanel }
   "OpenRuntime" { Open-RuntimeFolder }

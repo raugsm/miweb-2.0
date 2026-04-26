@@ -12,6 +12,7 @@ AriadGSM-Agent.cmd
 
 El launcher permite:
 
+- iniciar el modo autopiloto;
 - iniciar el observador continuo;
 - detenerlo;
 - hacer una lectura una vez;
@@ -51,8 +52,42 @@ Nivel actual del agente:
 4. Puede calcular/coordenar clics con permiso explicito.
 5. Puede tomar una alerta de pago/deuda/precio, buscar el chat visible, abrirlo y volver a capturar.
 6. Puede recorrer chats visibles para aprender clientes, servicios y contexto contable.
+7. Puede correr en modo autopiloto, coordinando captura, alertas y aprendizaje en ciclos.
 
 Todavia no escribe mensajes ni envia respuestas a clientes.
+
+## Modo Autopiloto
+
+El boton **Autopiloto** inicia un proceso local oculto:
+
+```text
+scripts\visual-agent\visual-autopilot.ps1
+```
+
+El flujo del autopiloto es:
+
+1. intenta abrir los destinos de WhatsApp configurados;
+2. acomoda ventanas visibles cuyo titulo contiene `WhatsApp`;
+3. captura pantalla y sube eventos a `ariadgsm.com`;
+4. revisa la cabina para atender alertas de pago/deuda/precio;
+5. hace una pasada de aprendizaje abriendo chats visibles;
+6. repite el ciclo cada cierto tiempo.
+
+Por seguridad, el nivel actual sigue siendo de lectura. El autopiloto puede mover el mouse y abrir chats, pero no escribe ni envia mensajes.
+
+Para una prueba sin mover mouse ni enviar datos:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1
+```
+
+Para correr un ciclo real manual:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send -OpenWhatsApp -ArrangeWindows
+```
+
+El boton **Detener** apaga tanto el observador como el autopiloto.
 
 ## Mouse y lectura de conversaciones
 

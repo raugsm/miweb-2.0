@@ -5,6 +5,18 @@
   "processedDir": "./processed",
   "failedDir": "./failed",
   "pollSeconds": 5,
+  "autopilot": {
+    "launchTargets": [
+      {
+        "name": "WhatsApp",
+        "command": "whatsapp:"
+      },
+      {
+        "name": "WhatsApp Web",
+        "command": "https://web.whatsapp.com"
+      }
+    ]
+  },
   "channels": [
     {
       "id": "wa-1",

@@ -29,6 +29,30 @@ Para instalar accesos directos en Windows:
 powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\install-agent-launcher.ps1
 ```
 
+## Modo autopiloto
+
+El autopiloto coordina las piezas locales en ciclos:
+
+```text
+scripts\visual-agent\visual-autopilot.ps1
+```
+
+En cada ciclo intenta abrir/acomodar WhatsApp, captura pantalla, atiende alertas clasificadas y aprende chats visibles. No escribe mensajes al cliente.
+
+Preview seguro:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1
+```
+
+Ciclo real:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-autopilot.ps1 -Execute -Send -OpenWhatsApp -ArrangeWindows
+```
+
+El launcher tiene el boton **Autopiloto** para dejarlo corriendo en segundo plano. **Detener** lo apaga.
+
 ## Control visual con puntero
 
 El control del mouse existe en modo seguro y no hace clics a menos que se use `-Execute`:
