@@ -14,6 +14,7 @@ desktop-agent/
   cognitive-core/        Python reasoning, learning and customer patterns
   operating-core/        Python business cases, tasks and priorities
   hands-engine/          C#/.NET mouse, keyboard, focus, scroll and verification layer
+  supervisor-core/       Python autonomy gate, confirmations, risk and audit state
   windows-app/           Future C#/.NET desktop UI and tray app
   windows-service/       Future C#/.NET background service
   local-api/             Future named-pipe or localhost contract bus
@@ -63,10 +64,11 @@ desktop-agent\runtime\agent-memory.sqlite
 python -m ariadgsm_agent.cognitive --json
 python -m ariadgsm_agent.operating --json
 python -m ariadgsm_agent.memory --json
+python -m ariadgsm_agent.supervisor --json
 dotnet run --project .\desktop-agent\hands-engine\src\AriadGSM.Hands.Cli -- sample .\desktop-agent\hands-engine\config\hands.example.json
 ```
 
-The Cognitive Core reads `conversation-events.jsonl`, writes auditable decisions, emits learning events and updates local customer profiles. The Memory Core persists conversations, messages, signals, decisions, learning and accounting evidence into durable SQLite memory. The Hands Engine consumes decisions plus Perception evidence and emits audited action plans or verified local actions.
+The Cognitive Core reads `conversation-events.jsonl`, writes auditable decisions, emits learning events and updates local customer profiles. The Memory Core persists conversations, messages, signals, decisions, learning and accounting evidence into durable SQLite memory. The Hands Engine consumes decisions plus Perception evidence and emits audited action plans or verified local actions. The Supervisor Core reviews those decisions/actions and explains what is allowed, blocked or waiting for confirmation.
 
 ## Safety Contract
 

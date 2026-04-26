@@ -27,19 +27,12 @@ public sealed class DecisionEvent
 
     public IReadOnlyList<string> Evidence { get; init; } = [];
 
+    public string? ConversationId { get; init; }
+
+    public string? ChannelId { get; init; }
+
+    public string? ConversationTitle { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement> Extra { get; init; } = [];
-
-    public string? ConversationId => TryExtraString("conversationId");
-
-    public string? ChannelId => TryExtraString("channelId");
-
-    public string? ConversationTitle => TryExtraString("conversationTitle");
-
-    private string? TryExtraString(string key)
-    {
-        return Extra.TryGetValue(key, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
-    }
 }

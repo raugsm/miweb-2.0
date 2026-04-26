@@ -63,6 +63,7 @@ dotnet run --project src/AriadGSM.Hands.Cli -- watch config/hands.example.json 5
 
 - reads Cognitive and Operating `decision_event` files;
 - reads latest Perception context to verify visible WhatsApp channels;
+- consumes Perception `chat_row` coordinates for exact `open_chat` targeting;
 - plans focus, open-chat, scroll-history, capture-conversation, accounting, text and send actions;
 - infers `wa-1`, `wa-2`, `wa-3` from decision targets or message evidence;
 - blocks unsafe actions by autonomy level and explicit send/text flags;

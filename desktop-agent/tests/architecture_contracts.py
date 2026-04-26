@@ -13,7 +13,7 @@ from ariadgsm_agent.contracts import sample_event, validate_contract
 from ariadgsm_agent.cognitive import CognitiveCore, CognitiveStore, decision_event_from_conversation, run_cognitive_once
 from ariadgsm_agent.memory import MemoryStore, run_memory_once
 from ariadgsm_agent.operating import OperatingCore, OperatingStore, run_operating_once
-from ariadgsm_agent.supervisor import SupervisorPolicy
+from ariadgsm_agent.supervisor import SupervisorCore, SupervisorPolicy, run_supervisor_once
 from ariadgsm_agent.timeline import ConversationTimeline
 
 
@@ -79,6 +79,11 @@ def main() -> int:
     assert not ignored_update.tasks
     assert ignored_update.decision_event is None
 
+    supervisor = SupervisorCore(SupervisorPolicy(autonomy_level=3))
+    supervisor_state = supervisor.assess([decision], [])
+    assert supervisor_state["engine"] == "ariadgsm_supervisor_core"
+    assert supervisor_state["summary"]["decisionsRead"] == 1
+
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
         conversation_file = root / "conversation-events.jsonl"
@@ -89,6 +94,8 @@ def main() -> int:
         state_file = root / "operating-state.json"
         cognitive_state_file = root / "cognitive-state.json"
         memory_state_file = root / "memory-state.json"
+        supervisor_state_file = root / "supervisor-state.json"
+        action_file = root / "action-events.jsonl"
         db_file = root / "operating.sqlite"
         cognitive_db_file = root / "cognitive.sqlite"
         memory_db_file = root / "memory.sqlite"
@@ -221,6 +228,37 @@ def main() -> int:
             assert "samsung" in profile["services"]
         finally:
             memory_store.close()
+
+        action_file.write_text(
+            json.dumps(
+                {
+                    "eventType": "action_event",
+                    "actionId": "action-supervisor-test",
+                    "createdAt": "2026-04-26T00:00:00Z",
+                    "actionType": "open_chat",
+                    "target": {
+                        "channelId": "wa-1",
+                        "requiredAutonomyLevel": 3,
+                        "requiresHumanConfirmation": False,
+                    },
+                    "status": "planned",
+                    "verification": {"verified": False, "confidence": 0.4},
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        supervisor_run = run_supervisor_once(
+            cognitive_decision_file,
+            decision_file,
+            action_file,
+            supervisor_state_file,
+            autonomy_level=3,
+        )
+        assert supervisor_run["status"] in {"ok", "attention"}
+        assert supervisor_run["summary"]["actionsRead"] == 1
+        assert supervisor_state_file.exists()
     print("architecture contracts OK")
     return 0
 

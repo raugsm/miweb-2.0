@@ -38,16 +38,12 @@ public sealed class PerceptionContextReader
 
                 var rootChannelId = TryGetString(root, "channelId");
                 var items = new List<VisibleConversation>();
+                var chatRows = new List<VisibleChatRow>();
                 if (root.TryGetProperty("objects", out var objects) && objects.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var item in objects.EnumerateArray())
                     {
                         var objectType = TryGetString(item, "objectType");
-                        if (!IsUsefulObject(objectType))
-                        {
-                            continue;
-                        }
-
                         var metadata = item.TryGetProperty("metadata", out var metadataValue)
                             ? metadataValue
                             : default;
@@ -55,6 +51,38 @@ public sealed class PerceptionContextReader
                         if (string.IsNullOrWhiteSpace(channelId))
                         {
                             channelId = rootChannelId;
+                        }
+
+                        if (objectType.Equals("chat_row", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var bounds = item.TryGetProperty("bounds", out var boundsValue) ? boundsValue : default;
+                            var row = new VisibleChatRow(
+                                string.IsNullOrWhiteSpace(channelId) ? null : channelId,
+                                TryGetString(metadata, "chatRowId"),
+                                FirstUseful(TryGetString(metadata, "title"), TryGetString(item, "text")),
+                                TryGetString(metadata, "preview"),
+                                TryGetInt(metadata, "unreadCount", 0),
+                                TryGetInt(bounds, "left", 0),
+                                TryGetInt(bounds, "top", 0),
+                                TryGetInt(bounds, "width", 0),
+                                TryGetInt(bounds, "height", 0),
+                                TryGetInt(metadata, "clickX", 0),
+                                TryGetInt(metadata, "clickY", 0),
+                                TryGetDouble(item, "confidence", 0));
+                            if (!string.IsNullOrWhiteSpace(row.ChannelId)
+                                && !string.IsNullOrWhiteSpace(row.ChatRowId)
+                                && row.ClickX > 0
+                                && row.ClickY > 0)
+                            {
+                                chatRows.Add(row);
+                            }
+
+                            continue;
+                        }
+
+                        if (!IsUsefulObject(objectType))
+                        {
+                            continue;
                         }
 
                         var conversationId = TryGetString(metadata, "conversationId");
@@ -85,6 +113,12 @@ public sealed class PerceptionContextReader
                         .Select(group => group.OrderByDescending(item => item.Confidence).First())
                         .OrderBy(item => item.ChannelId)
                         .ThenByDescending(item => item.Confidence)
+                        .ToArray(),
+                    ChatRows = chatRows
+                        .GroupBy(item => item.ChatRowId, StringComparer.OrdinalIgnoreCase)
+                        .Select(group => group.OrderByDescending(item => item.Confidence).First())
+                        .OrderBy(item => item.ChannelId)
+                        .ThenBy(item => item.Top)
                         .ToArray()
                 };
             }
@@ -122,6 +156,21 @@ public sealed class PerceptionContextReader
             && value.TryGetDouble(out var result)
                 ? result
                 : fallback;
+    }
+
+    private static int TryGetInt(JsonElement element, string name, int fallback)
+    {
+        return element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty(name, out var value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var result)
+                ? result
+                : fallback;
+    }
+
+    private static string FirstUseful(params string[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
     }
 
     private static DateTimeOffset TryGetDateTimeOffset(JsonElement element, string name)

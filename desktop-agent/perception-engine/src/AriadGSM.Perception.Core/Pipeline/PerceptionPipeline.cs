@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AriadGSM.Perception.ChatRows;
 using AriadGSM.Perception.ChannelResolution;
 using AriadGSM.Perception.Config;
 using AriadGSM.Perception.Conversation;
@@ -21,6 +22,7 @@ public sealed class PerceptionPipeline
     private readonly ConversationEventWriter _conversationWriter;
     private readonly IReaderCore _readerCore;
     private readonly MessageExtractor _messageExtractor;
+    private readonly ChatRowExtractor _chatRowExtractor = new();
     private readonly ConversationBuilder _conversationBuilder;
     private int _visionEventsRead;
     private int _perceptionEventsWritten;
@@ -147,8 +149,9 @@ public sealed class PerceptionPipeline
             {
                 var readerResult = await _readerCore.ReadAsync(channel, readerContext, cancellationToken).ConfigureAwait(false);
                 var extraction = _messageExtractor.Extract(readerResult, channel);
+                var chatRows = _chatRowExtractor.Extract(readerResult, channel);
                 var conversation = _conversationBuilder.Build(channel, readerResult, extraction.Messages);
-                reads.Add(new ChannelReadResult(channel, readerResult, extraction, conversation));
+                reads.Add(new ChannelReadResult(channel, readerResult, extraction, chatRows, conversation));
             }
 
             var perceptionEvent = CreatePerceptionEvent(visionEvent, reads);
@@ -236,6 +239,28 @@ public sealed class PerceptionPipeline
                     ["readerLayer"] = "window_identity"
                 }));
 
+            foreach (var row in read.ChatRows.Rows)
+            {
+                objects.Add(new PerceptionObject(
+                    "chat_row",
+                    row.Confidence,
+                    row.Bounds,
+                    row.Title,
+                    "visible_chat_row",
+                    new Dictionary<string, object?>
+                    {
+                        ["channelId"] = row.ChannelId,
+                        ["chatRowId"] = row.ChatRowId,
+                        ["title"] = row.Title,
+                        ["preview"] = row.Preview,
+                        ["unreadCount"] = row.UnreadCount,
+                        ["clickX"] = row.ClickX,
+                        ["clickY"] = row.ClickY,
+                        ["sourceLines"] = row.SourceLines,
+                        ["readerLayer"] = "chat_row_coordinates"
+                    }));
+            }
+
             objects.Add(new PerceptionObject(
                 "conversation",
                 read.ReaderResult.Confidence,
@@ -249,6 +274,8 @@ public sealed class PerceptionPipeline
                     ["readerSource"] = read.ReaderResult.Source,
                     ["readerStatus"] = read.ReaderResult.Status,
                     ["readerLines"] = read.ReaderResult.Lines.Count,
+                    ["chatRows"] = read.ChatRows.Rows.Count,
+                    ["chatRowCandidateLines"] = read.ChatRows.CandidateLines,
                     ["messageCount"] = read.Extraction.Messages.Count,
                     ["historyLimitDays"] = _options.HistoryLimitDays,
                     ["extractionDiagnostics"] = read.Extraction.Diagnostics,
@@ -345,5 +372,6 @@ public sealed class PerceptionPipeline
         ResolvedChannel Channel,
         ReaderCoreResult ReaderResult,
         MessageExtractionResult Extraction,
+        ChatRowExtractionResult ChatRows,
         ConversationEvent Conversation);
 }

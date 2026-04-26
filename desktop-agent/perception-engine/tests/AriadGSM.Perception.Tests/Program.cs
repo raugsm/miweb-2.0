@@ -121,6 +121,9 @@ static async Task TestReaderExtractorConversationPipeline()
         [
             new ReaderTextLine("WhatsApp Business", "Text", null, 0.9, "test"),
             new ReaderTextLine("10:42", "Text", null, 0.9, "test"),
+            new ReaderTextLine("Cliente Uno", "Text", new VisionBounds(72, 164, 180, 26), 0.92, "test"),
+            new ReaderTextLine("2 mensajes no leídos", "Text", new VisionBounds(72, 194, 150, 24), 0.9, "test"),
+            new ReaderTextLine("Cuanto cuesta liberar Samsung", "Text", new VisionBounds(72, 222, 238, 24), 0.91, "test"),
             new ReaderTextLine("chat fijado", "Text", new VisionBounds(420, 220, 220, 32), 0.9, "test"),
             new ReaderTextLine("Cuanto cuesta liberar iPhone 14?", "Text", new VisionBounds(420, 300, 420, 44), 0.9, "test"),
             new ReaderTextLine("T\u00C3\u00BA: Te sale 80 dolares y demora 30 minutos", "Text", new VisionBounds(680, 380, 380, 44), 0.9, "test"),
@@ -130,7 +133,7 @@ static async Task TestReaderExtractorConversationPipeline()
         var pipeline = new PerceptionPipeline(options, reader);
         var state = await pipeline.RunOnceAsync();
         Assert(state.Status == "ok", "reader pipeline should finish ok");
-        Assert(state.ReaderLinesObserved == 7, "reader should observe seven lines");
+        Assert(state.ReaderLinesObserved == 10, "reader should observe ten lines");
         Assert(state.MessagesExtracted == 3, "extractor should keep three useful messages");
         Assert(state.LastExtractionSummary.Contains("not_message_text", StringComparison.OrdinalIgnoreCase), "extractor diagnostics should explain rejected UI lines");
         Assert(state.ConversationEventsWritten == 1, "conversation builder should write one conversation");
@@ -144,6 +147,17 @@ static async Task TestReaderExtractorConversationPipeline()
         Assert(conversation.Messages.Any(message => message.Direction == "client"), "client direction should be inferred from bubble position");
         Assert(conversation.Messages.Any(message => message.Signals?.Any(signal => signal.Kind == "payment") == true), "payment semantic signal should be attached");
         Assert(conversation.Messages.Any(message => message.Signals?.Any(signal => signal.Kind == "country" && signal.Value == "MX") == true), "country semantic signal should be attached");
+
+        var perceptionJson = await File.ReadAllTextAsync(perceptionEvents);
+        using var perceptionDocument = JsonDocument.Parse(perceptionJson);
+        var chatRow = perceptionDocument.RootElement.GetProperty("objects")
+            .EnumerateArray()
+            .FirstOrDefault(item => item.GetProperty("objectType").GetString() == "chat_row");
+        Assert(chatRow.ValueKind == JsonValueKind.Object, "perception should emit clickable chat_row objects");
+        var metadata = chatRow.GetProperty("metadata");
+        Assert(metadata.GetProperty("title").GetString() == "Cliente Uno", "chat row title should be preserved");
+        Assert(metadata.GetProperty("clickX").GetInt32() > 0, "chat row should expose clickX");
+        Assert(metadata.GetProperty("clickY").GetInt32() > 0, "chat row should expose clickY");
     }
     finally
     {

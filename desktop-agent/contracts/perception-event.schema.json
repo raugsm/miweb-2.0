@@ -17,7 +17,7 @@
         "properties": {
           "objectType": {
             "type": "string",
-            "enum": ["window", "chat_list", "conversation", "message_bubble", "input_box", "payment_proof", "audio", "error"]
+            "enum": ["window", "chat_list", "chat_row", "conversation", "message_bubble", "input_box", "payment_proof", "audio", "error"]
           },
           "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
           "bounds": { "type": "object" },
@@ -29,4 +29,3 @@
     }
   }
 }
-

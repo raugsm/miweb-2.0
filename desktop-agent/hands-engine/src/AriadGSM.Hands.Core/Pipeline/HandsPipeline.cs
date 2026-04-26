@@ -65,20 +65,21 @@ public sealed class HandsPipeline
             {
                 foreach (var plan in _planner.Plan(decision))
                 {
+                    var enrichedPlan = EnrichPlanWithPerception(plan, perception);
                     _actionsPlanned++;
-                    if (existingIds.Contains(plan.ActionId))
+                    if (existingIds.Contains(enrichedPlan.ActionId))
                     {
                         _actionsSkipped++;
                         continue;
                     }
 
-                    var safety = _safety.Evaluate(plan);
+                    var safety = _safety.Evaluate(enrichedPlan);
                     ActionEvent actionEvent;
                     if (safety.Blocked)
                     {
                         _actionsBlocked++;
                         actionEvent = CreateActionEvent(
-                            plan,
+                            enrichedPlan,
                             "blocked",
                             new ActionVerification(false, safety.Reason, 0),
                             safety.Reason,
@@ -86,13 +87,13 @@ public sealed class HandsPipeline
                     }
                     else
                     {
-                        var execution = await _executor.ExecuteAsync(plan, cancellationToken).ConfigureAwait(false);
+                        var execution = await _executor.ExecuteAsync(enrichedPlan, cancellationToken).ConfigureAwait(false);
                         if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
                         {
                             _actionsExecuted++;
                         }
 
-                        var verification = _verifier.Verify(plan, execution, perception);
+                        var verification = _verifier.Verify(enrichedPlan, execution, perception);
                         var finalStatus = execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase) && verification.Verified
                             ? "verified"
                             : execution.Status;
@@ -102,7 +103,7 @@ public sealed class HandsPipeline
                         }
 
                         actionEvent = CreateActionEvent(
-                            plan,
+                            enrichedPlan,
                             finalStatus,
                             verification,
                             safety.Reason,
@@ -137,6 +138,47 @@ public sealed class HandsPipeline
             _lastError = exception.Message;
             return await WriteStateAsync(CreateState("error", _lastSummary, exception.Message), CancellationToken.None).ConfigureAwait(false);
         }
+    }
+
+    private static ActionPlan EnrichPlanWithPerception(ActionPlan plan, PerceptionContext perception)
+    {
+        if (!plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase))
+        {
+            return plan;
+        }
+
+        var channelId = TargetString(plan, "channelId");
+        var title = TargetString(plan, "conversationTitle");
+        var row = perception.BestChatRow(channelId, title);
+        if (row is null)
+        {
+            return plan;
+        }
+
+        var target = new Dictionary<string, object?>(plan.Target, StringComparer.OrdinalIgnoreCase)
+        {
+            ["chatRowId"] = row.ChatRowId,
+            ["chatRowTitle"] = row.Title,
+            ["chatRowPreview"] = row.Preview,
+            ["chatRowUnreadCount"] = row.UnreadCount,
+            ["clickX"] = row.ClickX,
+            ["clickY"] = row.ClickY,
+            ["chatRowBounds"] = new Dictionary<string, object?>
+            {
+                ["left"] = row.Left,
+                ["top"] = row.Top,
+                ["width"] = row.Width,
+                ["height"] = row.Height
+            },
+            ["chatRowConfidence"] = row.Confidence
+        };
+
+        return plan with { Target = target };
+    }
+
+    private static string? TargetString(ActionPlan plan, string key)
+    {
+        return plan.Target.TryGetValue(key, out var value) ? value?.ToString() : null;
     }
 
     public async ValueTask<HandsRunSummary> RunContinuousAsync(

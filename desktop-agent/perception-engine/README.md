@@ -71,6 +71,7 @@ dotnet run --project src/AriadGSM.Perception.Cli -- watch config/perception.exam
 - positive identity for Chrome, Edge and Firefox WhatsApp Web windows;
 - channel mapping for `wa-1`, `wa-2`, `wa-3`;
 - accessibility reader plus configurable OCR fallback;
+- visible chat-row coordinate extraction for exact Hands Engine targeting;
 - message extraction with conversation-area guard, UI noise rejection and duplicate rejection;
 - semantic business signals on messages;
 - `perception_event`, `conversation_event` and health diagnostics;

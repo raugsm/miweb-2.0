@@ -80,6 +80,7 @@ static async Task TestPipelineWritesAndDedupes()
             proposedAction = "prepare_price_response",
             requiresHumanConfirmation = true,
             reasoningSummary = "price",
+            conversationTitle = "Cliente",
             evidence = new[] { "msg-wa-1-abc" }
         }) + Environment.NewLine);
         await File.WriteAllTextAsync(operating, string.Empty);
@@ -102,6 +103,30 @@ static async Task TestPipelineWritesAndDedupes()
                     {
                         channelId = "wa-1",
                         conversationId = "wa-1-cliente"
+                    }
+                },
+                new
+                {
+                    objectType = "chat_row",
+                    confidence = 0.91,
+                    bounds = new
+                    {
+                        left = 0,
+                        top = 150,
+                        width = 350,
+                        height = 72
+                    },
+                    text = "Cliente",
+                    role = "visible_chat_row",
+                    metadata = new
+                    {
+                        channelId = "wa-1",
+                        chatRowId = "chatrow-wa-1-test",
+                        title = "Cliente",
+                        preview = "Cuanto cuesta?",
+                        unreadCount = 1,
+                        clickX = 92,
+                        clickY = 186
                     }
                 }
             }
@@ -128,12 +153,24 @@ static async Task TestPipelineWritesAndDedupes()
 
         var actionLines = await File.ReadAllLinesAsync(actions);
         Assert(actionLines.Length == first.ActionsWritten, "all written actions should be persisted");
+        var openChatHasCoordinates = false;
         foreach (var line in actionLines)
         {
             var actionEvent = JsonSerializer.Deserialize<ActionEvent>(line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             Assert(actionEvent is not null, "action event should deserialize");
             Assert(ActionContractValidator.Validate(actionEvent!).Count == 0, "action event should satisfy contract");
+            using var actionDocument = JsonDocument.Parse(line);
+            var actionRoot = actionDocument.RootElement;
+            if (actionRoot.GetProperty("actionType").GetString() == "open_chat")
+            {
+                var target = actionRoot.GetProperty("target");
+                openChatHasCoordinates = target.TryGetProperty("clickX", out var clickX)
+                    && clickX.GetInt32() == 92
+                    && target.TryGetProperty("clickY", out var clickY)
+                    && clickY.GetInt32() == 186;
+            }
         }
+        Assert(openChatHasCoordinates, "open_chat action should carry Perception click coordinates");
 
         var second = await pipeline.RunOnceAsync();
         Assert(second.Status == "idle", "second pipeline run should dedupe existing actions");

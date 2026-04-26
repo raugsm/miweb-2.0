@@ -44,7 +44,7 @@ Hands Engine
   Moves mouse, keyboard, focus and scroll, then verifies the result.
 
 Supervisor
-  Enforces safety, confidence thresholds, autonomy level and audit rules.
+  Enforces safety, confidence thresholds, autonomy level, confirmations and audit rules.
 
 Windows App / Service / Installer
   Runs the local agent without visible shells and starts it with Windows.

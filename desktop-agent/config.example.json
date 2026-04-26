@@ -48,6 +48,14 @@
     "decisionLimit": 200,
     "perceptionLimit": 50
   },
+  "supervisorCore": {
+    "cognitiveDecisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
+    "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
+    "actionEventsFile": "./desktop-agent/runtime/action-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/supervisor-state.json",
+    "autonomyLevel": 3,
+    "limit": 200
+  },
   "service": {
     "intervalSeconds": 0.75,
     "maxCycles": 0

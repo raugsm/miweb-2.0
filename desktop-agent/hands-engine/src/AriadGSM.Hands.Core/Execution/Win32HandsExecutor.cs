@@ -9,6 +9,8 @@ namespace AriadGSM.Hands.Execution;
 public sealed class Win32HandsExecutor : IHandsExecutor
 {
     private const uint MouseEventWheel = 0x0800;
+    private const uint MouseEventLeftDown = 0x0002;
+    private const uint MouseEventLeftUp = 0x0004;
     private const int WheelDelta = 120;
     private readonly HandsOptions _options;
 
@@ -47,6 +49,15 @@ public sealed class Win32HandsExecutor : IHandsExecutor
             return ValueTask.FromResult(new ExecutionResult("failed", $"Could not focus window '{window.Title}'.", 0.2));
         }
 
+        if (plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
+            && TryGetTargetInt(plan, "clickX", out var clickX)
+            && TryGetTargetInt(plan, "clickY", out var clickY))
+        {
+            SetCursorPos(clickX, clickY);
+            mouse_event(MouseEventLeftDown, 0, 0, 0, UIntPtr.Zero);
+            mouse_event(MouseEventLeftUp, 0, 0, 0, UIntPtr.Zero);
+        }
+
         if (plan.ActionType.Equals("scroll_history", StringComparison.OrdinalIgnoreCase))
         {
             for (var index = 0; index < 6; index++)
@@ -58,7 +69,8 @@ public sealed class Win32HandsExecutor : IHandsExecutor
         var summary = plan.ActionType switch
         {
             "focus_window" => $"Focused WhatsApp window '{window.Title}'.",
-            "open_chat" => $"Focused WhatsApp window '{window.Title}'. Exact chat opening waits for visible-row coordinates from Perception.",
+            "open_chat" when TryGetTargetInt(plan, "clickX", out var x) && TryGetTargetInt(plan, "clickY", out var y) => $"Focused '{window.Title}' and clicked chat row at {x},{y}.",
+            "open_chat" => $"Focused WhatsApp window '{window.Title}', but no chat-row coordinates were available.",
             "capture_conversation" => $"Focused WhatsApp window '{window.Title}' so Perception can refresh the conversation.",
             "scroll_history" => $"Focused WhatsApp window '{window.Title}' and scrolled upward.",
             "record_accounting" => "Accounting record action is routed to Operating/Accounting Core, not direct UI typing.",
@@ -83,6 +95,23 @@ public sealed class Win32HandsExecutor : IHandsExecutor
     private static string? GetTargetString(ActionPlan plan, string key)
     {
         return plan.Target.TryGetValue(key, out var value) ? value?.ToString() : null;
+    }
+
+    private static bool TryGetTargetInt(ActionPlan plan, string key, out int result)
+    {
+        result = 0;
+        if (!plan.Target.TryGetValue(key, out var value) || value is null)
+        {
+            return false;
+        }
+
+        if (value is int integer)
+        {
+            result = integer;
+            return true;
+        }
+
+        return int.TryParse(value.ToString(), out result);
     }
 
     private static IReadOnlyList<BrowserWindow> EnumerateWindows()
@@ -151,6 +180,9 @@ public sealed class Win32HandsExecutor : IHandsExecutor
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetCursorPos(int x, int y);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr handle, out uint processId);
