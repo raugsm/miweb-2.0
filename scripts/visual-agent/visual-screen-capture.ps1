@@ -123,6 +123,122 @@ function Test-OcrTimeOnlyLine {
   return $semantic.Length -le 4
 }
 
+function Normalize-VisualDateText {
+  param([string]$Text)
+  $value = ([string]$Text).ToLowerInvariant().Normalize([System.Text.NormalizationForm]::FormD)
+  $value = $value -replace "\p{Mn}", ""
+  $value = $value -replace "[,\.]", ""
+  return ($value -replace "\s+", " ").Trim()
+}
+
+function Get-VisualMonthNumber {
+  param([string]$Value)
+  switch -Regex (Normalize-VisualDateText $Value) {
+    "^ene(ro)?$" { return 1 }
+    "^feb(rero)?$" { return 2 }
+    "^mar(zo)?$" { return 3 }
+    "^abr(il)?$" { return 4 }
+    "^may(o)?$" { return 5 }
+    "^jun(io)?$" { return 6 }
+    "^jul(io)?$" { return 7 }
+    "^ago(sto)?$" { return 8 }
+    "^sep(tiembre)?$" { return 9 }
+    "^oct(ubre)?$" { return 10 }
+    "^nov(iembre)?$" { return 11 }
+    "^dic(iembre)?$" { return 12 }
+    default { return $null }
+  }
+}
+
+function New-VisualDateMarker {
+  param([string]$Text, [datetime]$Date, [string]$Kind)
+  return [pscustomobject]@{
+    Text = $Text
+    Date = $Date.Date.ToString("yyyy-MM-dd")
+    Kind = $Kind
+  }
+}
+
+function Resolve-VisualDate {
+  param([int]$Day, [int]$Month, [int]$Year = 0)
+  $today = (Get-Date).Date
+  $wasYearProvided = $Year -gt 0
+  if (-not $wasYearProvided) {
+    $Year = $today.Year
+  } elseif ($Year -lt 100) {
+    $Year = 2000 + $Year
+  }
+
+  try {
+    $date = [datetime]::new($Year, $Month, $Day)
+  } catch {
+    return $null
+  }
+
+  if (-not $wasYearProvided -and $date.Date -gt $today.AddDays(1)) {
+    try {
+      $date = [datetime]::new(($today.Year - 1), $Month, $Day)
+    } catch {
+      return $null
+    }
+  }
+
+  return $date.Date
+}
+
+function ConvertFrom-VisualDateLine {
+  param([string]$Text)
+  $original = ($Text -replace "\s+", " ").Trim()
+  if (-not $original) { return $null }
+
+  $value = Normalize-VisualDateText $original
+  $today = (Get-Date).Date
+  if ($value -in @("hoy", "today")) {
+    return New-VisualDateMarker -Text $original -Date $today -Kind "relative_today"
+  }
+  if ($value -in @("ayer", "yesterday")) {
+    return New-VisualDateMarker -Text $original -Date ($today.AddDays(-1)) -Kind "relative_yesterday"
+  }
+
+  $weekdayMap = @{
+    domingo = 0
+    lunes = 1
+    martes = 2
+    miercoles = 3
+    jueves = 4
+    viernes = 5
+    sabado = 6
+  }
+  if ($weekdayMap.ContainsKey($value)) {
+    $target = [int]$weekdayMap[$value]
+    $current = [int](Get-Date).DayOfWeek
+    $daysAgo = ($current - $target + 7) % 7
+    if ($daysAgo -eq 0) { $daysAgo = 7 }
+    return New-VisualDateMarker -Text $original -Date ($today.AddDays(-1 * $daysAgo)) -Kind "weekday"
+  }
+
+  if ($value -match "^(?<d>\d{1,2})\s*[/-]\s*(?<m>\d{1,2})(?:\s*[/-]\s*(?<y>\d{2,4}))?$") {
+    $year = if ($matches["y"]) { [int]$matches["y"] } else { 0 }
+    $date = Resolve-VisualDate -Day ([int]$matches["d"]) -Month ([int]$matches["m"]) -Year $year
+    if ($date) {
+      return New-VisualDateMarker -Text $original -Date $date -Kind "numeric"
+    }
+  }
+
+  if ($value -match "^(?<d>\d{1,2})\s+(?:de\s+)?(?<m>[a-z]+)(?:\s+(?:de\s+)?(?<y>\d{2,4}))?$") {
+    $month = Get-VisualMonthNumber $matches["m"]
+    if ($month) {
+      $year = if ($matches["y"]) { [int]$matches["y"] } else { 0 }
+      $date = Resolve-VisualDate -Day ([int]$matches["d"]) -Month $month -Year $year
+      if ($date) {
+        return New-VisualDateMarker -Text $original -Date $date -Kind "textual"
+      }
+    }
+  }
+
+  return $null
+}
+
 function Save-ScreenRegions {
   param([string]$OutputDir, $Channels, $ScreenCapture)
   Add-Type -AssemblyName System.Windows.Forms
@@ -345,11 +461,22 @@ function Build-EventsOnce {
   $events = @()
   $totalLines = 0
   $skippedChannels = @()
+  $regionSummaries = @()
 
   foreach ($region in $regions) {
     $rawLines = @(Read-OcrLines -ImagePath $region.Path -Engine $engine)
+    $dateMarkers = @($rawLines | ForEach-Object { ConvertFrom-VisualDateLine $_ } | Where-Object { $_ })
     if (Test-BlockedVisualSection $rawLines) {
       $skippedChannels += $region.ChannelId
+      $regionSummaries += [pscustomobject]@{
+        ChannelId = $region.ChannelId
+        Name = $region.Name
+        Path = $region.Path
+        Blocked = $true
+        RawLineCount = $rawLines.Count
+        UsefulLineCount = 0
+        DateMarkers = $dateMarkers
+      }
       continue
     }
 
@@ -366,6 +493,15 @@ function Build-EventsOnce {
     $lines = @($lines | Select-Object -First $MaxLinesPerChannel)
     $captureHash = Get-Sha256 (($lines -join "`n") + "|" + $region.ChannelId)
     $totalLines += $lines.Count
+    $regionSummaries += [pscustomobject]@{
+      ChannelId = $region.ChannelId
+      Name = $region.Name
+      Path = $region.Path
+      Blocked = $false
+      RawLineCount = $rawLines.Count
+      UsefulLineCount = $lines.Count
+      DateMarkers = $dateMarkers
+    }
     $conversationTitle = $region.Name
     $conversationType = "visible_screen"
     $conversationId = "visible-screen-$($region.ChannelId)"
@@ -425,6 +561,7 @@ function Build-EventsOnce {
     Config = $config
     Events = $events
     TotalLines = $totalLines
+    Regions = $regionSummaries
     CaptureRoot = $captureRoot
   }
 }
@@ -462,6 +599,7 @@ function Run-Once {
     Sent = [bool]$Send
     EventFile = $eventFile
     Lines = $result.TotalLines
+    Regions = $result.Regions
     CaptureRoot = $result.CaptureRoot
   }
 }

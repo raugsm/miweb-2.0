@@ -6,6 +6,9 @@ param(
   [int]$LearningEveryCycles = 6,
   [int]$MaxChatsPerChannel = 1,
   [int]$MaxLinesPerChat = 25,
+  [int]$MaxScrollPages = 2,
+  [int]$ScrollWheelClicks = 5,
+  [int]$HistoryMonths = 1,
   [int]$MaxLinesPerCapture = 20,
   [int]$IntentMaxQueries = 3,
   [double]$IntentWaitSeconds = 0.8,
@@ -124,6 +127,9 @@ function Invoke-LearningStep {
     ConfigPath = $ConfigPath
     MaxChatsPerChannel = $MaxChatsPerChannel
     MaxLinesPerChat = $MaxLinesPerChat
+    MaxScrollPages = $MaxScrollPages
+    ScrollWheelClicks = $ScrollWheelClicks
+    HistoryMonths = $HistoryMonths
     WaitSeconds = $LearningWaitSeconds
   }
   if ($Execute) {
@@ -329,7 +335,7 @@ do {
   $cycle += 1
   $summary = Invoke-AutopilotCycle -CycleNumber $cycle -Config $config
   $summaries += $summary
-  $summaryJson = $summary | ConvertTo-Json -Depth 12
+  $summaryJson = $summary | ConvertTo-Json -Depth 16
   $summaryJson | Set-Content -LiteralPath $AutopilotStateFile -Encoding UTF8
   $summaryJson
 

@@ -78,6 +78,10 @@ Por defecto, el boton **Autopiloto** ya no abre una pestana nueva de Chrome ni r
 
 El aprendizaje profundo excluye grupos contables repetitivos como `Pagos Mexico`, `Pagos Chile` y `Pagos Colombia`. Pueden aparecer como señales contables en capturas normales, pero el mouse no los abre para entrenar estilo de cliente/servicio.
 
+Cuando el autopiloto aprende de un chat, ya no captura solo lo visible. Abre la conversacion, toma una lectura, sube el scroll para buscar mensajes anteriores y repite la lectura de forma controlada. El boton **Autopiloto** usa una pasada corta para no perder velocidad en vivo; el boton **Aprender chats** hace una pasada mas profunda.
+
+El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.
+
 Para una prueba sin mover mouse ni enviar datos:
 
 ```powershell
@@ -188,6 +192,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-lear
 ```
 
 El boton **Aprender chats** del launcher ejecuta esta pasada con maximo 2 chats por WhatsApp y 40 lineas por chat. Sigue siendo modo lectura: no escribe ni envia mensajes.
+
+Por defecto esa pasada abre cada chat seleccionado, captura la vista actual, sube hasta 5 paginas de scroll y se detiene si cruza el limite de 1 mes. Cada pagina enviada mantiene el mismo `conversationId`, para que la nube agrupe todo como una misma conversacion.
 
 ## Logs
 
