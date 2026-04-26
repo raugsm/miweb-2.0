@@ -5,8 +5,8 @@ const { hasAdminPassword, isAuthenticated } = require("./admin-auth");
 const {
   buildOperativaSnapshot,
   ingestOperativaEvent,
-  resolveAllReviewItems,
-  resolveReviewItem,
+  readOperativaState,
+  writeOperativaState,
 } = require("./operativa-store");
 
 const originalCreateServer = http.createServer.bind(http);
@@ -45,6 +45,99 @@ function parseBody(req, options = {}) {
       }
     });
   });
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function createAuditId() {
+  return `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
+}
+
+function filterPendingSnapshot(snapshot) {
+  return {
+    ...snapshot,
+    reviewItems: Array.isArray(snapshot.reviewItems)
+      ? snapshot.reviewItems.filter((item) => item.status === "pendiente")
+      : [],
+  };
+}
+
+function buildCleanOperativaSnapshot(stateOverride = null) {
+  return filterPendingSnapshot(buildOperativaSnapshot(stateOverride));
+}
+
+function pushReviewAudit(state, entry) {
+  state.auditLog = Array.isArray(state.auditLog) ? state.auditLog : [];
+  state.auditLog.unshift({
+    id: createAuditId(),
+    actor: entry.actor || "panel",
+    action: entry.action,
+    entityType: "review_item",
+    entityId: entry.entityId,
+    before: entry.before || null,
+    after: entry.after || null,
+    createdAt: nowIso(),
+  });
+  state.auditLog = state.auditLog.slice(0, 500);
+}
+
+function resolveReviewItem(reviewId, actor = "panel", note = "") {
+  const state = readOperativaState();
+  const review = (state.reviewItems || []).find((item) => item.id === reviewId);
+
+  if (!review) {
+    throw new Error("No encontre esa duda pendiente");
+  }
+
+  const before = { ...review };
+  review.status = "revisado";
+  review.resolvedAt = nowIso();
+  review.resolvedBy = actor;
+  review.resolutionNote = note || "Marcado como revisado desde la cabina";
+  review.updatedAt = nowIso();
+
+  pushReviewAudit(state, {
+    actor,
+    action: "review:resolve",
+    entityId: review.id,
+    before,
+    after: review,
+  });
+
+  return {
+    review,
+    snapshot: buildCleanOperativaSnapshot(writeOperativaState(state)),
+  };
+}
+
+function resolveAllReviewItems(actor = "panel", note = "") {
+  const state = readOperativaState();
+  const now = nowIso();
+  const pending = (state.reviewItems || []).filter((item) => item.status === "pendiente");
+
+  pending.forEach((review) => {
+    review.status = "revisado";
+    review.resolvedAt = now;
+    review.resolvedBy = actor;
+    review.resolutionNote = note || "Limpieza manual del tablero";
+    review.updatedAt = now;
+  });
+
+  if (pending.length) {
+    pushReviewAudit(state, {
+      actor,
+      action: "review:resolve_all",
+      entityId: "all_pending",
+      after: { resolvedCount: pending.length },
+    });
+  }
+
+  return {
+    resolvedCount: pending.length,
+    snapshot: buildCleanOperativaSnapshot(writeOperativaState(state)),
+  };
 }
 
 function safeTokenEquals(left, right) {
@@ -111,7 +204,7 @@ async function handleOperativaApi(req, res, requestUrl) {
   }
 
   if (req.method === "GET" && requestUrl.pathname === "/api/operativa-v2") {
-    sendJson(res, 200, buildOperativaSnapshot());
+    sendJson(res, 200, buildCleanOperativaSnapshot());
     return true;
   }
 
@@ -123,7 +216,7 @@ async function handleOperativaApi(req, res, requestUrl) {
         ok: true,
         event: payload.event,
         entity: payload.entity,
-        snapshot: payload.snapshot,
+        snapshot: buildCleanOperativaSnapshot(payload.snapshot),
       });
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude registrar el evento operativo" });
