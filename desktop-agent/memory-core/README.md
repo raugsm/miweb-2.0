@@ -10,7 +10,7 @@ It does not read the screen, move the mouse, decide actions or write final accou
 
 ## Inputs
 
-- Conversations: `desktop-agent/runtime/conversation-events.jsonl`
+- Conversations: `desktop-agent/runtime/timeline-events.jsonl`
 - Cognitive decisions: `desktop-agent/runtime/cognitive-decision-events.jsonl`
 - Operating decisions: `desktop-agent/runtime/decision-events.jsonl`
 - Learning events: `desktop-agent/runtime/learning-events.jsonl`

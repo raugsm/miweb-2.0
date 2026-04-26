@@ -10,7 +10,7 @@ It does not read the screen, move the mouse, send replies or register final acco
 
 ## Inputs
 
-- Conversations: `desktop-agent/runtime/conversation-events.jsonl`
+- Conversations: `desktop-agent/runtime/timeline-events.jsonl`
 
 ## Outputs
 

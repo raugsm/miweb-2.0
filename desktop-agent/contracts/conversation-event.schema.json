@@ -10,7 +10,7 @@
     "channelId": { "type": "string" },
     "observedAt": { "type": "string" },
     "conversationTitle": { "type": "string" },
-    "source": { "type": "string", "enum": ["live", "history", "replay", "manual"] },
+    "source": { "type": "string", "enum": ["live", "history", "replay", "manual", "timeline"] },
     "messages": {
       "type": "array",
       "items": {

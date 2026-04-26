@@ -14,7 +14,7 @@ from ariadgsm_agent.cognitive import CognitiveCore, CognitiveStore, decision_eve
 from ariadgsm_agent.memory import MemoryStore, run_memory_once
 from ariadgsm_agent.operating import OperatingCore, OperatingStore, run_operating_once
 from ariadgsm_agent.supervisor import SupervisorCore, SupervisorPolicy, run_supervisor_once
-from ariadgsm_agent.timeline import ConversationTimeline
+from ariadgsm_agent.timeline import ConversationTimeline, run_timeline_once
 
 
 def main() -> int:
@@ -87,11 +87,14 @@ def main() -> int:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
         conversation_file = root / "conversation-events.jsonl"
+        history_file = root / "history-conversation-events.jsonl"
+        timeline_file = root / "timeline-events.jsonl"
         decision_file = root / "decision-events.jsonl"
         cognitive_decision_file = root / "cognitive-decision-events.jsonl"
         learning_file = root / "learning-events.jsonl"
         accounting_file = root / "accounting-events.jsonl"
         state_file = root / "operating-state.json"
+        timeline_state_file = root / "timeline-state.json"
         cognitive_state_file = root / "cognitive-state.json"
         memory_state_file = root / "memory-state.json"
         supervisor_state_file = root / "supervisor-state.json"
@@ -121,8 +124,40 @@ def main() -> int:
             + json.dumps(payment_conversation, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
-        state = run_operating_once(
+        history_payment = dict(payment_conversation)
+        history_payment["conversationEventId"] = "conversation-payment-history-test"
+        history_payment["source"] = "history"
+        history_payment["timeline"] = {
+            "historyLimitDays": 30,
+            "complete": True,
+            "oldestLoadedAt": "2026-04-01T00:00:00Z",
+            "dedupeStrategy": "test",
+        }
+        history_payment["messages"] = [
+            {
+                "messageId": "pay-history-1",
+                "text": "Servicio Samsung acordado antes del pago",
+                "direction": "client",
+                "sentAt": "2026-04-20T12:00:00Z",
+                "signals": [{"kind": "service", "value": "samsung", "confidence": 0.8}],
+            },
+            payment_conversation["messages"][0],
+        ]
+        history_file.write_text(json.dumps(history_payment, ensure_ascii=False) + "\n", encoding="utf-8")
+        timeline_state = run_timeline_once(
             conversation_file,
+            timeline_file,
+            timeline_state_file,
+            history_events_file=history_file,
+            history_limit_days=30,
+        )
+        assert timeline_state["status"] == "ok"
+        assert timeline_state["ingested"]["timelines"] == 2
+        assert timeline_state["ingested"]["messages"] == 3
+        assert timeline_file.exists()
+
+        state = run_operating_once(
+            timeline_file,
             decision_file,
             state_file,
             db_file,
@@ -138,7 +173,7 @@ def main() -> int:
         assert accounting_file.exists()
 
         repeated = run_operating_once(
-            conversation_file,
+            timeline_file,
             decision_file,
             state_file,
             db_file,
@@ -159,7 +194,7 @@ def main() -> int:
             store.close()
 
         cognitive_state = run_cognitive_once(
-            conversation_file,
+            timeline_file,
             cognitive_decision_file,
             learning_file,
             cognitive_state_file,
@@ -173,7 +208,7 @@ def main() -> int:
         assert learning_file.exists()
 
         repeated_cognitive = run_cognitive_once(
-            conversation_file,
+            timeline_file,
             cognitive_decision_file,
             learning_file,
             cognitive_state_file,
@@ -192,7 +227,7 @@ def main() -> int:
             cognitive_store.close()
 
         memory_state = run_memory_once(
-            conversation_file,
+            timeline_file,
             cognitive_decision_file,
             decision_file,
             learning_file,
@@ -202,14 +237,14 @@ def main() -> int:
         )
         assert memory_state["status"] == "ok"
         assert memory_state["summary"]["conversations"] == 2
-        assert memory_state["summary"]["memoryMessages"] == 2
+        assert memory_state["summary"]["memoryMessages"] == 3
         assert memory_state["summary"]["signals"] >= 4
         assert memory_state["summary"]["memoryDecisions"] >= 4
         assert memory_state["summary"]["learningEvents"] >= 1
         assert memory_state["summary"]["accountingEvents"] == 1
 
         repeated_memory = run_memory_once(
-            conversation_file,
+            timeline_file,
             cognitive_decision_file,
             decision_file,
             learning_file,

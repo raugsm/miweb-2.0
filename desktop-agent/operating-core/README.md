@@ -10,7 +10,7 @@ It does not read the screen, move the mouse, answer customers, or register final
 
 ## Inputs
 
-- `desktop-agent/runtime/conversation-events.jsonl`
+- `desktop-agent/runtime/timeline-events.jsonl`
 
 ## Outputs
 

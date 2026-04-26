@@ -576,7 +576,7 @@ def decision_event_from_conversation(conversation_event: dict[str, Any], policy:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AriadGSM Cognitive Core")
-    parser.add_argument("--conversation-events", default="runtime/conversation-events.jsonl")
+    parser.add_argument("--conversation-events", default="runtime/timeline-events.jsonl")
     parser.add_argument("--decision-events", default="runtime/cognitive-decision-events.jsonl")
     parser.add_argument("--learning-events", default="runtime/learning-events.jsonl")
     parser.add_argument("--state-file", default="runtime/cognitive-state.json")

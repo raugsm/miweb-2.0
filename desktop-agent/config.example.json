@@ -8,15 +8,24 @@
     "limit": 800
   },
   "operatingCore": {
-    "conversationEventsFile": "./desktop-agent/runtime/conversation-events.jsonl",
+    "conversationEventsFile": "./desktop-agent/runtime/timeline-events.jsonl",
     "decisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
     "accountingEventsFile": "./desktop-agent/runtime/accounting-events.jsonl",
     "stateFile": "./desktop-agent/runtime/operating-state.json",
     "db": "./desktop-agent/runtime/operating-core.sqlite",
     "limit": 200
   },
-  "cognitiveCore": {
+  "timelineCore": {
     "conversationEventsFile": "./desktop-agent/runtime/conversation-events.jsonl",
+    "historyEventsFile": "./desktop-agent/runtime/history-conversation-events.jsonl",
+    "timelineEventsFile": "./desktop-agent/runtime/timeline-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/timeline-state.json",
+    "historyLimitDays": 30,
+    "limit": 1000,
+    "replaceOutput": true
+  },
+  "cognitiveCore": {
+    "conversationEventsFile": "./desktop-agent/runtime/timeline-events.jsonl",
     "decisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
     "learningEventsFile": "./desktop-agent/runtime/learning-events.jsonl",
     "stateFile": "./desktop-agent/runtime/cognitive-state.json",
@@ -24,7 +33,7 @@
     "limit": 200
   },
   "memoryCore": {
-    "conversationEventsFile": "./desktop-agent/runtime/conversation-events.jsonl",
+    "conversationEventsFile": "./desktop-agent/runtime/timeline-events.jsonl",
     "cognitiveDecisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
     "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
     "learningEventsFile": "./desktop-agent/runtime/learning-events.jsonl",

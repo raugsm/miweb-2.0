@@ -688,7 +688,7 @@ def run_operating_once(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AriadGSM Operating Core")
-    parser.add_argument("--conversation-events", default="runtime/conversation-events.jsonl")
+    parser.add_argument("--conversation-events", default="runtime/timeline-events.jsonl")
     parser.add_argument("--decision-events", default="runtime/decision-events.jsonl")
     parser.add_argument("--accounting-events", default="runtime/accounting-events.jsonl")
     parser.add_argument("--state-file", default="runtime/operating-state.json")

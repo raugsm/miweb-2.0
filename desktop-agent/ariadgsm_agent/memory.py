@@ -795,7 +795,7 @@ def run_memory_once(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AriadGSM Memory Core")
-    parser.add_argument("--conversation-events", default="runtime/conversation-events.jsonl")
+    parser.add_argument("--conversation-events", default="runtime/timeline-events.jsonl")
     parser.add_argument("--cognitive-decisions", default="runtime/cognitive-decision-events.jsonl")
     parser.add_argument("--operating-decisions", default="runtime/decision-events.jsonl")
     parser.add_argument("--learning-events", default="runtime/learning-events.jsonl")

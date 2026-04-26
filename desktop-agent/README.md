@@ -10,6 +10,7 @@ desktop-agent/
   contracts/             Stable event contracts between sensors and the core
   vision-engine/         C#/.NET live eyes and temporary visual buffer
   perception-engine/     C#/.NET object reader for chats, messages, buttons
+  timeline-engine/       Python live/history conversation timeline merger
   memory-core/           Python durable memory and customer profiles
   cognitive-core/        Python reasoning, learning and customer patterns
   operating-core/        Python business cases, tasks and priorities
@@ -61,6 +62,7 @@ desktop-agent\runtime\agent-memory.sqlite
 ## Engine Runs
 
 ```powershell
+python -m ariadgsm_agent.timeline --json
 python -m ariadgsm_agent.cognitive --json
 python -m ariadgsm_agent.operating --json
 python -m ariadgsm_agent.memory --json
@@ -68,7 +70,7 @@ python -m ariadgsm_agent.supervisor --json
 dotnet run --project .\desktop-agent\hands-engine\src\AriadGSM.Hands.Cli -- sample .\desktop-agent\hands-engine\config\hands.example.json
 ```
 
-The Cognitive Core reads `conversation-events.jsonl`, writes auditable decisions, emits learning events and updates local customer profiles. The Memory Core persists conversations, messages, signals, decisions, learning and accounting evidence into durable SQLite memory. The Hands Engine consumes decisions plus Perception evidence and emits audited action plans or verified local actions. The Supervisor Core reviews those decisions/actions and explains what is allowed, blocked or waiting for confirmation.
+The Timeline Engine merges live and historical `conversation-events.jsonl` into `timeline-events.jsonl`. Cognitive, Operating and Memory can then consume that cleaner timeline instead of repeated raw reads. The Hands Engine consumes decisions plus Perception evidence and emits audited action plans or verified local actions. The Supervisor Core reviews those decisions/actions and explains what is allowed, blocked or waiting for confirmation.
 
 ## Safety Contract
 
