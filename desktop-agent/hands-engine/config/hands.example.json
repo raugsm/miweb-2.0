@@ -1,0 +1,32 @@
+{
+  "cognitiveDecisionEventsFile": "desktop-agent\\runtime\\cognitive-decision-events.jsonl",
+  "operatingDecisionEventsFile": "desktop-agent\\runtime\\decision-events.jsonl",
+  "perceptionEventsFile": "desktop-agent\\runtime\\perception-events.jsonl",
+  "actionEventsFile": "desktop-agent\\runtime\\action-events.jsonl",
+  "stateFile": "desktop-agent\\runtime\\hands-state.json",
+  "autonomyLevel": 3,
+  "executeActions": false,
+  "allowTextInput": false,
+  "allowSendMessage": false,
+  "pollIntervalMs": 250,
+  "maxCycles": 0,
+  "decisionLimit": 200,
+  "perceptionLimit": 50,
+  "channelMappings": [
+    {
+      "channelId": "wa-1",
+      "browserProcess": "msedge",
+      "titleContains": "WhatsApp"
+    },
+    {
+      "channelId": "wa-2",
+      "browserProcess": "chrome",
+      "titleContains": "WhatsApp"
+    },
+    {
+      "channelId": "wa-3",
+      "browserProcess": "firefox",
+      "titleContains": "WhatsApp"
+    }
+  ]
+}

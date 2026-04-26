@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AriadGSM.Hands.Cli/AriadGSM.Hands.Cli.csproj" />
+    <Project Path="src/AriadGSM.Hands.Core/AriadGSM.Hands.Core.csproj" />
+    <Project Path="src/AriadGSM.Hands.Worker/AriadGSM.Hands.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AriadGSM.Hands.Tests/AriadGSM.Hands.Tests.csproj" />
+  </Folder>
+</Solution>

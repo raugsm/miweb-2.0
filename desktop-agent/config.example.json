@@ -33,6 +33,21 @@
     "db": "./desktop-agent/runtime/memory-core.sqlite",
     "limit": 500
   },
+  "handsEngine": {
+    "cognitiveDecisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
+    "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
+    "perceptionEventsFile": "./desktop-agent/runtime/perception-events.jsonl",
+    "actionEventsFile": "./desktop-agent/runtime/action-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/hands-state.json",
+    "autonomyLevel": 3,
+    "executeActions": false,
+    "allowTextInput": false,
+    "allowSendMessage": false,
+    "pollIntervalMs": 250,
+    "maxCycles": 0,
+    "decisionLimit": 200,
+    "perceptionLimit": 50
+  },
   "service": {
     "intervalSeconds": 0.75,
     "maxCycles": 0

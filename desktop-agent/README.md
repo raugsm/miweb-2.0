@@ -13,7 +13,7 @@ desktop-agent/
   memory-core/           Python durable memory and customer profiles
   cognitive-core/        Python reasoning, learning and customer patterns
   operating-core/        Python business cases, tasks and priorities
-  hands-engine/          Future C#/.NET mouse, keyboard and verification layer
+  hands-engine/          C#/.NET mouse, keyboard, focus, scroll and verification layer
   windows-app/           Future C#/.NET desktop UI and tray app
   windows-service/       Future C#/.NET background service
   local-api/             Future named-pipe or localhost contract bus
@@ -63,9 +63,10 @@ desktop-agent\runtime\agent-memory.sqlite
 python -m ariadgsm_agent.cognitive --json
 python -m ariadgsm_agent.operating --json
 python -m ariadgsm_agent.memory --json
+dotnet run --project .\desktop-agent\hands-engine\src\AriadGSM.Hands.Cli -- sample .\desktop-agent\hands-engine\config\hands.example.json
 ```
 
-The Cognitive Core reads `conversation-events.jsonl`, writes auditable decisions, emits learning events and updates local customer profiles. The Memory Core then persists conversations, messages, signals, decisions, learning and accounting evidence into durable SQLite memory.
+The Cognitive Core reads `conversation-events.jsonl`, writes auditable decisions, emits learning events and updates local customer profiles. The Memory Core persists conversations, messages, signals, decisions, learning and accounting evidence into durable SQLite memory. The Hands Engine consumes decisions plus Perception evidence and emits audited action plans or verified local actions.
 
 ## Safety Contract
 
@@ -74,6 +75,6 @@ The Python core does not read browser cookies, tokens, local storage, WhatsApp s
 ## Next Migration Steps
 
 1. Keep contracts stable in `desktop-agent/contracts`.
-2. Connect `hands-engine` to verified actions.
+2. Feed Hands Engine with Perception row coordinates so it can open exact chats.
 3. Move the launcher UI to `windows-app` and background execution to `windows-service`.
 4. Package with `installer` so the final program does not require manual shells.
