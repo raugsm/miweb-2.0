@@ -6,7 +6,11 @@ Set shell = CreateObject("Shell.Application")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 root = fso.GetParentFolderName(WScript.ScriptFullName)
-exePath = root & "\desktop-agent\dist\AriadGSMAgent\AriadGSM Agent.exe"
+exePath = root & "\desktop-agent\dist\AriadGSMAgent-next\AriadGSM Agent.exe"
+
+If Not fso.FileExists(exePath) Then
+  exePath = root & "\desktop-agent\dist\AriadGSMAgent\AriadGSM Agent.exe"
+End If
 
 If Not fso.FileExists(exePath) Then
   exePath = root & "\desktop-agent\windows-app\src\AriadGSM.Agent.Desktop\bin\Debug\net10.0-windows\AriadGSM Agent.exe"

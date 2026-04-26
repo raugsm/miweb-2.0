@@ -3,7 +3,15 @@ setlocal enabledelayedexpansion
 
 set "ROOT=%~dp0..\..\"
 for %%I in ("%ROOT%") do set "ROOT=%%~fI"
-set "DIST=%ROOT%\desktop-agent\dist\AriadGSMAgent"
+set "DIST_BASE=%ROOT%\desktop-agent\dist"
+set "DIST=%DIST_BASE%\AriadGSMAgent"
+
+tasklist /fi "imagename eq AriadGSM Agent.exe" 2>nul | find /i "AriadGSM Agent.exe" >nul
+if not errorlevel 1 (
+  set "DIST=%DIST_BASE%\AriadGSMAgent-next"
+  echo AriadGSM Agent is running. Building side-by-side package:
+  echo "!DIST!"
+)
 
 if exist "%DIST%" rmdir /s /q "%DIST%"
 mkdir "%DIST%" >nul 2>&1
