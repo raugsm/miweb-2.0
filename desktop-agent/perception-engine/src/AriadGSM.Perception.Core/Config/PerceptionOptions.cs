@@ -8,6 +8,8 @@ public sealed class PerceptionOptions
 
     public string PerceptionEventsFile { get; init; } = @"desktop-agent\runtime\perception-events.jsonl";
 
+    public string ConversationEventsFile { get; init; } = @"desktop-agent\runtime\conversation-events.jsonl";
+
     public string StateFile { get; init; } = @"desktop-agent\runtime\perception-health.json";
 
     public int HistoryLimitDays { get; init; } = 30;
@@ -19,6 +21,14 @@ public sealed class PerceptionOptions
     public double DurationSeconds { get; init; } = 0;
 
     public double MinimumWhatsAppConfidence { get; init; } = 0.75;
+
+    public int MaxAccessibilityNodes { get; init; } = 900;
+
+    public int MaxReaderLines { get; init; } = 250;
+
+    public int MinimumUsefulTextLength { get; init; } = 3;
+
+    public double MinimumMessageConfidence { get; init; } = 0.55;
 
     public IReadOnlyList<ChannelMapping> ChannelMappings { get; init; } =
     [

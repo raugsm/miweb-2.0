@@ -1,3 +1,4 @@
+using System.IO;
 using AriadGSM.Perception.Config;
 using AriadGSM.Perception.Pipeline;
 
@@ -8,7 +9,7 @@ var pipeline = new PerceptionPipeline(options);
 if (once)
 {
     var state = await pipeline.RunOnceAsync();
-    Console.WriteLine($"AriadGSM Perception Worker: {state.Status}, whatsapp_windows={state.WhatsAppWindowsDetected}, events={state.PerceptionEventsWritten}, channels={string.Join(",", state.ChannelIds)}");
+    Console.WriteLine($"AriadGSM Perception Worker: {state.Status}, whatsapp_windows={state.WhatsAppWindowsDetected}, events={state.PerceptionEventsWritten}, conversations={state.ConversationEventsWritten}, messages={state.MessagesExtracted}, channels={string.Join(",", state.ChannelIds)}");
     if (!string.IsNullOrWhiteSpace(state.LastError))
     {
         Console.WriteLine($"error={state.LastError}");
@@ -26,5 +27,5 @@ else
         options.MaxCycles,
         options.DurationSeconds > 0 ? TimeSpan.FromSeconds(options.DurationSeconds) : null,
         cts.Token);
-    Console.WriteLine($"AriadGSM Perception Worker: {summary.Status}, cycles={summary.Cycles}, events={summary.PerceptionEventsWritten}, idle={summary.IdleCycles}, channels={string.Join(",", summary.LastChannelIds)}");
+    Console.WriteLine($"AriadGSM Perception Worker: {summary.Status}, cycles={summary.Cycles}, events={summary.PerceptionEventsWritten}, conversations={summary.ConversationEventsWritten}, messages={summary.LastMessagesExtracted}, idle={summary.IdleCycles}, channels={string.Join(",", summary.LastChannelIds)}");
 }

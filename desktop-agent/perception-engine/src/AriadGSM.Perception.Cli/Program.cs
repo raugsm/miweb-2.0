@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.IO;
 using AriadGSM.Perception.Config;
 using AriadGSM.Perception.Pipeline;
 
@@ -15,7 +16,7 @@ switch (command)
         var sampleOptions = PerceptionOptions.Load(configPath);
         var samplePipeline = new PerceptionPipeline(sampleOptions);
         var sampleState = await samplePipeline.RunOnceAsync();
-        Console.WriteLine($"sample {sampleState.Status}: whatsapp_windows={sampleState.WhatsAppWindowsDetected}, channels={string.Join(",", sampleState.ChannelIds)}, source={sampleState.LastSourceVisionEventId}");
+        Console.WriteLine($"sample {sampleState.Status}: whatsapp_windows={sampleState.WhatsAppWindowsDetected}, channels={string.Join(",", sampleState.ChannelIds)}, reader={sampleState.LastReaderStatus}, lines={sampleState.ReaderLinesObserved}, messages={sampleState.MessagesExtracted}, conversations={sampleState.ConversationEventsWritten}, source={sampleState.LastSourceVisionEventId}");
         if (!string.IsNullOrWhiteSpace(sampleState.LastError))
         {
             Console.WriteLine($"error={sampleState.LastError}");

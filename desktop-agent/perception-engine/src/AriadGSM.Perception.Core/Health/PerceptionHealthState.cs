@@ -5,11 +5,16 @@ public sealed record PerceptionHealthState(
     DateTimeOffset UpdatedAt,
     int VisionEventsRead,
     int PerceptionEventsWritten,
+    int ConversationEventsWritten,
     int WhatsAppWindowsDetected,
+    int ReaderLinesObserved,
+    int MessagesExtracted,
     IReadOnlyList<string> ChannelIds,
     string VisionEventsFile,
     string PerceptionEventsFile,
+    string ConversationEventsFile,
     string LastSourceVisionEventId,
+    string LastReaderStatus,
     string LastError);
 
 public sealed record PerceptionRunSummary(
@@ -18,9 +23,13 @@ public sealed record PerceptionRunSummary(
     DateTimeOffset FinishedAt,
     int VisionEventsRead,
     int PerceptionEventsWritten,
+    int ConversationEventsWritten,
     int Cycles,
     int IdleCycles,
     int LastWhatsAppWindowsDetected,
+    int LastReaderLinesObserved,
+    int LastMessagesExtracted,
     IReadOnlyList<string> LastChannelIds,
     string LastSourceVisionEventId,
+    string LastReaderStatus,
     string LastError);

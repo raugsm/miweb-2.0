@@ -1,12 +1,16 @@
 using System.Text.Json;
+using System.IO;
+using AriadGSM.Perception.Conversation;
 using AriadGSM.Perception.Config;
 using AriadGSM.Perception.Events;
 using AriadGSM.Perception.Pipeline;
+using AriadGSM.Perception.Reader;
 using AriadGSM.Perception.VisionInput;
 using AriadGSM.Perception.WindowIdentity;
 
 TestWhatsAppIdentity();
 await TestPipelineContract();
+await TestReaderExtractorConversationPipeline();
 await TestContinuousDedupe();
 
 Console.WriteLine("AriadGSM Perception tests OK");
@@ -69,6 +73,69 @@ static async Task TestPipelineContract()
         var perceptionEvent = JsonSerializer.Deserialize<PerceptionEvent>(perceptionJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert(perceptionEvent is not null, "perception event should deserialize");
         Assert(PerceptionContractValidator.Validate(perceptionEvent!).Count == 0, "perception event should satisfy contract");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestReaderExtractorConversationPipeline()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-perception-reader-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var visionEvents = Path.Combine(root, "vision-events.jsonl");
+    var perceptionEvents = Path.Combine(root, "perception-events.jsonl");
+    var conversationEvents = Path.Combine(root, "conversation-events.jsonl");
+    var stateFile = Path.Combine(root, "perception-health.json");
+    try
+    {
+        var visionEvent = new VisionEventEnvelope(
+            "vision_event",
+            "vision-test-reader",
+            DateTimeOffset.UtcNow,
+            "screen_capture",
+            true,
+            new VisionFrameEvidence("frame-reader", @"D:\AriadGSM\vision-buffer\frame.bmp", 3440, 1440, "hash", true),
+            new VisionRetentionEvidence(false, 1, 40),
+            Windows:
+            [
+                new VisionWindow(200, "msedge", "(12) WhatsApp Business - Microsoft Edge", new VisionBounds(0, 0, 1140, 1390))
+            ]);
+        var json = JsonSerializer.Serialize(visionEvent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        await File.WriteAllTextAsync(visionEvents, json + Environment.NewLine);
+
+        var options = new PerceptionOptions
+        {
+            VisionEventsFile = visionEvents,
+            PerceptionEventsFile = perceptionEvents,
+            ConversationEventsFile = conversationEvents,
+            StateFile = stateFile
+        };
+        var reader = new StaticReaderCore(
+        [
+            new ReaderTextLine("WhatsApp Business", "Text", null, 0.9, "test"),
+            new ReaderTextLine("10:42", "Text", null, 0.9, "test"),
+            new ReaderTextLine("Cuanto cuesta liberar iPhone 14?", "Text", new VisionBounds(420, 300, 420, 44), 0.9, "test"),
+            new ReaderTextLine("Tú: Te sale 80 dolares y demora 30 minutos", "Text", new VisionBounds(680, 380, 380, 44), 0.9, "test"),
+            new ReaderTextLine("foto", "Text", null, 0.9, "test")
+        ]);
+        var pipeline = new PerceptionPipeline(options, reader);
+        var state = await pipeline.RunOnceAsync();
+        Assert(state.Status == "ok", "reader pipeline should finish ok");
+        Assert(state.ReaderLinesObserved == 5, "reader should observe five lines");
+        Assert(state.MessagesExtracted == 2, "extractor should keep two useful messages");
+        Assert(state.ConversationEventsWritten == 1, "conversation builder should write one conversation");
+
+        var conversationJson = await File.ReadAllTextAsync(conversationEvents);
+        var conversation = JsonSerializer.Deserialize<ConversationEvent>(conversationJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        Assert(conversation is not null, "conversation event should deserialize");
+        Assert(ConversationContractValidator.Validate(conversation!).Count == 0, "conversation should satisfy contract");
+        Assert(conversation!.Messages.Count == 2, "conversation should contain two messages");
+        Assert(conversation.Messages.Any(message => message.Direction == "agent"), "agent direction should be detected from prefix");
     }
     finally
     {
