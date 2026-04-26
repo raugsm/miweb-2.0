@@ -78,6 +78,8 @@ Por defecto, el boton **Autopiloto** ya no abre una pestana nueva de Chrome ni r
 
 El aprendizaje profundo excluye grupos contables repetitivos como `Pagos Mexico`, `Pagos Chile` y `Pagos Colombia`. Pueden aparecer como señales contables en capturas normales, pero el mouse no los abre para entrenar estilo de cliente/servicio.
 
+La lectura base tambien filtra esas filas de pagos cuando aparecen como texto de pantalla, para que no disparen alertas falsas ni contaminen el aprendizaje como si fueran chats de clientes.
+
 Cuando el autopiloto aprende de un chat, ya no captura solo lo visible. Abre la conversacion, toma una lectura, sube el scroll para buscar mensajes anteriores y repite la lectura de forma controlada. El boton **Autopiloto** aprende desde el primer ciclo y luego usa pasadas cortas para no perder velocidad en vivo; el boton **Aprender chats** hace una pasada mas profunda.
 
 El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.

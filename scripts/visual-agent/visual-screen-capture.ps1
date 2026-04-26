@@ -239,6 +239,26 @@ function ConvertFrom-VisualDateLine {
   return $null
 }
 
+function Test-PaymentGroupVisualLine {
+  param([string]$Text)
+  $normalized = Normalize-VisualDateText $Text
+  $normalized = $normalized -replace "[^a-z0-9\p{L}]+", " "
+  $normalized = ($normalized -replace "\s+", " ").Trim()
+  if (-not $normalized) {
+    return $false
+  }
+
+  $countryPattern = "(mexico|mxico|mx|chile|cl|colombia|co|peru|pe)"
+  if ($normalized -match "\bpagos?\b.*\b$countryPattern\b") {
+    return $true
+  }
+  if ($normalized -match "\bpago\s+colombia\b") {
+    return $true
+  }
+
+  return $false
+}
+
 function Save-ScreenRegions {
   param([string]$OutputDir, $Channels, $ScreenCapture)
   Add-Type -AssemblyName System.Windows.Forms
@@ -326,6 +346,9 @@ function Test-UsefulVisualLine {
   if (Test-OcrTimeOnlyLine $clean) {
     return $false
   }
+  if (Test-PaymentGroupVisualLine $clean) {
+    return $false
+  }
 
   $ignorePatterns = @(
     "^\s*$",
@@ -374,6 +397,7 @@ function Test-UsefulVisualLine {
     "^Escribe un m",
     "^Editado\s+\d",
     "^un mensa[lj]e$",
+    "^scribe un mensaje$",
     "^Hoy$",
     "^Ayer$",
     "^mi.rcoles$",

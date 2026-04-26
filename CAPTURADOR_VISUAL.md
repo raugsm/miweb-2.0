@@ -163,6 +163,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-screen-ca
 
 Si una seccion parece ser Codex, Railway, YouTube u otra pagina, el capturador la omite para no enviar ruido a la nube.
 
+La lectura base tambien descarta grupos repetitivos de pagos (`Pagos Mexico`, `Pagos Chile`, `Pago Colombia`, `Pagos Peru`) aunque el OCR los lea con acentos, puntos o letras imperfectas. Esos grupos pueden existir en pantalla, pero no deben contaminar el aprendizaje ni las alertas como si fueran clientes.
+
 ## Enviar una lectura real a ariadgsm.com
 
 Solo hacerlo cuando los 3 WhatsApp esten visibles, uno por seccion de pantalla:
