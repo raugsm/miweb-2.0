@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Perception Event",
+  "type": "object",
+  "required": ["eventType", "perceptionEventId", "observedAt", "sourceVisionEventId", "objects"],
+  "properties": {
+    "eventType": { "const": "perception_event" },
+    "perceptionEventId": { "type": "string" },
+    "observedAt": { "type": "string" },
+    "sourceVisionEventId": { "type": "string" },
+    "channelId": { "type": "string" },
+    "objects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["objectType", "confidence"],
+        "properties": {
+          "objectType": {
+            "type": "string",
+            "enum": ["window", "chat_list", "conversation", "message_bubble", "input_box", "payment_proof", "audio", "error"]
+          },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "bounds": { "type": "object" },
+          "text": { "type": "string" },
+          "role": { "type": "string" },
+          "metadata": { "type": "object" }
+        }
+      }
+    }
+  }
+}
+

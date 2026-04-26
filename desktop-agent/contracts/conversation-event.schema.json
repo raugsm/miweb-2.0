@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Conversation Event",
+  "type": "object",
+  "required": ["eventType", "conversationEventId", "conversationId", "channelId", "observedAt", "messages", "timeline"],
+  "properties": {
+    "eventType": { "const": "conversation_event" },
+    "conversationEventId": { "type": "string" },
+    "conversationId": { "type": "string" },
+    "channelId": { "type": "string" },
+    "observedAt": { "type": "string" },
+    "conversationTitle": { "type": "string" },
+    "source": { "type": "string", "enum": ["live", "history", "replay", "manual"] },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["messageId", "text", "direction"],
+        "properties": {
+          "messageId": { "type": "string" },
+          "text": { "type": "string" },
+          "direction": { "type": "string", "enum": ["client", "agent", "unknown"] },
+          "senderName": { "type": "string" },
+          "sentAt": { "type": "string" },
+          "confidence": { "type": "number" }
+        }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "required": ["historyLimitDays", "complete"],
+      "properties": {
+        "historyLimitDays": { "type": "integer" },
+        "complete": { "type": "boolean" },
+        "oldestLoadedAt": { "type": "string" },
+        "dedupeStrategy": { "type": "string" }
+      }
+    }
+  }
+}
+

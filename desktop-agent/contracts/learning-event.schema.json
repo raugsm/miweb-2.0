@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Learning Event",
+  "type": "object",
+  "required": ["eventType", "learningId", "createdAt", "learningType", "source", "summary"],
+  "properties": {
+    "eventType": { "const": "learning_event" },
+    "learningId": { "type": "string" },
+    "createdAt": { "type": "string" },
+    "learningType": { "type": "string", "enum": ["slang", "service", "procedure", "pricing", "accounting", "failure", "correction", "customer_pattern"] },
+    "source": { "type": "string" },
+    "summary": { "type": "string" },
+    "before": { "type": "object" },
+    "after": { "type": "object" },
+    "confidence": { "type": "number" },
+    "appliesTo": { "type": "array" }
+  }
+}
+

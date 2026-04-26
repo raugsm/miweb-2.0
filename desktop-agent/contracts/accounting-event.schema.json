@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Accounting Event",
+  "type": "object",
+  "required": ["eventType", "accountingId", "createdAt", "status", "confidence", "conversationId", "evidence"],
+  "properties": {
+    "eventType": { "const": "accounting_event" },
+    "accountingId": { "type": "string" },
+    "createdAt": { "type": "string" },
+    "status": { "type": "string", "enum": ["draft", "needs_confirmation", "confirmed", "rejected"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "clientName": { "type": "string" },
+    "conversationId": { "type": "string" },
+    "kind": { "type": "string", "enum": ["payment", "debt", "refund", "price_quote", "unknown"] },
+    "amount": { "type": "number" },
+    "currency": { "type": "string" },
+    "method": { "type": "string" },
+    "evidence": { "type": "array" }
+  }
+}
+

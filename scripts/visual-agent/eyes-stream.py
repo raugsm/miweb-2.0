@@ -779,6 +779,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--record-quality", type=int, default=55)
     parser.add_argument("--retention-hours", type=float, default=168.0)
     parser.add_argument("--max-storage-gb", type=float, default=500.0)
+    parser.add_argument("--cloud-raw-frames", action="store_true", help="Reservado. El modo normal nunca sube frames crudos.")
+    parser.add_argument("--understood-cloud-only", dest="understood_cloud_only", action="store_true")
+    parser.add_argument("--no-understood-cloud-only", dest="understood_cloud_only", action="store_false")
+    parser.set_defaults(understood_cloud_only=True)
     parser.add_argument("--vision-storage-dir", default="")
     parser.add_argument("--fingerprint-width", type=int, default=96)
     parser.add_argument("--fingerprint-height", type=int, default=96)
@@ -806,6 +810,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             args.state_interval_ms = 500
         if args.record_frames is None:
             args.record_frames = True
+        if args.record_interval_ms == 500:
+            args.record_interval_ms = args.interval_ms
+        if args.retention_hours == 168.0:
+            args.retention_hours = 1.0
+        if args.max_storage_gb == 500.0:
+            args.max_storage_gb = 40.0
     if args.record_frames is None:
         args.record_frames = False
     if args.ocr_enhance is None:
@@ -815,9 +825,28 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     args.ocr_language_list = [item.strip() for item in str(args.ocr_languages or "").split(",") if item.strip()]
     args.record_quality = max(25, min(90, args.record_quality))
     args.record_interval_ms = max(100, args.record_interval_ms)
+    args.retention_hours = max(0.1, args.retention_hours)
+    args.max_storage_gb = max(1.0, args.max_storage_gb)
     args.reader_core_max_age_seconds = max(1.0, args.reader_core_max_age_seconds)
     args.reader_core_min_structured_confidence = max(0.0, min(1.0, args.reader_core_min_structured_confidence))
     return args
+
+
+def apply_storage_config(args: argparse.Namespace, config: dict[str, Any]) -> None:
+    storage = config.get("storage") or {}
+    if args.vision_storage_dir == "" and storage.get("visionStorageDir"):
+        args.vision_storage_dir = str(storage.get("visionStorageDir"))
+    if args.live:
+        if args.retention_hours == 1.0 and storage.get("liveRetentionHours") is not None:
+            args.retention_hours = max(0.1, float(storage.get("liveRetentionHours")))
+        if args.max_storage_gb == 40.0 and storage.get("liveMaxStorageGb") is not None:
+            args.max_storage_gb = max(1.0, float(storage.get("liveMaxStorageGb")))
+        if args.record_interval_ms == args.interval_ms and storage.get("liveRecordIntervalMs") is not None:
+            args.record_interval_ms = max(100, int(storage.get("liveRecordIntervalMs")))
+        if storage.get("cloudRawFrames") is not None:
+            args.cloud_raw_frames = bool(storage.get("cloudRawFrames"))
+        if storage.get("understoodCloudOnly") is not None:
+            args.understood_cloud_only = bool(storage.get("understoodCloudOnly"))
 
 
 def build_state(
@@ -867,6 +896,15 @@ def build_state(
             "sources": reader_core_sources,
             "stateFile": str(reader_core.STATE_FILE),
         },
+        "localVisionPolicy": {
+            "rawFrames": "local_temp_buffer",
+            "rawFramesUploadedToCloud": bool(args.cloud_raw_frames),
+            "cloudPayload": "understood_conversation_only" if args.understood_cloud_only else "events_and_understanding",
+            "retentionHours": args.retention_hours,
+            "maxStorageGb": args.max_storage_gb,
+            "frameProcessing": "continuous_local_capture",
+            "decisionPath": ["browser_reader", "reader_core", "ocr_fallback", "core_ia_python"],
+        },
         "visionStorageRoot": str(vision_storage_root),
         "storageCleanup": storage_cleanup,
         "regions": [{"channelId": r.channel_id, "name": r.name, "rect": list(r.rect)} for r in regions],
@@ -880,6 +918,7 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     config_path = Path(args.config_path).resolve()
     config = json.loads(config_path.read_text(encoding="utf-8-sig"))
+    apply_storage_config(args, config)
     vision_storage_root = Path(args.vision_storage_dir).expanduser().resolve() if args.vision_storage_dir else resolve_vision_storage_root(config)
     storage_cleanup = cleanup_vision_storage(vision_storage_root, args.retention_hours, args.max_storage_gb)
     session_dir = vision_storage_root / "eyes-stream" / datetime.now().strftime("%Y%m%d-%H%M%S")

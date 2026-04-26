@@ -15,6 +15,14 @@
     "url": "https://ariadgsm.com",
     "enabled": false
   },
+  "architecture": {
+    "autonomyLevel": 1,
+    "historyLimitDays": 30,
+    "rawFramesUploadedToCloud": false,
+    "visionStorageDir": "D:/AriadGSM/vision-buffer",
+    "visionRetentionHours": 1,
+    "visionMaxStorageGb": 40
+  },
   "windowsBridge": {
     "mode": "pending-dotnet",
     "contract": "./desktop-agent/contracts/windows-bridge-event.schema.json"

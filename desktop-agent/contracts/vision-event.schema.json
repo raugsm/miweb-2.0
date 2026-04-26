@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Vision Event",
+  "type": "object",
+  "required": ["eventType", "visionEventId", "capturedAt", "source", "visibleOnly", "frame", "retention"],
+  "properties": {
+    "eventType": { "const": "vision_event" },
+    "visionEventId": { "type": "string" },
+    "capturedAt": { "type": "string" },
+    "source": { "type": "string", "enum": ["screen_capture", "accessibility", "ocr", "hybrid"] },
+    "visibleOnly": { "type": "boolean", "const": true },
+    "channelHint": { "type": "string" },
+    "window": {
+      "type": "object",
+      "properties": {
+        "processName": { "type": "string" },
+        "title": { "type": "string" },
+        "bounds": { "type": "object" }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "required": ["frameId", "storedLocallyOnly"],
+      "properties": {
+        "frameId": { "type": "string" },
+        "path": { "type": "string" },
+        "width": { "type": "integer" },
+        "height": { "type": "integer" },
+        "hash": { "type": "string" },
+        "storedLocallyOnly": { "type": "boolean" }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "regionId": { "type": "string" },
+          "score": { "type": "number" },
+          "bounds": { "type": "object" }
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "required": ["rawFrameUploadedToCloud", "retentionHours", "maxStorageGb"],
+      "properties": {
+        "rawFrameUploadedToCloud": { "type": "boolean", "const": false },
+        "retentionHours": { "type": "number" },
+        "maxStorageGb": { "type": "number" }
+      }
+    }
+  }
+}
+

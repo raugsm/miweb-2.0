@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Action Event",
+  "type": "object",
+  "required": ["eventType", "actionId", "createdAt", "actionType", "target", "status", "verification"],
+  "properties": {
+    "eventType": { "const": "action_event" },
+    "actionId": { "type": "string" },
+    "createdAt": { "type": "string" },
+    "actionType": { "type": "string", "enum": ["focus_window", "open_chat", "scroll_history", "capture_conversation", "write_text", "send_message", "record_accounting", "noop"] },
+    "target": { "type": "object" },
+    "status": { "type": "string", "enum": ["planned", "executed", "failed", "blocked", "verified"] },
+    "verification": {
+      "type": "object",
+      "required": ["verified"],
+      "properties": {
+        "verified": { "type": "boolean" },
+        "summary": { "type": "string" },
+        "confidence": { "type": "number" }
+      }
+    }
+  }
+}
+
