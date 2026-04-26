@@ -7,6 +7,13 @@
     "maxAgeSeconds": 45,
     "limit": 800
   },
+  "operatingCore": {
+    "conversationEventsFile": "./desktop-agent/runtime/conversation-events.jsonl",
+    "decisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/operating-state.json",
+    "db": "./desktop-agent/runtime/operating-core.sqlite",
+    "limit": 200
+  },
   "service": {
     "intervalSeconds": 0.75,
     "maxCycles": 0
