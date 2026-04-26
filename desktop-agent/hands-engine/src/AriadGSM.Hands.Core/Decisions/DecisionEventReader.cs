@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace AriadGSM.Hands.Decisions;
@@ -24,7 +25,7 @@ public sealed class DecisionEventReader
                 continue;
             }
 
-            var lines = (await File.ReadAllLinesAsync(path, cancellationToken).ConfigureAwait(false))
+            var lines = (await ReadAllLinesSharedAsync(path, cancellationToken).ConfigureAwait(false))
                 .Where(line => !string.IsNullOrWhiteSpace(line))
                 .TakeLast(_limit);
             foreach (var line in lines)
@@ -48,5 +49,13 @@ public sealed class DecisionEventReader
             .Select(group => group.OrderByDescending(item => item.CreatedAt).First())
             .OrderBy(item => item.CreatedAt)
             .ToArray();
+    }
+
+    private static async ValueTask<string[]> ReadAllLinesSharedAsync(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var content = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        return content.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
     }
 }

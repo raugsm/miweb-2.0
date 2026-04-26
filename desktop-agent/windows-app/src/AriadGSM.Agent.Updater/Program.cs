@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace AriadGSM.Agent.Updater;
@@ -205,7 +206,7 @@ internal static class Program
             return client.GetStringAsync(uri).GetAwaiter().GetResult();
         }
 
-        return File.ReadAllText(source);
+        return ReadAllTextShared(source);
     }
 
     private static void CopyOrDownload(string source, string destination)
@@ -232,7 +233,7 @@ internal static class Program
             return "0.0.0";
         }
 
-        using var document = JsonDocument.Parse(File.ReadAllText(versionFile));
+        using var document = JsonDocument.Parse(ReadAllTextShared(versionFile));
         return document.RootElement.TryGetProperty("version", out var version)
             && version.ValueKind == JsonValueKind.String
             ? version.GetString() ?? "0.0.0"
@@ -303,7 +304,45 @@ internal static class Program
     private static void WriteState(string stateFile, UpdateState state)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(stateFile)!);
-        File.WriteAllText(stateFile, JsonSerializer.Serialize(state, JsonOptions));
+        WriteAllTextAtomicShared(stateFile, JsonSerializer.Serialize(state, JsonOptions));
+    }
+
+    private static string ReadAllTextShared(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
+    }
+
+    private static void WriteAllTextAtomicShared(string path, string text)
+    {
+        var tempPath = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            try
+            {
+                File.WriteAllText(tempPath, text, Encoding.UTF8);
+                File.Move(tempPath, path, overwrite: true);
+                return;
+            }
+            catch (IOException) when (attempt < 7)
+            {
+                Thread.Sleep(25 * (attempt + 1));
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempPath))
+                    {
+                        File.Delete(tempPath);
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
     }
 }
 

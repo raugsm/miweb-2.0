@@ -79,6 +79,7 @@ internal sealed class AgentRuntime : IDisposable
 
         Directory.CreateDirectory(_runtimeDir);
         WriteLog("Starting AriadGSM Agent without PowerShell.");
+        StopExternalWorkerProcesses();
         StartWebPanel();
         StartWorker(
             "Vision",
@@ -452,7 +453,7 @@ internal sealed class AgentRuntime : IDisposable
     {
         if (!File.Exists(_logFile))
         {
-            File.WriteAllText(_logFile, $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss} Log file created.{Environment.NewLine}");
+            AppendAllTextShared(_logFile, $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss} Log file created.{Environment.NewLine}");
         }
 
         Process.Start(new ProcessStartInfo
@@ -491,7 +492,7 @@ internal sealed class AgentRuntime : IDisposable
         {
             Directory.CreateDirectory(_runtimeDir);
             var probe = Path.Combine(_runtimeDir, "write-probe.tmp");
-            File.WriteAllText(probe, DateTimeOffset.Now.ToString("O"));
+            WriteAllTextAtomicShared(probe, DateTimeOffset.Now.ToString("O"));
             File.Delete(probe);
             return new HealthItem("Runtime local", "OK", HealthSeverity.Ok, DateTimeOffset.Now, "Carpeta de trabajo lista y escribible.");
         }
@@ -639,7 +640,7 @@ internal sealed class AgentRuntime : IDisposable
 
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(_updateStateFile));
+            using var document = JsonDocument.Parse(ReadAllTextShared(_updateStateFile));
             var root = document.RootElement;
             var status = TryString(root, "status") ?? "unknown";
             var detail = TryString(root, "detail") ?? "Estado de actualizacion recibido.";
@@ -914,18 +915,55 @@ internal sealed class AgentRuntime : IDisposable
         {
             if (!string.IsNullOrWhiteSpace(eventArgs.Data))
             {
-                WriteLog($"{name}: {eventArgs.Data}");
+                WriteLogNoThrow($"{name}: {eventArgs.Data}");
             }
         };
         process.ErrorDataReceived += (_, eventArgs) =>
         {
             if (!string.IsNullOrWhiteSpace(eventArgs.Data))
             {
-                WriteLog($"{name} error: {eventArgs.Data}");
+                WriteLogNoThrow($"{name} error: {eventArgs.Data}");
             }
         };
-        process.Exited += (_, _) => WriteLog($"{name} stopped.");
+        process.Exited += (_, _) => WriteLogNoThrow($"{name} stopped.");
         return process;
+    }
+
+    private void StopExternalWorkerProcesses()
+    {
+        var currentProcessId = Environment.ProcessId;
+        var workerNames = new[]
+        {
+            "AriadGSM.Vision.Worker",
+            "AriadGSM.Perception.Worker",
+            "AriadGSM.Hands.Worker"
+        };
+
+        foreach (var workerName in workerNames)
+        {
+            foreach (var process in Process.GetProcessesByName(workerName))
+            {
+                try
+                {
+                    if (process.Id == currentProcessId)
+                    {
+                        continue;
+                    }
+
+                    WriteLogNoThrow($"Stopping orphaned worker {workerName} pid={process.Id} before startup.");
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(3000);
+                }
+                catch (Exception exception)
+                {
+                    WriteLogNoThrow($"Could not stop orphaned worker {workerName} pid={process.Id}: {exception.Message}");
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+        }
     }
 
     private void TryStop(ManagedProcess item)
@@ -972,7 +1010,7 @@ internal sealed class AgentRuntime : IDisposable
 
         try
         {
-            return JsonDocument.Parse(File.ReadAllText(path));
+            return JsonDocument.Parse(ReadAllTextShared(path));
         }
         catch
         {
@@ -982,10 +1020,104 @@ internal sealed class AgentRuntime : IDisposable
 
     private void WriteLog(string message)
     {
+        WriteLogNoThrow(message);
+    }
+
+    private void WriteLogNoThrow(string message)
+    {
         var line = $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss} {message}";
-        Directory.CreateDirectory(_runtimeDir);
-        File.AppendAllText(_logFile, line + Environment.NewLine);
-        LogReceived?.Invoke(line);
+        try
+        {
+            Directory.CreateDirectory(_runtimeDir);
+            AppendAllTextShared(_logFile, line + Environment.NewLine);
+        }
+        catch
+        {
+            // Logging must never be able to crash the control center.
+        }
+
+        try
+        {
+            LogReceived?.Invoke(line);
+        }
+        catch
+        {
+            // UI callbacks are best-effort.
+        }
+    }
+
+    private static void AppendAllTextShared(string path, string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            try
+            {
+                using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                stream.Write(bytes);
+                return;
+            }
+            catch (IOException) when (attempt < 7)
+            {
+                Thread.Sleep(25 * (attempt + 1));
+            }
+        }
+    }
+
+    private static string ReadAllTextShared(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
+    }
+
+    private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void WriteAllTextAtomicShared(string path, string text)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var tempPath = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            try
+            {
+                File.WriteAllText(tempPath, text, Encoding.UTF8);
+                File.Move(tempPath, path, overwrite: true);
+                return;
+            }
+            catch (IOException) when (attempt < 7)
+            {
+                Thread.Sleep(25 * (attempt + 1));
+            }
+            finally
+            {
+                TryDelete(tempPath);
+            }
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+        }
     }
 
     private string? ResolvePython()
@@ -1115,7 +1247,7 @@ internal sealed class AgentRuntime : IDisposable
 
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            using var document = JsonDocument.Parse(ReadAllTextShared(path));
             return TryString(document.RootElement, "version") ?? "0.0.0-dev";
         }
         catch
@@ -1150,7 +1282,7 @@ internal sealed class AgentRuntime : IDisposable
             return await client.GetStringAsync(uri, cancellationToken).ConfigureAwait(false);
         }
 
-        return await File.ReadAllTextAsync(source, cancellationToken).ConfigureAwait(false);
+        return await ReadAllTextSharedAsync(source, cancellationToken).ConfigureAwait(false);
     }
 
     private void WriteUpdateState(UpdateCheckResult update, string status)
@@ -1167,7 +1299,7 @@ internal sealed class AgentRuntime : IDisposable
             ["detail"] = update.Detail,
             ["updatedAt"] = DateTimeOffset.UtcNow
         };
-        File.WriteAllText(_updateStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        WriteAllTextAtomicShared(_updateStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static int CompareVersions(string left, string right)
@@ -1190,7 +1322,7 @@ internal sealed class AgentRuntime : IDisposable
 
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            using var document = JsonDocument.Parse(ReadAllTextShared(path));
             if (!document.RootElement.TryGetProperty("channelMappings", out var mappings)
                 || mappings.ValueKind != JsonValueKind.Array)
             {

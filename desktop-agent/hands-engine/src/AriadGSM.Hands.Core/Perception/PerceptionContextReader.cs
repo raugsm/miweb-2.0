@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace AriadGSM.Hands.Perception;
@@ -20,7 +21,7 @@ public sealed class PerceptionContextReader
             return new PerceptionContext();
         }
 
-        var lines = (await File.ReadAllLinesAsync(_path, cancellationToken).ConfigureAwait(false))
+        var lines = (await ReadAllLinesSharedAsync(_path, cancellationToken).ConfigureAwait(false))
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .TakeLast(_limit)
             .Reverse();
@@ -177,5 +178,13 @@ public sealed class PerceptionContextReader
     {
         var raw = TryGetString(element, name);
         return DateTimeOffset.TryParse(raw, out var parsed) ? parsed : DateTimeOffset.MinValue;
+    }
+
+    private static async ValueTask<string[]> ReadAllLinesSharedAsync(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var content = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        return content.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
     }
 }

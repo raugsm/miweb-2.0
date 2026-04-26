@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace AriadGSM.Hands.Events;
@@ -23,7 +24,7 @@ public sealed class ActionEventWriter
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
-        await File.AppendAllTextAsync(_path, json + Environment.NewLine, cancellationToken).ConfigureAwait(false);
+        await AppendLineSharedAsync(_path, json, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<HashSet<string>> ReadExistingActionIdsAsync(CancellationToken cancellationToken = default)
@@ -34,7 +35,7 @@ public sealed class ActionEventWriter
             return ids;
         }
 
-        var lines = await File.ReadAllLinesAsync(_path, cancellationToken).ConfigureAwait(false);
+        var lines = await ReadAllLinesSharedAsync(_path, cancellationToken).ConfigureAwait(false);
         foreach (var line in lines)
         {
             if (string.IsNullOrWhiteSpace(line))
@@ -56,5 +57,31 @@ public sealed class ActionEventWriter
 
         ids.Remove(string.Empty);
         return ids;
+    }
+
+    private static async ValueTask AppendLineSharedAsync(string path, string line, CancellationToken cancellationToken)
+    {
+        var bytes = Encoding.UTF8.GetBytes(line + Environment.NewLine);
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (IOException) when (attempt < 7)
+            {
+                await Task.Delay(25 * (attempt + 1), cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async ValueTask<string[]> ReadAllLinesSharedAsync(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var content = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        return content.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
     }
 }

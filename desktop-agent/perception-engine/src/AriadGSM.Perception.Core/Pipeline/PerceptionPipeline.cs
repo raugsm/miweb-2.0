@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using AriadGSM.Perception.ChatRows;
 using AriadGSM.Perception.ChannelResolution;
@@ -372,8 +373,42 @@ public sealed class PerceptionPipeline
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = true
         });
-        await File.WriteAllTextAsync(_options.StateFile, json, cancellationToken).ConfigureAwait(false);
+        await WriteTextAtomicAsync(_options.StateFile, json, cancellationToken).ConfigureAwait(false);
         return state;
+    }
+
+    private static async ValueTask WriteTextAtomicAsync(string path, string text, CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var tempPath = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await File.WriteAllTextAsync(tempPath, text, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
+            for (var attempt = 0; attempt < 8; attempt++)
+            {
+                try
+                {
+                    File.Move(tempPath, path, overwrite: true);
+                    return;
+                }
+                catch (IOException) when (attempt < 7)
+                {
+                    await Task.Delay(25 * (attempt + 1), cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
     }
 
     private sealed record ChannelReadResult(

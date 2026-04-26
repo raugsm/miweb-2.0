@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace AriadGSM.Perception.Events;
@@ -26,6 +27,24 @@ public sealed class PerceptionEventWriter
         }
 
         var json = JsonSerializer.Serialize(perceptionEvent, JsonOptions);
-        await File.AppendAllTextAsync(_path, json + Environment.NewLine, cancellationToken).ConfigureAwait(false);
+        await AppendLineSharedAsync(_path, json, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async ValueTask AppendLineSharedAsync(string path, string line, CancellationToken cancellationToken)
+    {
+        var bytes = Encoding.UTF8.GetBytes(line + Environment.NewLine);
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (IOException) when (attempt < 7)
+            {
+                await Task.Delay(25 * (attempt + 1), cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 }
