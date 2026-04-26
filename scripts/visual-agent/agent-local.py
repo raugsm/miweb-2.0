@@ -241,6 +241,55 @@ def is_interface_noise(text: str) -> bool:
     return any(pattern in value for pattern in patterns)
 
 
+def whatsapp_signature(raw_lines: list[str]) -> dict[str, Any]:
+    text = normalize(" ".join(raw_lines))
+    matched: list[str] = []
+    score = 0
+
+    signatures = [
+        ("message_box", ["escribe un mensaje"], 5),
+        ("message_box_partial", ["escribe un mensa"], 4),
+        ("search_chat", ["buscar un chat"], 5),
+        ("phone_history_notice", ["usa whatsapp en tu telefono", "mensajes anteriores"], 5),
+        ("whatsapp_windows", ["whatsapp para windows"], 5),
+        ("encryption_notice", ["mensajes personales", "cifrados"], 4),
+    ]
+    for name, needles, weight in signatures:
+        normalized_needles = [normalize(needle) for needle in needles]
+        if all(needle in text for needle in normalized_needles):
+            matched.append(name)
+            score += weight
+
+    list_markers = [
+        normalize(marker)
+        for marker in [
+            "no leidos",
+            "no leídos",
+            "favoritos",
+            "archivados",
+            "grupos",
+            "canales",
+            "estados",
+            "comunidades",
+            "llamadas",
+        ]
+    ]
+    marker_count = sum(1 for marker in list_markers if marker in text)
+    if marker_count >= 3:
+        matched.append("chat_list_tabs")
+        score += 4
+
+    return {
+        "accepted": score >= 4,
+        "score": score,
+        "matched": matched,
+    }
+
+
+def looks_like_whatsapp(raw_lines: list[str]) -> bool:
+    return bool(whatsapp_signature(raw_lines)["accepted"])
+
+
 def add_match(matches: list[dict[str, Any]], message: dict[str, Any], intent: str, label: str, priority: str, score: int, reasons: list[str]) -> None:
     matches.append(
         {

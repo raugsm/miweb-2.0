@@ -184,6 +184,10 @@ def line_decision(text: str) -> dict[str, Any]:
 
 
 def blocked_section_reason(raw_lines: list[str]) -> str | None:
+    signature = agent_local.whatsapp_signature(raw_lines)
+    if not signature["accepted"]:
+        return "no_whatsapp_signature"
+
     text = agent_local.normalize(" ".join(raw_lines))
     patterns = {
         "codex_en_zona": ["codex", "tareas completadas", "revisar cambios", "scripts/visual-agent"],

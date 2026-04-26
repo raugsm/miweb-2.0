@@ -486,6 +486,54 @@ function Test-BlockedVisualSection {
   return $false
 }
 
+function Get-WhatsAppVisualSignature {
+  param([string[]]$Lines)
+  $text = Normalize-VisualDateText (($Lines | ForEach-Object { $_ }) -join " ")
+  $score = 0
+  $matched = @()
+
+  $signatures = @(
+    @{ Name = "message_box"; Needles = @("escribe un mensaje"); Weight = 5 },
+    @{ Name = "message_box_partial"; Needles = @("escribe un mensa"); Weight = 4 },
+    @{ Name = "search_chat"; Needles = @("buscar un chat"); Weight = 5 },
+    @{ Name = "phone_history_notice"; Needles = @("usa whatsapp en tu telefono", "mensajes anteriores"); Weight = 5 },
+    @{ Name = "whatsapp_windows"; Needles = @("whatsapp para windows"); Weight = 5 },
+    @{ Name = "encryption_notice"; Needles = @("mensajes personales", "cifrados"); Weight = 4 }
+  )
+
+  foreach ($signature in $signatures) {
+    $hasAll = $true
+    foreach ($needle in $signature.Needles) {
+      if ($text -notlike "*$needle*") {
+        $hasAll = $false
+        break
+      }
+    }
+    if ($hasAll) {
+      $matched += $signature.Name
+      $score += [int]$signature.Weight
+    }
+  }
+
+  $listMarkers = @("no leidos", "favoritos", "archivados", "grupos", "canales", "estados", "comunidades", "llamadas")
+  $markerCount = 0
+  foreach ($marker in $listMarkers) {
+    if ($text -like "*$marker*") {
+      $markerCount += 1
+    }
+  }
+  if ($markerCount -ge 3) {
+    $matched += "chat_list_tabs"
+    $score += 4
+  }
+
+  return [pscustomobject]@{
+    Accepted = $score -ge 4
+    Score = $score
+    Matched = $matched
+  }
+}
+
 function Build-EventsOnce {
   $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
   $channels = @($config.channels)
@@ -517,15 +565,17 @@ function Build-EventsOnce {
     $rawLines = @(Read-OcrLines -ImagePath $region.Path -Engine $engine)
     $dateMarkers = @($rawLines | ForEach-Object { ConvertFrom-VisualDateLine $_ } | Where-Object { $_ })
     $debugLines = @()
-    if (Test-BlockedVisualSection $rawLines) {
+    $whatsAppSignature = Get-WhatsAppVisualSignature $rawLines
+    $blockedReason = if (-not $whatsAppSignature.Accepted) { "no_whatsapp_signature" } elseif (Test-BlockedVisualSection $rawLines) { "seccion_bloqueada" } else { "" }
+    if ($blockedReason) {
       if ($DebugDetails) {
         $debugLines = @($rawLines | ForEach-Object {
             [pscustomobject]@{
               Raw = $_
               Clean = ($_ -replace "\s+", " ").Trim()
               Accepted = $false
-              Reason = "seccion_bloqueada"
-              MatchedPattern = "ventana_no_whatsapp"
+              Reason = $blockedReason
+              MatchedPattern = if ($blockedReason -eq "no_whatsapp_signature") { "sin_firma_whatsapp" } else { "ventana_no_whatsapp" }
             }
           })
       }
@@ -538,6 +588,7 @@ function Build-EventsOnce {
         RawLineCount = $rawLines.Count
         UsefulLineCount = 0
         DateMarkers = $dateMarkers
+        WhatsAppSignature = $whatsAppSignature
         DebugLines = $debugLines
       }
       continue
@@ -574,6 +625,7 @@ function Build-EventsOnce {
       RawLineCount = $rawLines.Count
       UsefulLineCount = $lines.Count
       DateMarkers = $dateMarkers
+      WhatsAppSignature = $whatsAppSignature
       DebugLines = $debugLines
     }
     $conversationTitle = $region.Name

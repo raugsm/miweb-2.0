@@ -122,7 +122,8 @@ El boton **Ojo vivo** inicia un observador continuo distinto al capturador puntu
 - calcula diferencia visual por region;
 - ejecuta OCR solo cuando una zona cambia;
 - guarda un buffer reciente de eventos visuales;
-- marca zonas que no son WhatsApp, por ejemplo Codex o paginas de navegador;
+- acepta una region solo si encuentra firma visual de WhatsApp (`Escribe un mensaje`, buscador de chats, pestañas de lista o avisos propios de WhatsApp);
+- marca cualquier region sin firma de WhatsApp como `no_whatsapp_signature`, aunque sea Codex, navegador u otro programa;
 - deja un reporte vivo en `scripts\visual-agent\runtime\eyes-stream\latest.html`.
 
 Este modo no usa DOM ni lee sesiones internas del navegador. Es vision local por streaming visual.

@@ -167,7 +167,7 @@ Por defecto el capturador recorta cada tercio para leer la zona de conversacion 
 powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-screen-capture.ps1 -FullSection
 ```
 
-Si una seccion parece ser Codex, Railway, YouTube u otra pagina, el capturador la omite para no enviar ruido a la nube.
+El capturador usa regla positiva: solo acepta una seccion si contiene firma visual de WhatsApp (`Escribe un mensaje`, buscador de chats, pestañas de lista o avisos propios de WhatsApp). Cualquier seccion sin esa firma se omite como `no_whatsapp_signature`, aunque sea Codex, Railway, YouTube u otro programa.
 
 La lectura base tambien descarta grupos repetitivos de pagos (`Pagos Mexico`, `Pagos Chile`, `Pago Colombia`, `Pagos Peru`) aunque el OCR los lea con acentos, puntos o letras imperfectas. Esos grupos pueden existir en pantalla, pero no deben contaminar el aprendizaje ni las alertas como si fueran clientes.
 
