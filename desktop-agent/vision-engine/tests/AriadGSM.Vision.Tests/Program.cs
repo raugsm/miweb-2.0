@@ -3,10 +3,12 @@ using AriadGSM.Vision.Capture;
 using AriadGSM.Vision.ChangeDetection;
 using AriadGSM.Vision.Config;
 using AriadGSM.Vision.Events;
+using AriadGSM.Vision.Pipeline;
 
 TestRetentionPolicy();
 TestFrameDiffer();
 TestVisionEventContract();
+await TestSyntheticPipeline();
 
 Console.WriteLine("AriadGSM Vision tests OK");
 return 0;
@@ -40,6 +42,39 @@ static void TestVisionEventContract()
     Assert(errors.Count == 0, string.Join("; ", errors));
 }
 
+static async Task TestSyntheticPipeline()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-vision-test-" + Guid.NewGuid().ToString("N"));
+    var options = new VisionOptions
+    {
+        CaptureMode = "synthetic",
+        StorageRoot = root,
+        EventsFile = Path.Combine(root, "events.jsonl"),
+        StateFile = Path.Combine(root, "health.json"),
+        RetentionHours = 1,
+        MaxStorageGb = 1,
+        MaxCycles = 2,
+        CaptureIntervalMs = 20,
+        MinEventIntervalMs = 0
+    };
+    try
+    {
+        var pipeline = new VisionPipeline(options);
+        var summary = await pipeline.RunContinuousAsync(maxCycles: 2);
+        Assert(summary.FramesCaptured == 2, "continuous pipeline should capture two frames");
+        Assert(summary.EventsWritten >= 1, "continuous pipeline should write at least one event");
+        Assert(File.Exists(options.EventsFile), "events file should exist");
+        Assert(File.Exists(options.StateFile), "state file should exist");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
 static void Assert(bool condition, string message)
 {
     if (!condition)
@@ -47,4 +82,3 @@ static void Assert(bool condition, string message)
         throw new InvalidOperationException(message);
     }
 }
-

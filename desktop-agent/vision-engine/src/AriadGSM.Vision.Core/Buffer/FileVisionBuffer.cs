@@ -46,6 +46,59 @@ public sealed class FileVisionBuffer : IVisionBuffer
                 // Cleanup must never stop the live eye.
             }
         }
+
+        var files = Directory
+            .EnumerateFiles(_root, "*", SearchOption.AllDirectories)
+            .Select(path =>
+            {
+                try
+                {
+                    var info = new FileInfo(path);
+                    return new { Path = path, info.Length, info.LastWriteTimeUtc };
+                }
+                catch
+                {
+                    return null;
+                }
+            })
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .OrderBy(item => item.LastWriteTimeUtc)
+            .ToArray();
+        var totalBytes = files.Sum(item => item.Length);
+        foreach (var file in files)
+        {
+            if (totalBytes <= _policy.MaxBytes)
+            {
+                break;
+            }
+
+            try
+            {
+                File.Delete(file.Path);
+                totalBytes -= file.Length;
+                deleted++;
+            }
+            catch
+            {
+                // Cleanup must never stop the live eye.
+            }
+        }
+
+        foreach (var directory in Directory.EnumerateDirectories(_root, "*", SearchOption.AllDirectories).OrderByDescending(item => item.Length))
+        {
+            try
+            {
+                if (!Directory.EnumerateFileSystemEntries(directory).Any())
+                {
+                    Directory.Delete(directory);
+                }
+            }
+            catch
+            {
+                // Empty directory cleanup is best-effort.
+            }
+        }
         return deleted;
     }
 

@@ -16,16 +16,21 @@ It does not:
 
 Those jobs belong to Perception, Cognitive, Accounting and Hands engines.
 
-## V1 Strategy
+## V1 Definition Of Done
 
-1. Compile stable .NET 10 skeleton.
-2. Capture the real desktop with GDI fallback.
-3. Emit valid `vision_event` records.
-4. Keep raw local evidence under retention policy.
-5. Enumerate visible windows through Win32.
-6. Write local health diagnostics.
-7. Replace GDI with Windows Graphics Capture.
-8. Add DXGI capture later for high-FPS performance.
+1. Stable .NET 10 solution.
+2. Real desktop capture with Win32/GDI fallback.
+3. Valid `vision_event` records.
+4. Local-only raw evidence under retention and storage cap.
+5. Visible window inventory through Win32.
+6. Local health diagnostics with status, counters and last error.
+7. Continuous mode with change detection and event throttling.
+8. CLI and worker entrypoints.
+9. Automated contract and pipeline tests.
+
+## V2 Performance Track
+
+Windows Graphics Capture and DXGI are reserved for the next performance layer. They should replace the GDI backend only after they are tested against the same event, health, retention and privacy contracts.
 
 ## Why .NET 10
 

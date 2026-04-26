@@ -34,9 +34,13 @@ docs/
 - default cap: 40 GB;
 - cloud raw frame upload: disabled;
 - output contract: `desktop-agent/contracts/vision-event.schema.json`.
+- V1 capture backend: Win32/GDI fallback, tested on the local desktop.
+- continuous mode writes events only when the frame changes enough, so the disk is not flooded.
+- health state is written to `desktop-agent\runtime\vision-health.json` with status, counters, visible windows, and last error.
 - CLI diagnostics:
   - `dotnet run --project src/AriadGSM.Vision.Cli -- sample config/vision.example.json`
   - `dotnet run --project src/AriadGSM.Vision.Cli -- diagnose config/vision.example.json`
+  - `dotnet run --project src/AriadGSM.Vision.Cli -- watch config/vision.example.json 5`
   - `dotnet run --project src/AriadGSM.Vision.Cli -- windows`
 
 Python `scripts/visual-agent/eyes-stream.py` remains only as a temporary prototype until this .NET engine replaces it.

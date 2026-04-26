@@ -4,6 +4,10 @@
   "retentionHours": 1,
   "maxStorageGb": 40,
   "captureIntervalMs": 100,
+  "minEventIntervalMs": 250,
+  "changeThreshold": 0.0025,
+  "maxCycles": 0,
+  "durationSeconds": 0,
   "rawFramesUploadedToCloud": false,
   "eventsFile": "desktop-agent\\runtime\\vision-events.jsonl",
   "stateFile": "desktop-agent\\runtime\\vision-health.json"

@@ -15,6 +15,14 @@ public sealed class VisionOptions
 
     public int CaptureIntervalMs { get; init; } = 100;
 
+    public int MinEventIntervalMs { get; init; } = 250;
+
+    public double ChangeThreshold { get; init; } = 0.0025;
+
+    public int MaxCycles { get; init; } = 0;
+
+    public double DurationSeconds { get; init; } = 0;
+
     public bool RawFramesUploadedToCloud { get; init; } = false;
 
     public string EventsFile { get; init; } = @"desktop-agent\runtime\vision-events.jsonl";
