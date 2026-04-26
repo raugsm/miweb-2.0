@@ -17,6 +17,10 @@ public sealed class Win32WindowEnumerator : IWindowEnumerator
             {
                 return true;
             }
+            if (IsIconic(handle))
+            {
+                return true;
+            }
 
             var title = GetWindowTitle(handle);
             if (string.IsNullOrWhiteSpace(title))
@@ -31,7 +35,15 @@ public sealed class Win32WindowEnumerator : IWindowEnumerator
 
             var width = rect.Right - rect.Left;
             var height = rect.Bottom - rect.Top;
-            if (width <= 0 || height <= 0)
+            if (width <= 120 || height <= 80)
+            {
+                return true;
+            }
+            if (!IntersectsVirtualScreen(rect))
+            {
+                return true;
+            }
+            if (title.Equals("Program Manager", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -49,6 +61,15 @@ public sealed class Win32WindowEnumerator : IWindowEnumerator
             return true;
         }, IntPtr.Zero);
         return windows;
+    }
+
+    private static bool IntersectsVirtualScreen(Rect rect)
+    {
+        var left = GetSystemMetrics(SystemMetric.VirtualScreenLeft);
+        var top = GetSystemMetrics(SystemMetric.VirtualScreenTop);
+        var right = left + GetSystemMetrics(SystemMetric.VirtualScreenWidth);
+        var bottom = top + GetSystemMetrics(SystemMetric.VirtualScreenHeight);
+        return rect.Left < right && rect.Right > left && rect.Top < bottom && rect.Bottom > top;
     }
 
     private static string GetWindowTitle(IntPtr handle)
@@ -82,6 +103,12 @@ public sealed class Win32WindowEnumerator : IWindowEnumerator
     [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr hWnd);
 
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(SystemMetric nIndex);
+
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
@@ -101,5 +128,13 @@ public sealed class Win32WindowEnumerator : IWindowEnumerator
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    private enum SystemMetric
+    {
+        VirtualScreenLeft = 76,
+        VirtualScreenTop = 77,
+        VirtualScreenWidth = 78,
+        VirtualScreenHeight = 79
     }
 }

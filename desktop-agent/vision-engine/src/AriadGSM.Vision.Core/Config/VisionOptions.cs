@@ -5,6 +5,8 @@ namespace AriadGSM.Vision.Config;
 
 public sealed class VisionOptions
 {
+    public string CaptureMode { get; init; } = "gdi";
+
     public string StorageRoot { get; init; } = VisionDefaults.StorageRoot;
 
     public double RetentionHours { get; init; } = 1;
@@ -16,6 +18,8 @@ public sealed class VisionOptions
     public bool RawFramesUploadedToCloud { get; init; } = false;
 
     public string EventsFile { get; init; } = @"desktop-agent\runtime\vision-events.jsonl";
+
+    public string StateFile { get; init; } = @"desktop-agent\runtime\vision-health.json";
 
     public static VisionOptions Load(string path)
     {
@@ -36,4 +40,3 @@ public sealed class VisionOptions
         return new RetentionPolicy(TimeSpan.FromHours(RetentionHours), MaxStorageGb);
     }
 }
-

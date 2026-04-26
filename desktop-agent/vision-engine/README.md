@@ -34,5 +34,9 @@ docs/
 - default cap: 40 GB;
 - cloud raw frame upload: disabled;
 - output contract: `desktop-agent/contracts/vision-event.schema.json`.
+- CLI diagnostics:
+  - `dotnet run --project src/AriadGSM.Vision.Cli -- sample config/vision.example.json`
+  - `dotnet run --project src/AriadGSM.Vision.Cli -- diagnose config/vision.example.json`
+  - `dotnet run --project src/AriadGSM.Vision.Cli -- windows`
 
 Python `scripts/visual-agent/eyes-stream.py` remains only as a temporary prototype until this .NET engine replaces it.

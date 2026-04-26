@@ -6,3 +6,4 @@ var options = VisionOptions.Load(configPath);
 var worker = new VisionPipeline(options);
 var state = await worker.RunOnceAsync();
 Console.WriteLine($"AriadGSM Vision Worker: {state.Status}, frames={state.FramesCaptured}, events={state.EventsWritten}, storage={state.StorageRoot}");
+Console.WriteLine($"capture={state.CaptureMode}, screen={state.ScreenWidth}x{state.ScreenHeight}, windows={state.VisibleWindowCount}, frame={state.LastFramePath}");

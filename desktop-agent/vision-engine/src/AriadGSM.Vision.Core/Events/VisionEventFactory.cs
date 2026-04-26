@@ -13,7 +13,7 @@ public static class VisionEventFactory
             "vision_event",
             $"vision-{frame.FrameId}",
             frame.CapturedAt,
-            frame.Source == "synthetic" ? "screen_capture" : frame.Source,
+            ToContractSource(frame.Source),
             true,
             new FrameEvidence(frame.FrameId, savedFrame.Path, frame.Width, frame.Height, frame.Hash, savedFrame.StoredLocallyOnly),
             new RetentionEvidence(false, options.RetentionHours, options.MaxStorageGb),
@@ -21,5 +21,11 @@ public static class VisionEventFactory
             null,
             changes ?? Array.Empty<ChangedRegion>());
     }
-}
 
+    private static string ToContractSource(string source)
+    {
+        return source is "synthetic" or "gdi" or "windows_graphics" or "dxgi"
+            ? "screen_capture"
+            : source;
+    }
+}

@@ -19,13 +19,14 @@ Those jobs belong to Perception, Cognitive, Accounting and Hands engines.
 ## V1 Strategy
 
 1. Compile stable .NET 10 skeleton.
-2. Emit valid `vision_event` records.
-3. Keep raw local evidence under retention policy.
-4. Enumerate visible windows through Win32.
-5. Replace synthetic capture with Windows Graphics Capture.
-6. Add DXGI capture later for high-FPS performance.
+2. Capture the real desktop with GDI fallback.
+3. Emit valid `vision_event` records.
+4. Keep raw local evidence under retention policy.
+5. Enumerate visible windows through Win32.
+6. Write local health diagnostics.
+7. Replace GDI with Windows Graphics Capture.
+8. Add DXGI capture later for high-FPS performance.
 
 ## Why .NET 10
 
 .NET 10 is the current LTS target and is supported through November 2028. This avoids building the final Windows app on an older runtime that would force another migration soon.
-

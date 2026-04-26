@@ -17,7 +17,7 @@ public sealed class FileVisionBuffer : IVisionBuffer
     {
         var dayDir = Path.Combine(_root, "frames", frame.CapturedAt.ToString("yyyyMMdd"));
         Directory.CreateDirectory(dayDir);
-        var path = Path.Combine(dayDir, $"{frame.FrameId}.bin");
+        var path = Path.Combine(dayDir, $"{frame.FrameId}{GetExtension(frame)}");
         await File.WriteAllBytesAsync(path, frame.Data, cancellationToken).ConfigureAwait(false);
         return new SavedFrame(frame.FrameId, path, frame.CapturedAt, frame.Hash, true);
     }
@@ -48,5 +48,11 @@ public sealed class FileVisionBuffer : IVisionBuffer
         }
         return deleted;
     }
-}
 
+    private static string GetExtension(ScreenFrame frame)
+    {
+        return frame.Source is "gdi" or "screen_capture" or "windows_graphics" or "dxgi"
+            ? ".bmp"
+            : ".bin";
+    }
+}
