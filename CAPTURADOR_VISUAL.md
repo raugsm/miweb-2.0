@@ -43,7 +43,7 @@ El boton **Autopiloto** no abre una pestana nueva de Chrome ni reacomoda ventana
 
 El aprendizaje profundo no abre grupos como `Pagos Mexico`, `Pagos Chile` o `Pagos Colombia`, porque aportan poco al estilo de clientes y servicios. Se dejan fuera por reglas configurables en `autopilot.skipLearningChats`.
 
-El aprendizaje de conversaciones abre el chat, captura la vista actual, sube el scroll para leer paginas anteriores y corta el barrido al llegar al limite de 1 mes. El modo autopiloto usa un barrido corto para responder rapido en vivo; el boton **Aprender chats** usa un barrido mas profundo.
+El aprendizaje de conversaciones abre el chat, captura la vista actual, sube el scroll para leer paginas anteriores y corta el barrido al llegar al limite de 1 mes. El modo autopiloto aprende desde el primer ciclo y luego usa un barrido corto para responder rapido en vivo; el boton **Aprender chats** usa un barrido mas profundo.
 
 Preview seguro:
 
@@ -115,6 +115,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-intent-br
 
 El launcher tambien tiene el boton **Atender alerta**, que ejecuta este flujo minimizando la ventana primero.
 
+El puente no abre grupos de pagos cuando la busqueda es generica. Si `pago` devuelve solo `Pagos Mexico`, `Pagos Chile` o `Pago Colombia`, los marca como omitidos y no mueve el mouse.
+
 ## Aprendizaje de chats
 
 Para que la IA aprenda clientes, servicios y contabilidad con mas contexto, existe una pasada que abre chats visibles y captura la conversacion abierta:
@@ -138,6 +140,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-lear
 El capturador marca el chat abierto como `opened_chat`, usando el nombre de la fila que el mouse abrio. Asi la nube puede agrupar mejor lo aprendido por cliente/chat en vez de dejar todo como pantalla generica.
 
 Durante esta pasada, las fechas de WhatsApp (`Hoy`, `Ayer`, dias de la semana o fechas numericas/textuales) se conservan como metadatos locales para saber cuando parar. No se envian como mensajes utiles. Si una pagina ya esta completamente fuera del ultimo mes, no se sube a la nube.
+
+El filtro de grupos de pagos se aplica sobre toda la fila OCR antes de hacer clic. Esto evita que el agente abra `Pagos Mexico` si el OCR selecciona una linea de vista previa dentro de esa misma fila.
 
 ## Prueba sin enviar a nube
 

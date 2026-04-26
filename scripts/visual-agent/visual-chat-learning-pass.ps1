@@ -26,7 +26,8 @@ if (-not $ConfigPath) {
 
 $DefaultSkipLearningChatPatterns = @(
   "^Pagos?\s+(Mexico|M\.xico|M.xico|Chile|Colombia|Peru|Per.)\b.*$",
-  "^Pagos?\s+(MX|CL|CO|PE)\b.*$"
+  "^Pagos?\s+(MX|CL|CO|PE)\b.*$",
+  "\bpagos?\b.*\b(mexico|chile|colombia|peru|mx|cl|co|pe)\b"
 )
 
 function Read-LearningConfig {
@@ -75,11 +76,47 @@ function Limit-Text {
   return $text.Substring(0, $Length).Trim() + "..."
 }
 
+function Test-LearningTimeOnlyLine {
+  param([string]$Text)
+  $value = ($Text -replace "\s+", " ").Trim()
+  $hasClock = $value -match "\b[0-9gqloOiIl]{1,2}\s*[:;]\s*[0-9oO]{2}"
+  $hasAmpm = $value -match "\b[apu]\.?\s*(m|rn|nm|urn|um|r)\.?\b"
+  if (-not ($hasClock -or $hasAmpm)) {
+    return $false
+  }
+
+  $semantic = $value.ToLowerInvariant()
+  $semantic = $semantic -replace "\b[0-9gqloOiIl]{1,2}\s*[:;]\s*[0-9oO]{2}", ""
+  $semantic = $semantic -replace "\b[apu]\.?\s*(m|rn|nm|urn|um|r)\.?\b", ""
+  $semantic = $semantic -replace "[^a-z0-9\p{L}]+", ""
+  return $semantic.Length -le 4
+}
+
+function Test-SkipLearningText {
+  param([string]$Value)
+  $text = (($Value -replace "\s+", " ").Trim())
+  $normalized = Normalize-LearningText $text
+
+  if ($normalized -match "\bpagos?\b.*\b(mexico|chile|colombia|peru|mx|cl|co|pe)\b") {
+    return $true
+  }
+
+  foreach ($pattern in @($script:SkipLearningChatPatterns)) {
+    if (-not $pattern) { continue }
+    if ($text -match $pattern -or $normalized -match $pattern) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
 function Test-LearningCandidate {
   param($Candidate)
   $text = (($Candidate.Text -replace "\s+", " ").Trim())
   if ($text.Length -lt 3) { return $false }
   if ($text -notmatch "[\p{L}\p{N}]") { return $false }
+  if (Test-LearningTimeOnlyLine $text) { return $false }
   $normalized = Normalize-LearningText $text
   if ($normalized -match "\btu\b") { return $false }
 
@@ -129,10 +166,35 @@ function Test-LearningCandidate {
     if ($text -match $pattern) { return $false }
   }
 
-  foreach ($pattern in @($script:SkipLearningChatPatterns)) {
-    if ($pattern -and $text -match $pattern) { return $false }
+  if (Test-SkipLearningText $text) {
+    return $false
   }
 
+  return $true
+}
+
+function Get-LearningRowCandidates {
+  param($Navigation, $Candidate)
+  $candidateY = [int]$Candidate.Click.Y
+  return @($Navigation.Candidates |
+    Where-Object {
+      $_.Click -and [Math]::Abs(([int]$_.Click.Y) - $candidateY) -le 36
+    } |
+    Sort-Object { $_.Rect.Left })
+}
+
+function Get-LearningRowText {
+  param($Navigation, $Candidate)
+  $row = @(Get-LearningRowCandidates -Navigation $Navigation -Candidate $Candidate)
+  return (($row | ForEach-Object { [string]$_.Text }) -join " " -replace "\s+", " ").Trim()
+}
+
+function Test-LearningCandidateRow {
+  param($Navigation, $Candidate)
+  $rowText = Get-LearningRowText -Navigation $Navigation -Candidate $Candidate
+  if (Test-SkipLearningText $rowText) {
+    return $false
+  }
   return $true
 }
 
@@ -237,6 +299,8 @@ function Select-ChatCandidates {
   $selected = @()
   foreach ($candidate in @($Navigation.Candidates | Sort-Object { $_.Click.Y })) {
     if (-not (Test-LearningCandidate $candidate)) { continue }
+    if (-not (Test-LearningCandidateRow -Navigation $Navigation -Candidate $candidate)) { continue }
+    if (@($selected | Where-Object { [Math]::Abs(([int]$_.Click.Y) - ([int]$candidate.Click.Y)) -le 36 }).Count) { continue }
     $key = Normalize-LearningText $candidate.Text
     if (-not $key -or $seen.ContainsKey($key)) { continue }
     $seen[$key] = $true

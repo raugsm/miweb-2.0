@@ -78,7 +78,7 @@ Por defecto, el boton **Autopiloto** ya no abre una pestana nueva de Chrome ni r
 
 El aprendizaje profundo excluye grupos contables repetitivos como `Pagos Mexico`, `Pagos Chile` y `Pagos Colombia`. Pueden aparecer como señales contables en capturas normales, pero el mouse no los abre para entrenar estilo de cliente/servicio.
 
-Cuando el autopiloto aprende de un chat, ya no captura solo lo visible. Abre la conversacion, toma una lectura, sube el scroll para buscar mensajes anteriores y repite la lectura de forma controlada. El boton **Autopiloto** usa una pasada corta para no perder velocidad en vivo; el boton **Aprender chats** hace una pasada mas profunda.
+Cuando el autopiloto aprende de un chat, ya no captura solo lo visible. Abre la conversacion, toma una lectura, sube el scroll para buscar mensajes anteriores y repite la lectura de forma controlada. El boton **Autopiloto** aprende desde el primer ciclo y luego usa pasadas cortas para no perder velocidad en vivo; el boton **Aprender chats** hace una pasada mas profunda.
 
 El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.
 
@@ -169,6 +169,8 @@ Ese modo hace esto:
 5. espera unos segundos;
 6. captura los 3 WhatsApp y actualiza la nube.
 
+Antes de hacer clic, tambien descarta filas de grupos de pagos como `Pagos Mexico`, `Pagos Chile` o `Pago Colombia`. Si la palabra generica `pago` solo encuentra esos grupos, el puente no abre nada y espera una coincidencia mejor.
+
 El boton **Atender alerta** del launcher ejecuta ese mismo flujo y minimiza la ventana antes de buscar.
 
 ## Pasada de aprendizaje de chats
@@ -193,7 +195,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-lear
 
 El boton **Aprender chats** del launcher ejecuta esta pasada con maximo 2 chats por WhatsApp y 40 lineas por chat. Sigue siendo modo lectura: no escribe ni envia mensajes.
 
-Por defecto esa pasada abre cada chat seleccionado, captura la vista actual, sube hasta 5 paginas de scroll y se detiene si cruza el limite de 1 mes. Cada pagina enviada mantiene el mismo `conversationId`, para que la nube agrupe todo como una misma conversacion.
+Por defecto esa pasada abre cada chat seleccionado, captura la vista actual, sube hasta 5 paginas de scroll y se detiene si cruza el limite de 1 mes. Antes de hacer clic, revisa toda la fila OCR para evitar grupos repetitivos como `Pagos Mexico`, aunque el candidato elegido sea una vista previa de esa fila. Cada pagina enviada mantiene el mismo `conversationId`, para que la nube agrupe todo como una misma conversacion.
 
 ## Logs
 

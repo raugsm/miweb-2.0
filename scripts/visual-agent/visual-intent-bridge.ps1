@@ -37,6 +37,16 @@ if ($Send) {
   $CaptureAfterOpen = $true
 }
 
+$mouseApi = @"
+using System;
+using System.Runtime.InteropServices;
+public class VisualBridgeMouse {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+}
+"@
+Add-Type -TypeDefinition $mouseApi -ErrorAction SilentlyContinue
+
 function Normalize-BridgeText {
   param([string]$Value)
   $text = ([string]$Value).ToLowerInvariant().Normalize([System.Text.NormalizationForm]::FormD)
@@ -50,6 +60,55 @@ function Limit-Text {
     return $text
   }
   return $text.Substring(0, $Length).Trim() + "..."
+}
+
+function Test-SkipBridgeChatText {
+  param([string]$Value)
+  $normalized = Normalize-BridgeText $Value
+  if ($normalized -match "\bpagos?\b.*\b(mexico|chile|colombia|peru|mx|cl|co|pe)\b") {
+    return $true
+  }
+  return $false
+}
+
+function Get-BridgeRowText {
+  param($Navigation, $Candidate)
+  $candidateY = [int]$Candidate.Click.Y
+  $row = @($Navigation.Candidates |
+    Where-Object {
+      $_.Click -and [Math]::Abs(([int]$_.Click.Y) - $candidateY) -le 36
+    } |
+    Sort-Object { $_.Rect.Left })
+  return (($row | ForEach-Object { [string]$_.Text }) -join " " -replace "\s+", " ").Trim()
+}
+
+function Test-BridgeCandidateAllowed {
+  param($Navigation, $Candidate)
+  if (-not $Candidate) { return $false }
+  $candidateText = [string]$Candidate.Text
+  $rowText = Get-BridgeRowText -Navigation $Navigation -Candidate $Candidate
+  if (Test-SkipBridgeChatText $candidateText) { return $false }
+  if (Test-SkipBridgeChatText $rowText) { return $false }
+  return $true
+}
+
+function Select-BridgeNavigationCandidate {
+  param($Navigation)
+  foreach ($candidate in @($Navigation.Candidates)) {
+    if (Test-BridgeCandidateAllowed -Navigation $Navigation -Candidate $candidate) {
+      return $candidate
+    }
+  }
+  return $null
+}
+
+function Invoke-BridgeClick {
+  param([int]$X, [int]$Y)
+  [void][VisualBridgeMouse]::SetCursorPos($X, $Y)
+  Start-Sleep -Milliseconds 90
+  [VisualBridgeMouse]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 90
+  [VisualBridgeMouse]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
 }
 
 function Get-UniqueQueries {
@@ -315,14 +374,18 @@ if (-not $queries.Count) {
 
 foreach ($candidateQuery in $queries) {
   $candidateNavigation = Invoke-Navigator -TargetChannel $targetChannel -SearchQuery $candidateQuery
+  $allowedSelection = Select-BridgeNavigationCandidate $candidateNavigation
+  $candidateNavigation.Selected = $allowedSelection
+  $skippedCount = @($candidateNavigation.Candidates | Where-Object { -not (Test-BridgeCandidateAllowed -Navigation $candidateNavigation -Candidate $_) }).Count
   $attempts += [pscustomobject]@{
     Query = $candidateQuery
     CandidateCount = @($candidateNavigation.Candidates).Count
-    Selected = $candidateNavigation.Selected
+    SkippedPaymentGroups = $skippedCount
+    Selected = $allowedSelection
     Capture = $candidateNavigation.Capture
   }
 
-  if ($candidateNavigation.Selected) {
+  if ($allowedSelection) {
     $navigation = $candidateNavigation
     $selectedQuery = $candidateQuery
     break
@@ -330,7 +393,7 @@ foreach ($candidateQuery in $queries) {
 }
 
 if ($navigation -and $Execute) {
-  $navigation = Invoke-Navigator -TargetChannel $targetChannel -SearchQuery $selectedQuery -DoExecute
+  Invoke-BridgeClick -X ([int]$navigation.Selected.Click.X) -Y ([int]$navigation.Selected.Click.Y)
   if ($CaptureAfterOpen) {
     Start-Sleep -Seconds ([Math]::Max(0, $WaitSeconds))
     $capture = Invoke-CaptureAfterNavigation
