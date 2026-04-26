@@ -41,6 +41,8 @@ En cada ciclo el motor Python respeta los WhatsApp que ya dejaste alineados, cap
 
 La decision local usa el OCR recien capturado, antes de esperar la ida y vuelta con la nube. Primero aplica reglas rapidas en `agent-local.py`; si `OPENAI_API_KEY` existe en esta PC, puede usar OpenAI como segundo escalon cuando no hay senal clara. Si detecta algo pero no encuentra una fila visible para abrir, el launcher lo muestra en **Que paso** con el texto y las busquedas intentadas.
 
+El visual debugger se abre desde **Ver ojos** y deja un reporte en `scripts\visual-agent\runtime\visual-debugger\latest.html`. Ese reporte muestra cada captura, las lineas aceptadas, las ignoradas y el motivo exacto del filtro.
+
 El boton **Modo vivo** no abre una pestana nueva de Chrome ni reacomoda ventanas por defecto. `-OpenWhatsApp` y `-ArrangeWindows` quedan solo para pruebas manuales.
 
 El aprendizaje profundo no abre grupos como `Pagos Mexico`, `Pagos Chile` o `Pagos Colombia`, porque aportan poco al estilo de clientes y servicios. Se dejan fuera por reglas configurables en `autopilot.skipLearningChats`.

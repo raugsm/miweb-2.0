@@ -91,6 +91,28 @@ La decision local usa reglas rapidas en Python primero para no perder velocidad.
 
 PowerShell queda como lanzador y puente de Windows. El ciclo vivo, el estado y la decision principal ya viven en Python.
 
+## Visual Debugger
+
+El boton **Ver ojos** genera un reporte local HTML con:
+
+- la captura de cada seccion `wa-1`, `wa-2`, `wa-3`;
+- lineas OCR aceptadas como mensaje util;
+- lineas ignoradas y el motivo del filtro;
+- secciones bloqueadas por no parecer WhatsApp;
+- decision local que tomaria el motor Python.
+
+El reporte queda en:
+
+```text
+scripts\visual-agent\runtime\visual-debugger\latest.html
+```
+
+Tambien puedes ejecutarlo manualmente:
+
+```powershell
+python .\scripts\visual-agent\visual-debugger.py --open
+```
+
 El historial de aprendizaje queda limitado a 1 mes de anterioridad. El capturador detecta fechas de WhatsApp como `Hoy`, `Ayer`, dias de la semana, `15/04/2026` o `15 de abril`; esas fechas se usan solo como metadatos para detener el scroll, no se guardan como mensajes de cliente.
 
 Para una prueba sin mover mouse ni enviar datos:

@@ -34,6 +34,16 @@ python .\scripts\visual-agent\agent-local.py --mode Live --max-cycles 1 --send
 
 El launcher busca Python en este orden: `ARIADGSM_PYTHON`, runtime local de Codex y luego `python.exe` del sistema. PowerShell se mantiene como puente para OCR/mouse de Windows mientras esas piezas se migran.
 
+## Visual debugger
+
+Para ver exactamente que lee e ignora el agente:
+
+```powershell
+python .\scripts\visual-agent\visual-debugger.py --open
+```
+
+Genera `runtime\visual-debugger\latest.html` con capturas por canal, lineas OCR aceptadas/ignoradas y la decision local.
+
 ## Ejecutar en observacion continua
 
 ```powershell

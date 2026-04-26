@@ -8,7 +8,8 @@ param(
   [ValidateSet("", "wa-1", "wa-2", "wa-3")]
   [string]$ActiveChannel = "",
   [string]$ActiveConversationTitle = "",
-  [string]$ActiveConversationId = ""
+  [string]$ActiveConversationId = "",
+  [switch]$DebugDetails
 )
 
 $ErrorActionPreference = "Stop"
@@ -334,23 +335,8 @@ function Save-ScreenRegions {
   return $regions
 }
 
-function Test-UsefulVisualLine {
-  param([string]$Text)
-  $clean = ($Text -replace "\s+", " ").Trim()
-  if ($clean.Length -lt 6) {
-    return $false
-  }
-  if ($clean -notmatch "[\p{L}\p{N}]") {
-    return $false
-  }
-  if (Test-OcrTimeOnlyLine $clean) {
-    return $false
-  }
-  if (Test-PaymentGroupVisualLine $clean) {
-    return $false
-  }
-
-  $ignorePatterns = @(
+function Get-VisualIgnorePatterns {
+  return @(
     "^\s*$",
     "^WhatsApp( Business)?$",
     "^WhatsAp+$",
@@ -437,14 +423,36 @@ function Test-UsefulVisualLine {
     "^[A-Z][\p{L}]+(?:\s+[A-Z][\p{L}]+){1,3}\s+(Peru|Chile|Colombia|Mexico|M.xico|Brasil|Argentina)$",
     "^\(?\d+\)?$"
   )
+}
 
-  foreach ($pattern in $ignorePatterns) {
+function Get-VisualLineDecision {
+  param([string]$Text)
+  $clean = ($Text -replace "\s+", " ").Trim()
+  if ($clean.Length -lt 6) {
+    return [pscustomobject]@{ Text = $clean; Accepted = $false; Reason = "muy_corta"; MatchedPattern = "" }
+  }
+  if ($clean -notmatch "[\p{L}\p{N}]") {
+    return [pscustomobject]@{ Text = $clean; Accepted = $false; Reason = "sin_texto_util"; MatchedPattern = "" }
+  }
+  if (Test-OcrTimeOnlyLine $clean) {
+    return [pscustomobject]@{ Text = $clean; Accepted = $false; Reason = "hora_suelta"; MatchedPattern = "" }
+  }
+  if (Test-PaymentGroupVisualLine $clean) {
+    return [pscustomobject]@{ Text = $clean; Accepted = $false; Reason = "grupo_pagos_ignorado"; MatchedPattern = "Pagos pais" }
+  }
+
+  foreach ($pattern in (Get-VisualIgnorePatterns)) {
     if ($clean -match $pattern) {
-      return $false
+      return [pscustomobject]@{ Text = $clean; Accepted = $false; Reason = "interfaz_o_ruido"; MatchedPattern = $pattern }
     }
   }
 
-  return $true
+  return [pscustomobject]@{ Text = $clean; Accepted = $true; Reason = "mensaje_util"; MatchedPattern = "" }
+}
+
+function Test-UsefulVisualLine {
+  param([string]$Text)
+  return [bool](Get-VisualLineDecision $Text).Accepted
 }
 
 function Test-BlockedVisualSection {
@@ -508,7 +516,19 @@ function Build-EventsOnce {
   foreach ($region in $regions) {
     $rawLines = @(Read-OcrLines -ImagePath $region.Path -Engine $engine)
     $dateMarkers = @($rawLines | ForEach-Object { ConvertFrom-VisualDateLine $_ } | Where-Object { $_ })
+    $debugLines = @()
     if (Test-BlockedVisualSection $rawLines) {
+      if ($DebugDetails) {
+        $debugLines = @($rawLines | ForEach-Object {
+            [pscustomobject]@{
+              Raw = $_
+              Clean = ($_ -replace "\s+", " ").Trim()
+              Accepted = $false
+              Reason = "seccion_bloqueada"
+              MatchedPattern = "ventana_no_whatsapp"
+            }
+          })
+      }
       $skippedChannels += $region.ChannelId
       $regionSummaries += [pscustomobject]@{
         ChannelId = $region.ChannelId
@@ -518,6 +538,7 @@ function Build-EventsOnce {
         RawLineCount = $rawLines.Count
         UsefulLineCount = 0
         DateMarkers = $dateMarkers
+        DebugLines = $debugLines
       }
       continue
     }
@@ -528,7 +549,17 @@ function Build-EventsOnce {
       if ($clean -match "^1\s+(\d{2,3})\s+(MXN|PEN|COP|CLP|USD|USDT)$") {
         $clean = "1$($matches[1]) $($matches[2])"
       }
-      if ((Test-UsefulVisualLine $clean) -and -not ($lines -contains $clean)) {
+      $decision = Get-VisualLineDecision $clean
+      if ($DebugDetails) {
+        $debugLines += [pscustomobject]@{
+          Raw = $line
+          Clean = $decision.Text
+          Accepted = $decision.Accepted
+          Reason = $decision.Reason
+          MatchedPattern = $decision.MatchedPattern
+        }
+      }
+      if ($decision.Accepted -and -not ($lines -contains $clean)) {
         $lines += $clean
       }
     }
@@ -543,6 +574,7 @@ function Build-EventsOnce {
       RawLineCount = $rawLines.Count
       UsefulLineCount = $lines.Count
       DateMarkers = $dateMarkers
+      DebugLines = $debugLines
     }
     $conversationTitle = $region.Name
     $conversationType = "visible_screen"

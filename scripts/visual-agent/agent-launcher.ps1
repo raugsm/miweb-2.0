@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
+  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "StartAutopilot", "StopAutopilot", "AutopilotOnce", "VisualDebug", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
   [int]$PollSeconds = 30,
   [switch]$StartMinimized
@@ -14,6 +14,7 @@ $IntentBridgeScript = Join-Path $ScriptDir "visual-intent-bridge.ps1"
 $LearningPassScript = Join-Path $ScriptDir "visual-chat-learning-pass.ps1"
 $AutopilotScript = Join-Path $ScriptDir "visual-autopilot.ps1"
 $PythonAgentScript = Join-Path $ScriptDir "agent-local.py"
+$VisualDebuggerScript = Join-Path $ScriptDir "visual-debugger.py"
 $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
 $PidFile = Join-Path $RuntimeDir "agent-watch.pid"
@@ -531,6 +532,31 @@ function Invoke-AutopilotOnce {
   return Get-AgentStatus
 }
 
+function Invoke-VisualDebug {
+  Ensure-RuntimeDir
+  if (-not (Test-Path -LiteralPath $VisualDebuggerScript)) {
+    throw "No encontre visual-debugger.py"
+  }
+
+  $debugOut = Join-Path $RuntimeDir ("visual-debugger-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $debugErr = Join-Path $RuntimeDir ("visual-debugger-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $pythonPath = Get-PythonPath
+  $command = "& '$pythonPath' '$VisualDebuggerScript' --config-path '$ConfigPath' --max-lines-per-capture 40 --intent-max-queries 3 --open"
+  $process = Start-HiddenProcess -Arguments @("-Command", $command) -CaptureOutput
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  Set-Content -LiteralPath $debugOut -Value $stdout -Encoding UTF8
+  Set-Content -LiteralPath $debugErr -Value $stderr -Encoding UTF8
+
+  if ([int]$process.ExitCode -ne 0) {
+    $errorText = if ($stderr) { $stderr } else { $stdout }
+    throw "El visual debugger fallo con codigo $($process.ExitCode). $errorText"
+  }
+
+  return Get-AgentStatus
+}
+
 function Open-AgentPanel {
   Start-Process "https://ariadgsm.com/operativa-v2.html"
 }
@@ -720,6 +746,15 @@ function Start-AgentGui {
   Set-AgentButtonStyle $buttonPanel
   $form.Controls.Add($buttonPanel)
 
+  $buttonDebug = New-Object System.Windows.Forms.Button
+  $buttonDebug.Text = "Ver ojos"
+  $buttonDebug.Left = 640
+  $buttonDebug.Top = 360
+  $buttonDebug.Width = 96
+  $buttonDebug.Height = 34
+  Set-AgentButtonStyle $buttonDebug
+  $form.Controls.Add($buttonDebug)
+
   $buttonLogs = New-Object System.Windows.Forms.Button
   $buttonLogs.Text = "Logs"
   $buttonLogs.Left = 540
@@ -831,6 +866,7 @@ function Start-AgentGui {
   $buttonIntent.Add_Click({ Run-GuiAction { Invoke-HandleIntent | Out-Null } -MinimizeBefore })
   $buttonLearn.Add_Click({ Run-GuiAction { Invoke-LearnChats | Out-Null } -MinimizeBefore })
   $buttonPanel.Add_Click({ Open-AgentPanel })
+  $buttonDebug.Add_Click({ Run-GuiAction { Invoke-VisualDebug | Out-Null } })
   $buttonLocal.Add_Click({ Open-LocalPanel })
   $buttonLogs.Add_Click({ Open-RuntimeFolder })
 
@@ -860,6 +896,7 @@ switch ($Action) {
   "StartAutopilot" { Start-Autopilot | ConvertTo-Json -Depth 5 }
   "StopAutopilot" { Stop-Autopilot | ConvertTo-Json -Depth 5 }
   "AutopilotOnce" { Invoke-AutopilotOnce | ConvertTo-Json -Depth 5 }
+  "VisualDebug" { Invoke-VisualDebug | ConvertTo-Json -Depth 5 }
   "OpenPanel" { Open-AgentPanel }
   "OpenLocalPanel" { Open-LocalPanel }
   "OpenRuntime" { Open-RuntimeFolder }
