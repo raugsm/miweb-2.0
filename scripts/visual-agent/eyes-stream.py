@@ -209,18 +209,22 @@ def change_score(previous: np.ndarray | None, current: np.ndarray) -> dict[str, 
     return {"mean": mean, "changedRatio": changed_ratio, "score": mean + (changed_ratio * 60.0)}
 
 
-def run_ocr(image_path: Path) -> list[str]:
+def run_ocr(image_path: Path, languages: list[str], max_engines: int) -> list[str]:
+    command = [
+        agent_local.find_powershell(),
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(OCR_SCRIPT),
+        "-ImagePath",
+        str(image_path),
+    ]
+    if languages:
+        command.extend(["-Languages", *languages])
+    command.extend(["-MaxEngines", str(max(1, max_engines))])
     result = subprocess.run(
-        [
-            agent_local.find_powershell(),
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(OCR_SCRIPT),
-            "-ImagePath",
-            str(image_path),
-        ],
+        command,
         cwd=PROJECT_ROOT,
         text=True,
         encoding="utf-8",
@@ -255,12 +259,12 @@ def prepare_ocr_image(image: Image.Image, output_path: Path, scale: float, enhan
     return str(output_path)
 
 
-def run_ocr_crop(image: Image.Image, image_path: Path, ocr_path: Path, scale: float, enhance: bool) -> dict[str, Any]:
+def run_ocr_crop(image: Image.Image, image_path: Path, ocr_path: Path, scale: float, enhance: bool, languages: list[str], max_engines: int) -> dict[str, Any]:
     image_path.parent.mkdir(parents=True, exist_ok=True)
     image.save(image_path, format="PNG", optimize=True)
     prepare_ocr_image(image, ocr_path, scale, enhance)
     return {
-        "lines": run_ocr(ocr_path),
+        "lines": run_ocr(ocr_path, languages, max_engines),
         "imagePath": str(image_path),
         "ocrImagePath": str(ocr_path),
     }
@@ -635,6 +639,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--ocr-workers", type=int, default=1)
     parser.add_argument("--max-pending-ocr", type=int, default=4)
     parser.add_argument("--ocr-scale", type=float, default=1.0)
+    parser.add_argument("--ocr-languages", default="es-MX,en-US,pt-BR")
+    parser.add_argument("--ocr-max-engines", type=int, default=3)
     parser.add_argument("--ocr-enhance", dest="ocr_enhance", action="store_true")
     parser.add_argument("--no-ocr-enhance", dest="ocr_enhance", action="store_false")
     parser.set_defaults(ocr_enhance=None)
@@ -676,6 +682,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if args.ocr_enhance is None:
         args.ocr_enhance = True
     args.ocr_scale = max(1.0, min(3.0, args.ocr_scale))
+    args.ocr_max_engines = max(1, min(5, args.ocr_max_engines))
+    args.ocr_language_list = [item.strip() for item in str(args.ocr_languages or "").split(",") if item.strip()]
     args.record_quality = max(25, min(90, args.record_quality))
     args.record_interval_ms = max(100, args.record_interval_ms)
     return args
@@ -718,6 +726,8 @@ def build_state(
         "ocrWorkers": args.ocr_workers,
         "ocrScale": args.ocr_scale,
         "ocrEnhance": bool(args.ocr_enhance),
+        "ocrLanguages": list(getattr(args, "ocr_language_list", [])),
+        "ocrMaxEngines": args.ocr_max_engines,
         "visionStorageRoot": str(vision_storage_root),
         "storageCleanup": storage_cleanup,
         "regions": [{"channelId": r.channel_id, "name": r.name, "rect": list(r.rect)} for r in regions],
@@ -853,7 +863,16 @@ def main(argv: list[str]) -> int:
                         last_ocr[region.channel_id] = now_mono
                         image_path = crop_dir / f"{stamp()}-{region.channel_id}.png"
                         ocr_path = crop_dir / f"{stamp()}-{region.channel_id}-ocr.png"
-                        future = executor.submit(run_ocr_crop, crop.copy(), image_path, ocr_path, args.ocr_scale, bool(args.ocr_enhance))
+                        future = executor.submit(
+                            run_ocr_crop,
+                            crop.copy(),
+                            image_path,
+                            ocr_path,
+                            args.ocr_scale,
+                            bool(args.ocr_enhance),
+                            list(args.ocr_language_list),
+                            args.ocr_max_engines,
+                        )
                         pending_ocr[future] = {
                             "region": region,
                             "imagePath": image_path,

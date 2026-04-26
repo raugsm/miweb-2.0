@@ -52,11 +52,25 @@ Observador continuo por streaming visual:
 python .\scripts\visual-agent\eyes-stream.py --duration-seconds 8
 ```
 
-Para dejarlo corriendo desde el launcher usa **Ojo vivo**. El launcher usa `--live`: captura cada 100ms por defecto, compara cambios por region, exige firma visual de WhatsApp antes de aceptar texto, mejora el recorte antes de OCR con escala 2x/contraste/nitidez, ejecuta OCR bajo demanda en segundo plano, guarda frames comprimidos en `D:\AriadGSM\vision-buffer` y escribe `runtime\eyes-stream.state.json` y `runtime\eyes-stream\latest.html`.
+Para dejarlo corriendo desde el launcher usa **Ojo vivo**. El launcher usa `--live`: captura cada 100ms por defecto, compara cambios por region, exige firma visual de WhatsApp antes de aceptar texto, mejora el recorte antes de OCR con escala 2x/contraste/nitidez, prueba idiomas OCR instalados (`es-MX,en-US,pt-BR`), ejecuta OCR bajo demanda en segundo plano, guarda frames comprimidos en `D:\AriadGSM\vision-buffer` y escribe `runtime\eyes-stream.state.json` y `runtime\eyes-stream\latest.html`.
 
 El buffer visual rota por defecto con 7 dias o 500GB. Se puede cambiar con `--retention-hours`, `--max-storage-gb`, `--vision-storage-dir` o la variable `ARIADGSM_VISION_STORAGE_DIR`.
 
 El aprendizaje visible queda en `runtime\learning-ledger\latest.html` y tambien se abre desde el launcher con **Aprendizaje**.
+
+## Idiomas OCR
+
+Windows OCR solo puede leer idiomas instalados en el sistema. Para instalar los idiomas recomendados:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\install-ocr-languages.ps1 -Languages es-MX,en-US,es-ES,pt-BR,pt-PT,fr-FR,de-DE,it-IT
+```
+
+Acepta el UAC de administrador cuando aparezca. Para instalar todos los OCR disponibles de Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\install-ocr-languages.ps1 -AllAvailable
+```
 
 ## Ejecutar en observacion continua
 
