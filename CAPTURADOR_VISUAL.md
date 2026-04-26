@@ -85,6 +85,28 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-intent-br
 
 El launcher tambien tiene el boton **Atender alerta**, que ejecuta este flujo minimizando la ventana primero.
 
+## Aprendizaje de chats
+
+Para que la IA aprenda clientes, servicios y contabilidad con mas contexto, existe una pasada que abre chats visibles y captura la conversacion abierta:
+
+```text
+scripts\visual-agent\visual-chat-learning-pass.ps1
+```
+
+Preview sin clics:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-learning-pass.ps1
+```
+
+Ejecucion real con envio a nube:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-learning-pass.ps1 -Execute -Send
+```
+
+El capturador marca el chat abierto como `opened_chat`, usando el nombre de la fila que el mouse abrio. Asi la nube puede agrupar mejor lo aprendido por cliente/chat en vez de dejar todo como pantalla generica.
+
 ## Prueba sin enviar a nube
 
 ```powershell

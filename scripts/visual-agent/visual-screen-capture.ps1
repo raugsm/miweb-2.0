@@ -4,7 +4,11 @@ param(
   [switch]$Watch,
   [switch]$FullSection,
   [int]$PollSeconds = 30,
-  [int]$MaxLinesPerChannel = 25
+  [int]$MaxLinesPerChannel = 25,
+  [ValidateSet("", "wa-1", "wa-2", "wa-3")]
+  [string]$ActiveChannel = "",
+  [string]$ActiveConversationTitle = "",
+  [string]$ActiveConversationId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -362,6 +366,16 @@ function Build-EventsOnce {
     $lines = @($lines | Select-Object -First $MaxLinesPerChannel)
     $captureHash = Get-Sha256 (($lines -join "`n") + "|" + $region.ChannelId)
     $totalLines += $lines.Count
+    $conversationTitle = $region.Name
+    $conversationType = "visible_screen"
+    $conversationId = "visible-screen-$($region.ChannelId)"
+
+    if ($ActiveChannel -eq $region.ChannelId -and $ActiveConversationTitle) {
+      $titleHash = (Get-Sha256 "$($region.ChannelId)|$ActiveConversationTitle").Substring(0, 16)
+      $conversationTitle = $ActiveConversationTitle
+      $conversationType = "opened_chat"
+      $conversationId = if ($ActiveConversationId) { $ActiveConversationId } else { "opened-chat-$($region.ChannelId)-$titleHash" }
+    }
 
     foreach ($line in $lines) {
       $messageHash = (Get-Sha256 "$($region.ChannelId)|$dayKey|$line").Substring(0, 18)
@@ -369,9 +383,9 @@ function Build-EventsOnce {
         type = "whatsapp_message"
         data = [pscustomobject]@{
           channelId = $region.ChannelId
-          contactName = $region.Name
-          conversationType = "visible_screen"
-          conversationId = "visible-screen-$($region.ChannelId)"
+          contactName = $conversationTitle
+          conversationType = $conversationType
+          conversationId = $conversationId
           messageKey = "visual-$messageHash"
           senderName = "Lectura visual"
           direction = "unknown"
@@ -386,7 +400,7 @@ function Build-EventsOnce {
       type = "checkpoint"
       data = [pscustomobject]@{
         channelId = $region.ChannelId
-        conversationId = "visible-screen-$($region.ChannelId)"
+        conversationId = $conversationId
         dayKey = $dayKey
         lastMessageKey = if ($lines.Count) { "visual-$((Get-Sha256 "$($region.ChannelId)|$dayKey|$($lines[-1])").Substring(0, 18))" } else { $null }
         lastCaptureHash = $captureHash

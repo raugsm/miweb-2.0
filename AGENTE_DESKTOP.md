@@ -16,6 +16,7 @@ El launcher permite:
 - detenerlo;
 - hacer una lectura una vez;
 - atender la primera alerta clasificada de la cabina;
+- hacer una pasada de aprendizaje abriendo chats visibles;
 - abrir la cabina en `ariadgsm.com`;
 - abrir logs locales.
 
@@ -49,6 +50,7 @@ Nivel actual del agente:
 3. Envia eventos a la nube.
 4. Puede calcular/coordenar clics con permiso explicito.
 5. Puede tomar una alerta de pago/deuda/precio, buscar el chat visible, abrirlo y volver a capturar.
+6. Puede recorrer chats visibles para aprender clientes, servicios y contexto contable.
 
 Todavia no escribe mensajes ni envia respuestas a clientes.
 
@@ -126,6 +128,28 @@ Ese modo hace esto:
 6. captura los 3 WhatsApp y actualiza la nube.
 
 El boton **Atender alerta** del launcher ejecuta ese mismo flujo y minimiza la ventana antes de buscar.
+
+## Pasada de aprendizaje de chats
+
+Para aprender conversaciones completas, el agente tiene una pasada que lista chats visibles, abre algunos por cada WhatsApp, captura la conversacion abierta y envia la lectura a la nube con el nombre del chat:
+
+```text
+scripts\visual-agent\visual-chat-learning-pass.ps1
+```
+
+Preview sin mover el mouse:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-learning-pass.ps1
+```
+
+Ejecucion real:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-learning-pass.ps1 -Execute -Send
+```
+
+El boton **Aprender chats** del launcher ejecuta esta pasada con maximo 2 chats por WhatsApp y 40 lineas por chat. Sigue siendo modo lectura: no escribe ni envia mensajes.
 
 ## Logs
 

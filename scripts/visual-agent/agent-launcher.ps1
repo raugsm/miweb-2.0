@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
+  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "LearnChats", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
   [int]$PollSeconds = 60,
   [switch]$StartMinimized
@@ -11,6 +11,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
 $CaptureScript = Join-Path $ScriptDir "visual-screen-capture.ps1"
 $IntentBridgeScript = Join-Path $ScriptDir "visual-intent-bridge.ps1"
+$LearningPassScript = Join-Path $ScriptDir "visual-chat-learning-pass.ps1"
 $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
 $PidFile = Join-Path $RuntimeDir "agent-watch.pid"
@@ -265,6 +266,44 @@ function Invoke-HandleIntent {
   return Get-AgentStatus
 }
 
+function Invoke-LearnChats {
+  Ensure-RuntimeDir
+  $configStatus = Test-AgentConfig
+  if (-not $configStatus.Configured) {
+    throw $configStatus.Message
+  }
+  if (-not (Test-Path -LiteralPath $LearningPassScript)) {
+    throw "No encontre visual-chat-learning-pass.ps1"
+  }
+
+  $learnOut = Join-Path $RuntimeDir ("chat-learning-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $learnErr = Join-Path $RuntimeDir ("chat-learning-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $process = Start-HiddenProcess -Arguments @("-File", $LearningPassScript, "-ConfigPath", $ConfigPath, "-Execute", "-Send", "-MaxChatsPerChannel", "2", "-MaxLinesPerChat", "40") -CaptureOutput
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  Set-Content -LiteralPath $learnOut -Value $stdout -Encoding UTF8
+  Set-Content -LiteralPath $learnErr -Value $stderr -Encoding UTF8
+
+  if ([int]$process.ExitCode -ne 0) {
+    $errorText = if ($stderr) { $stderr } else { $stdout }
+    throw "La pasada de aprendizaje fallo con codigo $($process.ExitCode). $errorText"
+  }
+
+  $learnResult = $null
+  try {
+    $learnResult = $stdout | ConvertFrom-Json
+  } catch {
+    $learnResult = $null
+  }
+  if ($learnResult -and $learnResult.Status -notin @("executed")) {
+    $noteText = if ($learnResult.Notes) { ($learnResult.Notes -join " ") } else { "" }
+    throw "No pude abrir chats para aprender. Estado: $($learnResult.Status). Revisa que los 3 WhatsApp esten visibles. $noteText"
+  }
+
+  return Get-AgentStatus
+}
+
 function Open-AgentPanel {
   Start-Process "https://ariadgsm.com/operativa-v2.html"
 }
@@ -378,6 +417,14 @@ function Start-AgentGui {
   $buttonIntent.Height = 32
   $form.Controls.Add($buttonIntent)
 
+  $buttonLearn = New-Object System.Windows.Forms.Button
+  $buttonLearn.Text = "Aprender chats"
+  $buttonLearn.Left = 364
+  $buttonLearn.Top = 318
+  $buttonLearn.Width = 124
+  $buttonLearn.Height = 32
+  $form.Controls.Add($buttonLearn)
+
   $hint = New-Object System.Windows.Forms.Label
   $hint.Text = "Nivel actual: observa y abre lecturas. No escribe ni envia mensajes al cliente."
   $hint.AutoSize = $true
@@ -438,6 +485,7 @@ function Start-AgentGui {
   $buttonStop.Add_Click({ Run-GuiAction { Stop-AgentWatch | Out-Null } })
   $buttonOnce.Add_Click({ Run-GuiAction { Invoke-RunOnce | Out-Null } })
   $buttonIntent.Add_Click({ Run-GuiAction { Invoke-HandleIntent | Out-Null } -MinimizeBefore })
+  $buttonLearn.Add_Click({ Run-GuiAction { Invoke-LearnChats | Out-Null } -MinimizeBefore })
   $buttonPanel.Add_Click({ Open-AgentPanel })
   $buttonLocal.Add_Click({ Open-LocalPanel })
   $buttonLogs.Add_Click({ Open-RuntimeFolder })
@@ -464,6 +512,7 @@ switch ($Action) {
   "Stop" { Stop-AgentWatch | ConvertTo-Json -Depth 5 }
   "RunOnce" { Invoke-RunOnce | ConvertTo-Json -Depth 5 }
   "HandleIntent" { Invoke-HandleIntent | ConvertTo-Json -Depth 5 }
+  "LearnChats" { Invoke-LearnChats | ConvertTo-Json -Depth 5 }
   "OpenPanel" { Open-AgentPanel }
   "OpenLocalPanel" { Open-LocalPanel }
   "OpenRuntime" { Open-RuntimeFolder }
