@@ -2,7 +2,12 @@ const http = require("http");
 const crypto = require("crypto");
 const { URL } = require("url");
 const { hasAdminPassword, isAuthenticated } = require("./admin-auth");
-const { buildOperativaSnapshot, ingestOperativaEvent } = require("./operativa-store");
+const {
+  buildOperativaSnapshot,
+  ingestOperativaEvent,
+  resolveAllReviewItems,
+  resolveReviewItem,
+} = require("./operativa-store");
 
 const originalCreateServer = http.createServer.bind(http);
 
@@ -91,7 +96,12 @@ function protectOperativaPage(req, res, requestUrl) {
 }
 
 async function handleOperativaApi(req, res, requestUrl) {
-  if (requestUrl.pathname !== "/api/operativa-v2" && requestUrl.pathname !== "/api/operativa-v2/events") {
+  const isOperativaRoute =
+    requestUrl.pathname === "/api/operativa-v2" ||
+    requestUrl.pathname === "/api/operativa-v2/events" ||
+    requestUrl.pathname.startsWith("/api/operativa-v2/reviews");
+
+  if (!isOperativaRoute) {
     return false;
   }
 
@@ -117,6 +127,29 @@ async function handleOperativaApi(req, res, requestUrl) {
       });
     } catch (error) {
       sendJson(res, 400, { error: error.message || "No pude registrar el evento operativo" });
+    }
+    return true;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/operativa-v2/reviews/clear") {
+    try {
+      const body = await parseBody(req);
+      const result = resolveAllReviewItems(body.actor || "panel", body.note || "");
+      sendJson(res, 200, { ok: true, ...result });
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || "No pude limpiar la bandeja" });
+    }
+    return true;
+  }
+
+  const reviewMatch = requestUrl.pathname.match(/^\/api\/operativa-v2\/reviews\/([^/]+)\/resolve$/);
+  if (req.method === "POST" && reviewMatch) {
+    try {
+      const body = await parseBody(req);
+      const result = resolveReviewItem(decodeURIComponent(reviewMatch[1]), body.actor || "panel", body.note || "");
+      sendJson(res, 200, { ok: true, ...result });
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || "No pude marcar la duda como revisada" });
     }
     return true;
   }
