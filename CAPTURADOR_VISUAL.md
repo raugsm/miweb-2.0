@@ -49,7 +49,6 @@ Para abrir una fila de chat por posicion vertical aproximada:
 powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-pointer-control.ps1 -Channel wa-2 -Action OpenChatRow -RowRatio 0.28 -Execute
 ```
 
-La siguiente mejora sera unir OCR con coordenadas para que el agente pueda escoger una fila por texto, no solo por posicion.
 Por ahora no escribe ni envia mensajes; solo puede enfocar/abrir una zona con permiso explicito.
 
 Ya existe un primer navegador por texto:
@@ -63,6 +62,28 @@ Para abrir el primer resultado visible:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-navigator.ps1 -Channel wa-2 -Action OpenFirst -Query pago -Execute
 ```
+
+## Puente con clasificador
+
+El siguiente nivel ya esta agregado en:
+
+```text
+scripts\visual-agent\visual-intent-bridge.ps1
+```
+
+En preview consulta la cabina, toma una alerta reciente de `pago`, `deuda` o `precio`, busca el chat visible por OCR y devuelve el candidato sin hacer clic:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-intent-bridge.ps1
+```
+
+Para que abra el chat encontrado, espere, capture la conversacion y actualice la nube:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-intent-bridge.ps1 -Execute -CaptureAfterOpen -Send
+```
+
+El launcher tambien tiene el boton **Atender alerta**, que ejecuta este flujo minimizando la ventana primero.
 
 ## Prueba sin enviar a nube
 

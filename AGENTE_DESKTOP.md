@@ -15,6 +15,7 @@ El launcher permite:
 - iniciar el observador continuo;
 - detenerlo;
 - hacer una lectura una vez;
+- atender la primera alerta clasificada de la cabina;
 - abrir la cabina en `ariadgsm.com`;
 - abrir logs locales.
 
@@ -47,6 +48,7 @@ Nivel actual del agente:
 2. Lee los 3 WhatsApp.
 3. Envia eventos a la nube.
 4. Puede calcular/coordenar clics con permiso explicito.
+5. Puede tomar una alerta de pago/deuda/precio, buscar el chat visible, abrirlo y volver a capturar.
 
 Todavia no escribe mensajes ni envia respuestas a clientes.
 
@@ -94,7 +96,36 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-navi
 
 Si Codex u otra ventana esta encima, el navegador leera esa ventana. Antes de usarlo, deja visible el WhatsApp correspondiente.
 
-La siguiente etapa sera conectar el clasificador con este navegador para que el agente escoja el chat pendiente automaticamente.
+## Puente clasificador -> chat visible
+
+El puente local ya conecta la cabina con el navegador por OCR:
+
+```text
+scripts\visual-agent\visual-intent-bridge.ps1
+```
+
+En modo preview consulta `ariadgsm.com`, toma la primera alerta de `pago`, `deuda` o `precio`, busca una fila visible en el WhatsApp correspondiente y devuelve coordenadas sin mover el mouse:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-intent-bridge.ps1
+```
+
+Para ejecutar el flujo completo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-intent-bridge.ps1 -Execute -CaptureAfterOpen -Send
+```
+
+Ese modo hace esto:
+
+1. lee la cabina en la nube;
+2. elige una alerta de `payment_or_receipt`, `accounting_debt` o `price_request`;
+3. busca el chat visible por texto;
+4. abre la fila encontrada;
+5. espera unos segundos;
+6. captura los 3 WhatsApp y actualiza la nube.
+
+El boton **Atender alerta** del launcher ejecuta ese mismo flujo y minimiza la ventana antes de buscar.
 
 ## Logs
 

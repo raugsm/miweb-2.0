@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
+  [ValidateSet("Gui", "Status", "Start", "Stop", "RunOnce", "HandleIntent", "OpenPanel", "OpenLocalPanel", "OpenRuntime")]
   [string]$Action = "Gui",
   [int]$PollSeconds = 60,
   [switch]$StartMinimized
@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
 $CaptureScript = Join-Path $ScriptDir "visual-screen-capture.ps1"
+$IntentBridgeScript = Join-Path $ScriptDir "visual-intent-bridge.ps1"
 $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
 $PidFile = Join-Path $RuntimeDir "agent-watch.pid"
@@ -226,6 +227,44 @@ function Invoke-RunOnce {
   return Get-AgentStatus
 }
 
+function Invoke-HandleIntent {
+  Ensure-RuntimeDir
+  $configStatus = Test-AgentConfig
+  if (-not $configStatus.Configured) {
+    throw $configStatus.Message
+  }
+  if (-not (Test-Path -LiteralPath $IntentBridgeScript)) {
+    throw "No encontre visual-intent-bridge.ps1"
+  }
+
+  $intentOut = Join-Path $RuntimeDir ("intent-bridge-{0}.out.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $intentErr = Join-Path $RuntimeDir ("intent-bridge-{0}.err.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  $process = Start-HiddenProcess -Arguments @("-File", $IntentBridgeScript, "-ConfigPath", $ConfigPath, "-Execute", "-CaptureAfterOpen", "-Send") -CaptureOutput
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  Set-Content -LiteralPath $intentOut -Value $stdout -Encoding UTF8
+  Set-Content -LiteralPath $intentErr -Value $stderr -Encoding UTF8
+
+  if ([int]$process.ExitCode -ne 0) {
+    $errorText = if ($stderr) { $stderr } else { $stdout }
+    throw "La atencion de alerta fallo con codigo $($process.ExitCode). $errorText"
+  }
+
+  $intentResult = $null
+  try {
+    $intentResult = $stdout | ConvertFrom-Json
+  } catch {
+    $intentResult = $null
+  }
+  if ($intentResult -and $intentResult.Status -notin @("executed", "executed_and_captured")) {
+    $noteText = if ($intentResult.Notes) { ($intentResult.Notes -join " ") } else { "" }
+    throw "No encontre un chat visible para atender. Estado: $($intentResult.Status). Canal: $($intentResult.TargetChannel). Revisa que los 3 WhatsApp esten visibles. $noteText"
+  }
+
+  return Get-AgentStatus
+}
+
 function Open-AgentPanel {
   Start-Process "https://ariadgsm.com/operativa-v2.html"
 }
@@ -331,6 +370,14 @@ function Start-AgentGui {
   $buttonLocal.Height = 32
   $form.Controls.Add($buttonLocal)
 
+  $buttonIntent = New-Object System.Windows.Forms.Button
+  $buttonIntent.Text = "Atender alerta"
+  $buttonIntent.Left = 228
+  $buttonIntent.Top = 318
+  $buttonIntent.Width = 124
+  $buttonIntent.Height = 32
+  $form.Controls.Add($buttonIntent)
+
   $hint = New-Object System.Windows.Forms.Label
   $hint.Text = "Nivel actual: observa y abre lecturas. No escribe ni envia mensajes al cliente."
   $hint.AutoSize = $true
@@ -363,11 +410,17 @@ function Start-AgentGui {
   function Run-GuiAction {
     param(
       [scriptblock]$Operation,
+      [switch]$MinimizeBefore,
       [switch]$MinimizeAfterSuccess
     )
     $succeeded = $false
     try {
       $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+      if ($MinimizeBefore) {
+        $form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+        [System.Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 400
+      }
       [void]$Operation.Invoke()
       $succeeded = $true
     } catch {
@@ -384,6 +437,7 @@ function Start-AgentGui {
   $buttonStart.Add_Click({ Run-GuiAction { Start-AgentWatch | Out-Null } -MinimizeAfterSuccess })
   $buttonStop.Add_Click({ Run-GuiAction { Stop-AgentWatch | Out-Null } })
   $buttonOnce.Add_Click({ Run-GuiAction { Invoke-RunOnce | Out-Null } })
+  $buttonIntent.Add_Click({ Run-GuiAction { Invoke-HandleIntent | Out-Null } -MinimizeBefore })
   $buttonPanel.Add_Click({ Open-AgentPanel })
   $buttonLocal.Add_Click({ Open-LocalPanel })
   $buttonLogs.Add_Click({ Open-RuntimeFolder })
@@ -409,6 +463,7 @@ switch ($Action) {
   "Start" { Start-AgentWatch | ConvertTo-Json -Depth 5 }
   "Stop" { Stop-AgentWatch | ConvertTo-Json -Depth 5 }
   "RunOnce" { Invoke-RunOnce | ConvertTo-Json -Depth 5 }
+  "HandleIntent" { Invoke-HandleIntent | ConvertTo-Json -Depth 5 }
   "OpenPanel" { Open-AgentPanel }
   "OpenLocalPanel" { Open-LocalPanel }
   "OpenRuntime" { Open-RuntimeFolder }
