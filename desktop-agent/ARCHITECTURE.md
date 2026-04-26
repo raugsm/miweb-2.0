@@ -27,7 +27,8 @@ Timeline Engine
   Unifies live messages and historical learning into one conversation timeline.
 
 Memory Core
-  Stores clients, conversations, services, slang, procedures, failures and facts.
+  Stores conversations, messages, semantic signals, decisions, accounting evidence,
+  learning events, customer profiles, services, slang, procedures, failures and facts.
 
 Operating Core
   Keeps the business state: cases, tasks, priorities, payments, debts.

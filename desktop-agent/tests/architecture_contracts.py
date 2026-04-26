@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 from ariadgsm_agent.architecture import CONTRACT_NAMES, LAYERS
 from ariadgsm_agent.contracts import sample_event, validate_contract
 from ariadgsm_agent.cognitive import CognitiveCore, CognitiveStore, decision_event_from_conversation, run_cognitive_once
+from ariadgsm_agent.memory import MemoryStore, run_memory_once
 from ariadgsm_agent.operating import OperatingCore, OperatingStore, run_operating_once
 from ariadgsm_agent.supervisor import SupervisorPolicy
 from ariadgsm_agent.timeline import ConversationTimeline
@@ -87,8 +88,10 @@ def main() -> int:
         accounting_file = root / "accounting-events.jsonl"
         state_file = root / "operating-state.json"
         cognitive_state_file = root / "cognitive-state.json"
+        memory_state_file = root / "memory-state.json"
         db_file = root / "operating.sqlite"
         cognitive_db_file = root / "cognitive.sqlite"
+        memory_db_file = root / "memory.sqlite"
         payment_conversation = dict(conversation)
         payment_conversation["conversationEventId"] = "conversation-payment-test"
         payment_conversation["conversationId"] = "wa-1-cliente-pago"
@@ -96,11 +99,13 @@ def main() -> int:
         payment_conversation["messages"] = [
             {
                 "messageId": "pay-1",
-                "text": "Ya hice el pago de 25 usdt",
+                "text": "Ya hice el pago de 25 usdt para Samsung en Mexico",
                 "direction": "client",
                 "signals": [
                     {"kind": "payment", "value": "pago", "confidence": 0.94},
                     {"kind": "amount", "value": "25 USDT", "confidence": 0.84},
+                    {"kind": "service", "value": "samsung", "confidence": 0.8},
+                    {"kind": "country", "value": "MX", "confidence": 0.72},
                 ],
             }
         ]
@@ -178,6 +183,44 @@ def main() -> int:
             assert summary["learningEvents"] >= 1
         finally:
             cognitive_store.close()
+
+        memory_state = run_memory_once(
+            conversation_file,
+            cognitive_decision_file,
+            decision_file,
+            learning_file,
+            accounting_file,
+            memory_state_file,
+            memory_db_file,
+        )
+        assert memory_state["status"] == "ok"
+        assert memory_state["summary"]["conversations"] == 2
+        assert memory_state["summary"]["memoryMessages"] == 2
+        assert memory_state["summary"]["signals"] >= 4
+        assert memory_state["summary"]["memoryDecisions"] >= 4
+        assert memory_state["summary"]["learningEvents"] >= 1
+        assert memory_state["summary"]["accountingEvents"] == 1
+
+        repeated_memory = run_memory_once(
+            conversation_file,
+            cognitive_decision_file,
+            decision_file,
+            learning_file,
+            accounting_file,
+            memory_state_file,
+            memory_db_file,
+        )
+        assert repeated_memory["ingested"]["events"] == 0
+        assert repeated_memory["ingested"]["duplicates"] >= 5
+
+        memory_store = MemoryStore(memory_db_file)
+        try:
+            profile = memory_store.customer_profile("wa-1-cliente-pago")
+            assert profile is not None
+            assert "MX" in profile["countries"]
+            assert "samsung" in profile["services"]
+        finally:
+            memory_store.close()
     print("architecture contracts OK")
     return 0
 

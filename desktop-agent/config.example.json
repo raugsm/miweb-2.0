@@ -23,6 +23,16 @@
     "db": "./desktop-agent/runtime/cognitive-core.sqlite",
     "limit": 200
   },
+  "memoryCore": {
+    "conversationEventsFile": "./desktop-agent/runtime/conversation-events.jsonl",
+    "cognitiveDecisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
+    "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
+    "learningEventsFile": "./desktop-agent/runtime/learning-events.jsonl",
+    "accountingEventsFile": "./desktop-agent/runtime/accounting-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/memory-state.json",
+    "db": "./desktop-agent/runtime/memory-core.sqlite",
+    "limit": 500
+  },
   "service": {
     "intervalSeconds": 0.75,
     "maxCycles": 0

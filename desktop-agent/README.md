@@ -10,6 +10,7 @@ desktop-agent/
   contracts/             Stable event contracts between sensors and the core
   vision-engine/         C#/.NET live eyes and temporary visual buffer
   perception-engine/     C#/.NET object reader for chats, messages, buttons
+  memory-core/           Python durable memory and customer profiles
   cognitive-core/        Python reasoning, learning and customer patterns
   operating-core/        Python business cases, tasks and priorities
   hands-engine/          Future C#/.NET mouse, keyboard and verification layer
@@ -61,9 +62,10 @@ desktop-agent\runtime\agent-memory.sqlite
 ```powershell
 python -m ariadgsm_agent.cognitive --json
 python -m ariadgsm_agent.operating --json
+python -m ariadgsm_agent.memory --json
 ```
 
-The Cognitive Core reads `conversation-events.jsonl`, writes auditable decisions, emits learning events and updates local customer profiles.
+The Cognitive Core reads `conversation-events.jsonl`, writes auditable decisions, emits learning events and updates local customer profiles. The Memory Core then persists conversations, messages, signals, decisions, learning and accounting evidence into durable SQLite memory.
 
 ## Safety Contract
 
