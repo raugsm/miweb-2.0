@@ -18,11 +18,16 @@ internal sealed class MainForm : Form
     private readonly Button _logsButton = new();
     private readonly Button _diagnoseButton = new();
     private readonly bool _startMinimized;
+    private readonly bool _manualMode;
+    private bool _autonomousStartupStarted;
     private string _lastProblemSignature = string.Empty;
 
     public MainForm(string[] args)
     {
         _startMinimized = args.Any(arg => arg.Equals("--start-minimized", StringComparison.OrdinalIgnoreCase));
+        _manualMode = args.Any(arg =>
+            arg.Equals("--manual", StringComparison.OrdinalIgnoreCase)
+            || arg.Equals("--no-autostart", StringComparison.OrdinalIgnoreCase));
         BuildUi();
         WireEvents();
     }
@@ -30,15 +35,16 @@ internal sealed class MainForm : Form
     protected override async void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        if (_startMinimized)
+        AppendLog("AriadGSM Agent Desktop listo. Ejecutable real, sin PowerShell operativo.");
+        AppendLog(_manualMode
+            ? "Modo manual activo. Usa Iniciar agente si quieres arrancar desde cabina."
+            : "Modo autonomo activo. Voy a revisar actualizaciones, WhatsApp 1/2/3 y motores.");
+        RefreshStatus();
+        if (!_manualMode)
         {
-            WindowState = FormWindowState.Minimized;
-            ShowInTaskbar = true;
+            BeginInvoke(new Action(async () => await AutonomousStartupAsync().ConfigureAwait(true)));
         }
 
-        AppendLog("AriadGSM Agent Desktop listo. Ejecutable real, sin PowerShell operativo.");
-        AppendLog("Pulsa Iniciar agente para validar WhatsApp 1/2/3 y arrancar motores.");
-        RefreshStatus();
         await Task.CompletedTask.ConfigureAwait(false);
     }
 
@@ -91,7 +97,7 @@ internal sealed class MainForm : Form
         };
         var subtitle = new Label
         {
-            Text = "Cabina visible: verifica WhatsApp 1/2/3, motores, errores y sincronizacion con ariadgsm.com",
+            Text = "Arranque autonomo, actualizaciones, salud de motores y sincronizacion con ariadgsm.com",
             ForeColor = Color.FromArgb(226, 240, 255),
             Font = new Font("Segoe UI", 10, FontStyle.Regular),
             AutoSize = true,
@@ -109,7 +115,7 @@ internal sealed class MainForm : Form
         };
         root.Controls.Add(buttons, 0, 1);
 
-        ConfigureButton(_startButton, "Iniciar agente", Color.FromArgb(24, 120, 242));
+        ConfigureButton(_startButton, "Iniciar manual", Color.FromArgb(24, 120, 242));
         ConfigureButton(_stopButton, "Detener", Color.FromArgb(205, 61, 61));
         ConfigureButton(_onceButton, "Leer una vez", Color.FromArgb(17, 145, 101));
         ConfigureButton(_prepareWhatsAppsButton, "Preparar WhatsApps", Color.FromArgb(31, 151, 170));
@@ -174,7 +180,7 @@ internal sealed class MainForm : Form
     private void WireEvents()
     {
         _runtime.LogReceived += AppendLog;
-        _startButton.Click += async (_, _) => await RunButtonAsync(_startButton, StartAgentWithPreflightAsync).ConfigureAwait(true);
+        _startButton.Click += async (_, _) => await RunButtonAsync(_startButton, () => StartAgentCoreAsync(autonomous: false)).ConfigureAwait(true);
         _stopButton.Click += (_, _) =>
         {
             _runtime.Stop();
@@ -211,9 +217,38 @@ internal sealed class MainForm : Form
         button.Margin = new Padding(0, 0, 10, 0);
     }
 
-    private async Task StartAgentWithPreflightAsync()
+    private async Task AutonomousStartupAsync()
+    {
+        if (_autonomousStartupStarted)
+        {
+            return;
+        }
+
+        _autonomousStartupStarted = true;
+        try
+        {
+            await StartAgentCoreAsync(autonomous: true).ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            AppendLog($"ERROR arranque autonomo: {exception.Message}");
+            BringControlCenterToFront();
+            RefreshStatus();
+        }
+    }
+
+    private async Task StartAgentCoreAsync(bool autonomous)
     {
         BringControlCenterToFront();
+        var update = await _runtime.CheckForUpdatesAsync().ConfigureAwait(true);
+        AppendLog($"Actualizaciones: {update.Detail}");
+        if (update.Available && update.AutoApply && _runtime.TryLaunchUpdater(update))
+        {
+            AppendLog("Actualizacion automatica iniciada. El agente se cerrara y el Updater lo abrira de nuevo.");
+            Close();
+            return;
+        }
+
         var report = _runtime.Preflight();
         RefreshStatus(report);
 
@@ -229,8 +264,37 @@ internal sealed class MainForm : Form
             return;
         }
 
+        if (autonomous && HasMissingWhatsApps(report))
+        {
+            AppendLog("Faltan uno o mas WhatsApp visibles. Intento prepararlos automaticamente.");
+            _runtime.OpenMissingWhatsApps();
+            await Task.Delay(TimeSpan.FromSeconds(6)).ConfigureAwait(true);
+            report = _runtime.Preflight();
+            RefreshStatus(report);
+        }
+
+        if (report.HasBlockingErrors)
+        {
+            AppendLog("Arranque bloqueado despues de preparar entorno. Revisa el panel amarillo.");
+            BringControlCenterToFront();
+            return;
+        }
+
         await _runtime.StartAsync().ConfigureAwait(true);
-        BringControlCenterToFront();
+        await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
+        RefreshStatus();
+
+        if (autonomous && _startMinimized && !HasVisibleProblems())
+        {
+            WindowState = FormWindowState.Minimized;
+            ShowInTaskbar = true;
+            return;
+        }
+
+        if (!autonomous || HasVisibleProblems())
+        {
+            BringControlCenterToFront();
+        }
     }
 
     private async Task RunButtonAsync(Button button, Func<Task> action)
@@ -277,7 +341,9 @@ internal sealed class MainForm : Form
         {
             _runtime.IsRunning
                 ? "Ventana visible: el agente esta trabajando, pero este panel queda como cabina de control."
-                : "Ventana visible: primero reviso WhatsApp 1/2/3, dependencias y motores; luego arranco.",
+                : _manualMode
+                    ? "Modo manual: puedes iniciar desde cabina; el pensamiento autonomo queda pausado."
+                    : "Modo autonomo: reviso updates, WhatsApp 1/2/3, dependencias y motores; luego arranco.",
             $"Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
             $"Runtime: {_runtime.RuntimeDir}",
             string.Empty
@@ -358,6 +424,22 @@ internal sealed class MainForm : Form
         ShowInTaskbar = true;
         Show();
         Activate();
+    }
+
+    private static bool HasMissingWhatsApps(PreflightReport report)
+    {
+        return report.Items.Any(item =>
+            item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase)
+            && item.Severity == HealthSeverity.Warning);
+    }
+
+    private bool HasVisibleProblems()
+    {
+        var report = _runtime.Preflight();
+        var health = _runtime.Health();
+        return report.Items.Concat(health).Any(item =>
+            item.Severity == HealthSeverity.Error
+            || item.Severity == HealthSeverity.Warning);
     }
 
     private void AppendLog(string line)

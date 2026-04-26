@@ -1,0 +1,8 @@
+{
+  "version": "0.5.0",
+  "packageUrl": "",
+  "sha256": "",
+  "autoApply": false,
+  "notes": "Canal de actualizaciones preparado. Para activar auto-update, publicar AriadGSMAgent-0.5.0.zip o superior con SHA256.",
+  "publishedAt": "2026-04-26T00:00:00Z"
+}

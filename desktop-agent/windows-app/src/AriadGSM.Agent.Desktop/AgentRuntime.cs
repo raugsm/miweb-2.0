@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
@@ -9,6 +10,7 @@ namespace AriadGSM.Agent.Desktop;
 
 internal sealed class AgentRuntime : IDisposable
 {
+    private const string DefaultUpdateManifestUrl = "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/ariadgsm-update.json";
     private static readonly TimeSpan ToolResolveTtl = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan RunningStateStaleAfter = TimeSpan.FromSeconds(45);
     private readonly List<ManagedProcess> _processes = [];
@@ -17,6 +19,7 @@ internal sealed class AgentRuntime : IDisposable
     private readonly string _desktopRoot;
     private readonly string _runtimeDir;
     private readonly string _logFile;
+    private readonly string _updateStateFile;
     private CancellationTokenSource? _coreLoopCts;
     private Task? _coreLoopTask;
     private string? _cachedPython;
@@ -33,6 +36,7 @@ internal sealed class AgentRuntime : IDisposable
         _runtimeDir = Path.Combine(_desktopRoot, "runtime");
         Directory.CreateDirectory(_runtimeDir);
         _logFile = Path.Combine(_runtimeDir, "windows-app.log");
+        _updateStateFile = Path.Combine(_runtimeDir, "update-state.json");
     }
 
     public string RepoRoot => _repoRoot;
@@ -151,6 +155,7 @@ internal sealed class AgentRuntime : IDisposable
         {
             CheckAdministrator(),
             CheckRuntimeWritable(),
+            CheckUpdaterReady(),
             CheckWebPanelDependency(),
             CheckPythonCore(),
             CheckWorkerReady(
@@ -183,6 +188,7 @@ internal sealed class AgentRuntime : IDisposable
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
             StateHealth("Supervisor", "supervisor-state.json", "PythonCoreLoop"),
+            UpdateHealth(),
             WebPanelHealth(),
             CoreLoopHealth()
         };
@@ -223,6 +229,119 @@ internal sealed class AgentRuntime : IDisposable
         }
     }
 
+    public async Task<UpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
+    {
+        var currentVersion = ReadCurrentVersion();
+        var manifestSource = ResolveUpdateManifestSource();
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            var json = await ReadTextAsync(manifestSource, client, cancellationToken).ConfigureAwait(false);
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            var latestVersion = TryString(root, "version", "latestVersion") ?? currentVersion;
+            var packageUrl = TryString(root, "packageUrl", "url") ?? string.Empty;
+            var sha256 = TryString(root, "sha256", "hash") ?? string.Empty;
+            var autoApply = TryBool(root, "autoApply") ?? false;
+            var available = CompareVersions(latestVersion, currentVersion) > 0;
+            var result = new UpdateCheckResult(
+                available,
+                autoApply,
+                currentVersion,
+                latestVersion,
+                packageUrl,
+                sha256,
+                manifestSource,
+                available
+                    ? $"Version {latestVersion} disponible."
+                    : $"Version {currentVersion} al dia.");
+            WriteUpdateState(result, available ? "available" : "current");
+            return result;
+        }
+        catch (Exception exception)
+        {
+            var result = new UpdateCheckResult(
+                false,
+                false,
+                currentVersion,
+                currentVersion,
+                string.Empty,
+                string.Empty,
+                manifestSource,
+                $"No pude revisar actualizaciones: {exception.Message}");
+            WriteUpdateState(result, "unavailable");
+            WriteLog(result.Detail);
+            return result;
+        }
+    }
+
+    public bool TryLaunchUpdater(UpdateCheckResult update)
+    {
+        if (!update.Available)
+        {
+            return false;
+        }
+
+        if (!update.AutoApply)
+        {
+            WriteLog($"Update available but not auto-applied: {update.LatestVersion}.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(update.PackageUrl))
+        {
+            WriteLog("Update available but packageUrl is empty.");
+            return false;
+        }
+
+        var updaterExe = ResolveUpdaterExe();
+        if (updaterExe is null)
+        {
+            WriteLog("Updater executable not found.");
+            return false;
+        }
+
+        var runnerDir = Path.Combine(_runtimeDir, "updater-runner");
+        if (Directory.Exists(runnerDir))
+        {
+            Directory.Delete(runnerDir, recursive: true);
+        }
+
+        CopyDirectory(Path.GetDirectoryName(updaterExe)!, runnerDir, overwrite: true);
+        var runnerExe = Path.Combine(runnerDir, Path.GetFileName(updaterExe));
+        var currentExe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "AriadGSM Agent.exe");
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = runnerExe,
+            WorkingDirectory = runnerDir,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        startInfo.ArgumentList.Add("--apply");
+        startInfo.ArgumentList.Add("--current-dir");
+        startInfo.ArgumentList.Add(AppContext.BaseDirectory);
+        startInfo.ArgumentList.Add("--package");
+        startInfo.ArgumentList.Add(update.PackageUrl);
+        if (!string.IsNullOrWhiteSpace(update.Sha256))
+        {
+            startInfo.ArgumentList.Add("--sha256");
+            startInfo.ArgumentList.Add(update.Sha256);
+        }
+
+        startInfo.ArgumentList.Add("--restart");
+        startInfo.ArgumentList.Add(currentExe);
+        startInfo.ArgumentList.Add("--wait-pid");
+        startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
+        startInfo.ArgumentList.Add("--state");
+        startInfo.ArgumentList.Add(_updateStateFile);
+
+        Process.Start(startInfo);
+        WriteLog($"Updater launched for version {update.LatestVersion}.");
+        return true;
+    }
+
     public string WriteDiagnosticReport()
     {
         var path = Path.Combine(_runtimeDir, "diagnostic-latest.txt");
@@ -249,6 +368,10 @@ internal sealed class AgentRuntime : IDisposable
         {
             lines.Add(FormatHealthLine(item));
         }
+
+        lines.Add(string.Empty);
+        lines.Add("== Actualizaciones ==");
+        lines.Add(FormatHealthLine(UpdateHealth()));
 
         lines.Add(string.Empty);
         lines.Add("== Procesos activos ==");
@@ -378,6 +501,14 @@ internal sealed class AgentRuntime : IDisposable
         }
     }
 
+    private HealthItem CheckUpdaterReady()
+    {
+        var updater = ResolveUpdaterExe();
+        return updater is null
+            ? new HealthItem("AriadGSM Updater", "AVISO", HealthSeverity.Warning, DateTimeOffset.Now, "Updater no encontrado; el agente trabaja, pero no podra autoactualizarse.")
+            : new HealthItem("AriadGSM Updater", "OK", HealthSeverity.Ok, DateTimeOffset.Now, $"Updater listo: {updater}");
+    }
+
     private HealthItem CheckWebPanelDependency()
     {
         if (IsTcpPortOpen("127.0.0.1", 3000))
@@ -499,6 +630,37 @@ internal sealed class AgentRuntime : IDisposable
             : new HealthItem("PythonCoreLoop", "ACTIVO", HealthSeverity.Ok, DateTimeOffset.Now, "Timeline, Cognitive, Operating, Memory y Supervisor estan ciclando.");
     }
 
+    private HealthItem UpdateHealth()
+    {
+        if (!File.Exists(_updateStateFile))
+        {
+            return new HealthItem("Actualizaciones", "SIN REVISION", HealthSeverity.Info, null, "Se revisaran al arrancar en modo autonomo.");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(_updateStateFile));
+            var root = document.RootElement;
+            var status = TryString(root, "status") ?? "unknown";
+            var detail = TryString(root, "detail") ?? "Estado de actualizacion recibido.";
+            var updatedAt = TryDate(root, "updatedAt");
+            var severity = status switch
+            {
+                "available" => HealthSeverity.Warning,
+                "applying" => HealthSeverity.Warning,
+                "failed" => HealthSeverity.Warning,
+                "applied" => HealthSeverity.Ok,
+                "current" => HealthSeverity.Ok,
+                _ => HealthSeverity.Info
+            };
+            return new HealthItem("Actualizaciones", status.ToUpperInvariant(), severity, updatedAt, detail);
+        }
+        catch (Exception exception)
+        {
+            return new HealthItem("Actualizaciones", "AVISO", HealthSeverity.Warning, DateTimeOffset.Now, $"No pude leer estado de update: {exception.Message}");
+        }
+    }
+
     private void StartWebPanel()
     {
         if (IsTcpPortOpen("127.0.0.1", 3000))
@@ -601,6 +763,20 @@ internal sealed class AgentRuntime : IDisposable
         }
 
         return Path.Combine(_repoRoot, normalized);
+    }
+
+    private string? ResolveUpdaterExe()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "updater", "AriadGSM Updater.exe"),
+            Path.Combine(AppContext.BaseDirectory, "AriadGSM Updater.exe"),
+            Path.Combine(_repoRoot, "desktop-agent", "dist", "AriadGSMAgent-next", "updater", "AriadGSM Updater.exe"),
+            Path.Combine(_repoRoot, "desktop-agent", "dist", "AriadGSMAgent", "updater", "AriadGSM Updater.exe"),
+            Path.Combine(_repoRoot, "desktop-agent", "windows-app", "src", "AriadGSM.Agent.Updater", "bin", "Debug", "net10.0-windows", "AriadGSM Updater.exe")
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
     }
 
     private void StartCoreLoop()
@@ -929,6 +1105,81 @@ internal sealed class AgentRuntime : IDisposable
         }
     }
 
+    private string ReadCurrentVersion()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "ariadgsm-version.json");
+        if (!File.Exists(path))
+        {
+            return "0.0.0-dev";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            return TryString(document.RootElement, "version") ?? "0.0.0-dev";
+        }
+        catch
+        {
+            return "0.0.0-dev";
+        }
+    }
+
+    private string ResolveUpdateManifestSource()
+    {
+        var configured = Environment.GetEnvironmentVariable("ARIADGSM_UPDATE_MANIFEST");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured;
+        }
+
+        var localPackageManifest = Path.Combine(AppContext.BaseDirectory, "ariadgsm-update.json");
+        if (File.Exists(localPackageManifest))
+        {
+            return localPackageManifest;
+        }
+
+        return DefaultUpdateManifestUrl;
+    }
+
+    private static async Task<string> ReadTextAsync(string source, HttpClient client, CancellationToken cancellationToken)
+    {
+        if (Uri.TryCreate(source, UriKind.Absolute, out var uri)
+            && (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
+                || uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)))
+        {
+            return await client.GetStringAsync(uri, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await File.ReadAllTextAsync(source, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void WriteUpdateState(UpdateCheckResult update, string status)
+    {
+        var state = new Dictionary<string, object?>
+        {
+            ["status"] = status,
+            ["currentVersion"] = update.CurrentVersion,
+            ["latestVersion"] = update.LatestVersion,
+            ["packageUrl"] = update.PackageUrl,
+            ["sha256"] = update.Sha256,
+            ["autoApply"] = update.AutoApply,
+            ["manifest"] = update.ManifestSource,
+            ["detail"] = update.Detail,
+            ["updatedAt"] = DateTimeOffset.UtcNow
+        };
+        File.WriteAllText(_updateStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static int CompareVersions(string left, string right)
+    {
+        return NormalizeVersion(left).CompareTo(NormalizeVersion(right));
+    }
+
+    private static Version NormalizeVersion(string value)
+    {
+        return Version.TryParse(value, out var parsed) ? parsed : new Version(0, 0, 0);
+    }
+
     private IReadOnlyList<ChannelMapping> ReadChannelMappings()
     {
         var path = Path.Combine(_repoRoot, "desktop-agent", "perception-engine", "config", "perception.example.json");
@@ -1129,6 +1380,21 @@ internal sealed class AgentRuntime : IDisposable
         return null;
     }
 
+    private static bool? TryBool(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty(name, out var value)
+                && (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False))
+            {
+                return value.GetBoolean();
+            }
+        }
+
+        return null;
+    }
+
     private static DateTimeOffset? TryDate(JsonElement root, params string[] names)
     {
         foreach (var name in names)
@@ -1166,6 +1432,22 @@ internal sealed class AgentRuntime : IDisposable
     {
         var updated = item.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
         return $"{item.Name} | {item.Status} | {item.Severity} | {updated} | {item.Detail}";
+    }
+
+    private static void CopyDirectory(string sourceDir, string destinationDir, bool overwrite)
+    {
+        Directory.CreateDirectory(destinationDir);
+        foreach (var directory in Directory.EnumerateDirectories(sourceDir, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(destinationDir, Path.GetRelativePath(sourceDir, directory)));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+        {
+            var target = Path.Combine(destinationDir, Path.GetRelativePath(sourceDir, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite);
+        }
     }
 
     private static string LocateRepoRoot()
@@ -1237,6 +1519,16 @@ internal sealed record PreflightReport(IReadOnlyList<HealthItem> Items)
 {
     public bool HasBlockingErrors => Items.Any(item => item.Blocking && item.Severity == HealthSeverity.Error);
 }
+
+internal sealed record UpdateCheckResult(
+    bool Available,
+    bool AutoApply,
+    string CurrentVersion,
+    string LatestVersion,
+    string PackageUrl,
+    string Sha256,
+    string ManifestSource,
+    string Detail);
 
 internal sealed record AgentSnapshot(
     JsonDocument? Vision,
