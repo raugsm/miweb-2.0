@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AriadGSM Operativa V2</title>
     <link rel="stylesheet" href="/operativa-v2.css" />
+    <style>
+      .panel-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .clear-board-button {
+        border: 1px solid var(--line);
+        color: var(--blue2);
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: none;
+      }
+
+      .clear-board-button:disabled {
+        cursor: wait;
+        opacity: 0.62;
+      }
+    </style>
   </head>
   <body>
     <main class="shell">
@@ -49,11 +70,20 @@
           <article class="metric-card"><span>Receptores pendientes</span><strong id="receiverPendingCount">0</strong><p>Dinero por liquidar.</p></article>
         </section>
         <section class="main-grid">
-          <article class="panel large-panel"><div class="panel-head"><div><p class="eyebrow">Ahora</p><h3>Lo que necesita atencion</h3></div><span class="pill">Vivo</span></div><div id="nowQueue" class="event-list"></div></article>
+          <article class="panel large-panel">
+            <div class="panel-head">
+              <div><p class="eyebrow">Ahora</p><h3>Lo que necesita atencion</h3></div>
+              <div class="panel-actions">
+                <span class="pill">Vivo</span>
+                <button class="clear-board-button" data-clear-reviews type="button">Limpiar tablero</button>
+              </div>
+            </div>
+            <div id="nowQueue" class="event-list"></div>
+          </article>
           <article class="panel" id="caja"><div class="panel-head"><div><p class="eyebrow">Caja del dia</p><h3>Resumen financiero</h3></div></div><div id="cashbox" class="cash-grid"></div></article>
         </section>
         <section class="main-grid three">
-          <article class="panel" id="revision"><div class="panel-head"><div><p class="eyebrow">Revision</p><h3>Dudas de la IA</h3></div></div><div id="reviewItems" class="compact-list"></div></article>
+          <article class="panel" id="revision"><div class="panel-head"><div><p class="eyebrow">Revision</p><h3>Dudas de la IA</h3></div><button class="clear-board-button" data-clear-reviews type="button">Marcar todo revisado</button></div><div id="reviewItems" class="compact-list"></div></article>
           <article class="panel" id="servicios"><div class="panel-head"><div><p class="eyebrow">Servicios</p><h3>Procesos activos</h3></div></div><div id="serviceOrders" class="compact-list"></div></article>
           <article class="panel" id="clientes"><div class="panel-head"><div><p class="eyebrow">Canales</p><h3>3 WhatsApp</h3></div></div><div id="channels" class="compact-list"></div></article>
         </section>
@@ -64,5 +94,55 @@
       </section>
     </main>
     <script src="/operativa-v2.js"></script>
+    <script>
+      (function () {
+        async function refreshCabin() {
+          if (typeof loadOperativa === "function") {
+            await loadOperativa();
+            return;
+          }
+          window.location.reload();
+        }
+
+        async function clearReviews(button) {
+          const pending = Number(document.getElementById("reviewPending")?.textContent || 0);
+          if (!pending) {
+            window.alert("No hay pendientes para limpiar.");
+            return;
+          }
+
+          const confirmed = window.confirm(`Marcar como revisadas las ${pending} dudas pendientes?`);
+          if (!confirmed) return;
+
+          const buttons = document.querySelectorAll("[data-clear-reviews]");
+          buttons.forEach((item) => { item.disabled = true; });
+          if (button) button.textContent = "Limpiando...";
+
+          try {
+            const response = await fetch("/api/operativa-v2/reviews/clear", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ actor: "panel", note: "Limpieza manual del tablero" }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              throw new Error(payload.error || "No pude limpiar el tablero");
+            }
+            await refreshCabin();
+          } catch (error) {
+            window.alert(error.message || "No pude limpiar el tablero");
+          } finally {
+            buttons.forEach((item) => { item.disabled = false; });
+            if (button) button.textContent = "Limpiar tablero";
+          }
+        }
+
+        document.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-clear-reviews]");
+          if (!button) return;
+          clearReviews(button);
+        });
+      })();
+    </script>
   </body>
 </html>
