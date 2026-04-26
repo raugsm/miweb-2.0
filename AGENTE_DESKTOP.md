@@ -52,13 +52,21 @@ Todavia no escribe mensajes ni envia respuestas a clientes.
 
 ## Mouse y lectura de conversaciones
 
-El agente ya tiene control basico de puntero en:
+El agente ya tiene dos niveles de control de puntero.
+
+Control simple por posicion:
 
 ```text
 scripts\visual-agent\visual-pointer-control.ps1
 ```
 
-Por seguridad, el script no mueve nada en modo `Preview`. Para hacer clic necesita `-Execute`.
+Control con OCR y coordenadas de texto:
+
+```text
+scripts\visual-agent\visual-chat-navigator.ps1
+```
+
+Por seguridad, los scripts no mueven nada en modo preview/lista. Para hacer clic necesitan `-Execute`.
 
 Ejemplo para abrir una fila visible en el WhatsApp central:
 
@@ -66,7 +74,27 @@ Ejemplo para abrir una fila visible en el WhatsApp central:
 powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-pointer-control.ps1 -Channel wa-2 -Action OpenChatRow -RowRatio 0.28 -Execute
 ```
 
-La siguiente etapa sera seleccionar chats por texto detectado, no solo por posicion aproximada.
+Ejemplo para listar textos visibles en la lista de chats del WhatsApp central:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-navigator.ps1 -Channel wa-2 -Action List
+```
+
+Ejemplo para buscar una fila visible que contenga `pago`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-navigator.ps1 -Channel wa-2 -Action Find -Query pago
+```
+
+Ejemplo para abrir el primer resultado visible:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-navigator.ps1 -Channel wa-2 -Action OpenFirst -Query pago -Execute
+```
+
+Si Codex u otra ventana esta encima, el navegador leera esa ventana. Antes de usarlo, deja visible el WhatsApp correspondiente.
+
+La siguiente etapa sera conectar el clasificador con este navegador para que el agente escoja el chat pendiente automaticamente.
 
 ## Logs
 

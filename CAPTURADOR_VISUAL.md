@@ -52,6 +52,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-pointer-c
 La siguiente mejora sera unir OCR con coordenadas para que el agente pueda escoger una fila por texto, no solo por posicion.
 Por ahora no escribe ni envia mensajes; solo puede enfocar/abrir una zona con permiso explicito.
 
+Ya existe un primer navegador por texto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-navigator.ps1 -Channel wa-2 -Action Find -Query pago
+```
+
+Para abrir el primer resultado visible:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\visual-agent\visual-chat-navigator.ps1 -Channel wa-2 -Action OpenFirst -Query pago -Execute
+```
+
 ## Prueba sin enviar a nube
 
 ```powershell
