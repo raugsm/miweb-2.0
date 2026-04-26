@@ -104,7 +104,7 @@ public sealed class VisionPipeline
                 {
                     new ChangedRegion("screen", changeScore, 0, 0, frame.Width, frame.Height)
                 };
-                var visionEvent = VisionEventFactory.Create(frame, saved, _options, changes);
+                var visionEvent = VisionEventFactory.Create(frame, saved, _options, changes, windows);
                 var errors = ContractValidator.Validate(visionEvent);
                 if (errors.Count > 0)
                 {

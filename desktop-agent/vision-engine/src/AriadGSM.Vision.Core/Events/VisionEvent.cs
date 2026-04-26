@@ -16,6 +16,14 @@ public sealed record RetentionEvidence(
     double RetentionHours,
     double MaxStorageGb);
 
+public sealed record WindowEvidence(
+    int ProcessId,
+    string ProcessName,
+    string Title,
+    WindowBounds Bounds,
+    bool IsVisible,
+    DateTimeOffset CapturedAt);
+
 public sealed record VisionEvent(
     string EventType,
     string VisionEventId,
@@ -26,8 +34,8 @@ public sealed record VisionEvent(
     RetentionEvidence Retention,
     string? ChannelHint = null,
     WindowSnapshot? Window = null,
+    IReadOnlyList<WindowEvidence>? Windows = null,
     IReadOnlyList<ChangedRegion>? Changes = null)
 {
     public static string ContractName => "vision_event";
 }
-

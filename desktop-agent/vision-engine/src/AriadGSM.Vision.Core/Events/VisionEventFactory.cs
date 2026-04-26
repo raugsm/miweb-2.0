@@ -2,12 +2,18 @@ using AriadGSM.Vision.Buffer;
 using AriadGSM.Vision.Capture;
 using AriadGSM.Vision.ChangeDetection;
 using AriadGSM.Vision.Config;
+using AriadGSM.Vision.Windows;
 
 namespace AriadGSM.Vision.Events;
 
 public static class VisionEventFactory
 {
-    public static VisionEvent Create(ScreenFrame frame, SavedFrame savedFrame, VisionOptions options, IReadOnlyList<ChangedRegion>? changes = null)
+    public static VisionEvent Create(
+        ScreenFrame frame,
+        SavedFrame savedFrame,
+        VisionOptions options,
+        IReadOnlyList<ChangedRegion>? changes = null,
+        IReadOnlyList<WindowSnapshot>? windows = null)
     {
         return new VisionEvent(
             "vision_event",
@@ -19,6 +25,13 @@ public static class VisionEventFactory
             new RetentionEvidence(false, options.RetentionHours, options.MaxStorageGb),
             null,
             null,
+            windows?.Select(window => new WindowEvidence(
+                window.ProcessId,
+                window.ProcessName,
+                window.Title,
+                window.Bounds,
+                window.IsVisible,
+                window.CapturedAt)).ToArray(),
             changes ?? Array.Empty<ChangedRegion>());
     }
 

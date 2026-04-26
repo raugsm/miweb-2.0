@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AriadGSM.Perception.Cli/AriadGSM.Perception.Cli.csproj" />
+    <Project Path="src/AriadGSM.Perception.Core/AriadGSM.Perception.Core.csproj" />
+    <Project Path="src/AriadGSM.Perception.Worker/AriadGSM.Perception.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AriadGSM.Perception.Tests/AriadGSM.Perception.Tests.csproj" />
+  </Folder>
+</Solution>

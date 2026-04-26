@@ -18,6 +18,20 @@
         "bounds": { "type": "object" }
       }
     },
+    "windows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "processId": { "type": "integer" },
+          "processName": { "type": "string" },
+          "title": { "type": "string" },
+          "bounds": { "type": "object" },
+          "isVisible": { "type": "boolean" },
+          "capturedAt": { "type": "string" }
+        }
+      }
+    },
     "frame": {
       "type": "object",
       "required": ["frameId", "storedLocallyOnly"],
@@ -52,4 +66,3 @@
     }
   }
 }
-

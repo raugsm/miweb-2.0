@@ -1,0 +1,27 @@
+{
+  "visionEventsFile": "desktop-agent\\runtime\\vision-events.jsonl",
+  "perceptionEventsFile": "desktop-agent\\runtime\\perception-events.jsonl",
+  "stateFile": "desktop-agent\\runtime\\perception-health.json",
+  "historyLimitDays": 30,
+  "pollIntervalMs": 250,
+  "maxCycles": 0,
+  "durationSeconds": 0,
+  "minimumWhatsAppConfidence": 0.75,
+  "channelMappings": [
+    {
+      "channelId": "wa-1",
+      "browserProcess": "msedge",
+      "titleContains": "WhatsApp"
+    },
+    {
+      "channelId": "wa-2",
+      "browserProcess": "chrome",
+      "titleContains": "WhatsApp"
+    },
+    {
+      "channelId": "wa-3",
+      "browserProcess": "firefox",
+      "titleContains": "WhatsApp"
+    }
+  ]
+}
