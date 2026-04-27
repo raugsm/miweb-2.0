@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .classifier import Decision
-from .text import clean_text, text_hash
+from .text import clean_text, looks_like_browser_ui_title, text_hash
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
@@ -263,6 +263,11 @@ class MemoryStore:
         title = clean_text(event.get("conversationTitle") or conversation_id)
         source = clean_text(event.get("source") or "unknown")
         messages = [message for message in event.get("messages") or [] if isinstance(message, dict)]
+        if looks_like_browser_ui_title(title):
+            with self.conn:
+                self.mark_processed(source_key, "conversation_event_rejected_ui_title", now)
+            return {"events": 0, "duplicates": 0, "conversations": 0, "messages": 0, "signals": 0, "rejected": 1}
+
         countries: set[str] = set()
         services: set[str] = set()
         languages: set[str] = set()

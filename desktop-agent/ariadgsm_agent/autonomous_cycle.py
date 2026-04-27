@@ -347,6 +347,119 @@ def build_hands_stage(hands: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def build_life_controller_stage(life: dict[str, Any], agent_supervisor: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
+    status = worst_status([
+        normalize_status(life.get("status") if life else "attention"),
+        normalize_status(agent_supervisor.get("status") if agent_supervisor else "attention"),
+    ])
+    phase = text(life.get("phase"), "sin fase")
+    summary = text(life.get("summary"), text(agent_supervisor.get("lastSummary"), "Control de vida sin estado reciente."))
+    return make_stage(
+        "life_controller",
+        "AriadGSM Life Controller",
+        status,
+        f"{phase}: {summary}",
+        {
+            "desiredRunning": bool(life.get("desiredRunning")),
+            "isRunning": bool(life.get("isRunning")),
+            "restartCount": as_int(agent_supervisor.get("restartCount")),
+            "currentVersion": text(update.get("currentVersion") or life.get("version")),
+            "latestVersion": text(update.get("latestVersion")),
+        },
+        ["life-controller-state.json", "agent-supervisor-state.json", "update-state.json"],
+    )
+
+
+def build_workspace_guardian_stage(
+    workspace_setup: dict[str, Any],
+    workspace_guardian: dict[str, Any],
+    cabin: dict[str, Any],
+    orchestrator: dict[str, Any],
+) -> dict[str, Any]:
+    setup_status = normalize_status(workspace_setup.get("status") if workspace_setup else "attention")
+    guardian_status = normalize_status(workspace_guardian.get("status") if workspace_guardian else "attention")
+    cabin_status = normalize_status(cabin.get("status") if cabin else "attention")
+    status = worst_status([setup_status, guardian_status, cabin_status])
+    channels = workspace_guardian.get("channels") if isinstance(workspace_guardian.get("channels"), list) else []
+    ready = sum(1 for item in channels if isinstance(item, dict) and text(item.get("status")).lower() == "ready")
+    blockers = workspace_guardian.get("blockers") if isinstance(workspace_guardian.get("blockers"), list) else []
+    detail = text(
+        workspace_guardian.get("summary"),
+        text(workspace_setup.get("summary"), "Cabina pendiente de diagnostico."),
+    )
+    return make_stage(
+        "workspace_guardian",
+        "AriadGSM Workspace Guardian",
+        status,
+        detail,
+        {
+            "readyChannels": ready,
+            "expectedChannels": max(3, len(channels)),
+            "blockers": len(blockers),
+            "orchestratorPhase": text(orchestrator.get("phase")),
+        },
+        ["workspace-setup-state.json", "workspace-guardian-state.json", "cabin-readiness.json"],
+    )
+
+
+def build_input_arbiter_stage(input_arbiter: dict[str, Any]) -> dict[str, Any]:
+    phase = text(input_arbiter.get("phase"), "idle")
+    status = normalize_status(input_arbiter.get("status") if input_arbiter else "ok")
+    if phase in {"operator_control", "operator_cooldown"}:
+        status = "ok"
+    detail = text(input_arbiter.get("summary"), "Mouse disponible; manos esperan acciones verificadas.")
+    return make_stage(
+        "input_arbiter",
+        "AriadGSM Input Arbiter",
+        status,
+        detail,
+        {
+            "phase": phase,
+            "operatorIdleMs": as_int(input_arbiter.get("operatorIdleMs")),
+            "requiredIdleMs": as_int(input_arbiter.get("requiredIdleMs"), 1200),
+            "operatorHasPriority": bool(input_arbiter.get("operatorHasPriority")),
+            "handsPausedOnly": bool(input_arbiter.get("handsPausedOnly")),
+        },
+        ["input-arbiter-state.json", "action-events.jsonl"],
+    )
+
+
+def build_reader_core_stage(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    stage = build_eyes_stage(states)
+    stage["stageId"] = "reader_core"
+    stage["name"] = "AriadGSM Reader Core"
+    return stage
+
+
+def build_verified_hands_stage(hands: dict[str, Any], input_arbiter: dict[str, Any]) -> dict[str, Any]:
+    stage = build_hands_stage(hands)
+    stage["stageId"] = "verified_hands"
+    stage["name"] = "AriadGSM Verified Hands"
+    stage["metrics"]["inputArbiterPhase"] = text(input_arbiter.get("phase"))
+    stage["metrics"]["operatorHasPriority"] = bool(input_arbiter.get("operatorHasPriority"))
+    if text(input_arbiter.get("phase")) == "operator_control":
+        stage["detail"] = "Manos cedidas al operador; la IA sigue mirando y aprendiendo."
+    return stage
+
+
+def build_business_memory_stage(memory: dict[str, Any], timeline: dict[str, Any], cognitive: dict[str, Any], operating: dict[str, Any]) -> dict[str, Any]:
+    stage = build_memory_accounting_stage(memory, operating)
+    stage["stageId"] = "business_memory"
+    stage["name"] = "AriadGSM Business Memory"
+    timeline_ingested = timeline.get("ingested") if isinstance(timeline.get("ingested"), dict) else {}
+    cognitive_summary = cognitive.get("summary") if isinstance(cognitive.get("summary"), dict) else {}
+    stage["metrics"]["timelineMessages"] = as_int(timeline_ingested.get("messages"))
+    stage["metrics"]["timelines"] = as_int(timeline_ingested.get("timelines"))
+    stage["metrics"]["decisions"] = as_int(cognitive_summary.get("decisions"))
+    stage["detail"] = (
+        f"Memoria={stage['metrics']['memoryMessages']} mensajes; "
+        f"historias={stage['metrics']['timelines']}; "
+        f"decisiones={stage['metrics']['decisions']}; "
+        f"contabilidad={stage['metrics']['accountingEvents']}."
+    )
+    return stage
+
+
 def collect_blockers(states: dict[str, dict[str, Any]], stages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     blockers: list[dict[str, Any]] = []
     orchestrator = states["orchestrator"]
@@ -440,26 +553,28 @@ def derive_phase(status: str, stages: list[dict[str, Any]], focus: dict[str, Any
     if status == "blocked":
         return "blocked"
     stage_map = {stage["stageId"]: stage for stage in stages}
-    if stage_map.get("hands", {}).get("metrics", {}).get("actionsExecuted", 0):
+    if nested(stage_map.get("input_arbiter", {}), "metrics", "operatorHasPriority"):
+        return "operator_control"
+    if stage_map.get("verified_hands", {}).get("metrics", {}).get("actionsExecuted", 0):
         return "acting"
     if focus.get("decision"):
         return "reasoning"
-    if as_int(nested(stage_map.get("memory_accounting", {}), "metrics", "learningEvents")) > 0:
+    if as_int(nested(stage_map.get("business_memory", {}), "metrics", "learningEvents")) > 0:
         return "learning"
-    if as_int(nested(stage_map.get("timeline", {}), "metrics", "messages")) > 0:
+    if as_int(nested(stage_map.get("reader_core", {}), "metrics", "messagesExtracted")) > 0:
         return "observing"
     return "waiting"
 
 
 def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[dict[str, Any]]) -> str:
     stage_map = {stage["stageId"]: stage for stage in stages}
-    expected = as_int(nested(stage_map.get("eyes", {}), "metrics", "expectedChannels"), 3)
-    perceived = as_int(nested(stage_map.get("eyes", {}), "metrics", "perceptionChannels"))
-    messages = as_int(nested(stage_map.get("timeline", {}), "metrics", "messages"))
-    decisions = as_int(nested(stage_map.get("brain", {}), "metrics", "decisions"))
-    learning = as_int(nested(stage_map.get("memory_accounting", {}), "metrics", "learningEvents"))
-    accounting = as_int(nested(stage_map.get("memory_accounting", {}), "metrics", "accountingEvents"))
-    executed = as_int(nested(stage_map.get("hands", {}), "metrics", "actionsExecuted"))
+    expected = as_int(nested(stage_map.get("reader_core", {}), "metrics", "expectedChannels"), 3)
+    perceived = as_int(nested(stage_map.get("reader_core", {}), "metrics", "perceptionChannels"))
+    messages = as_int(nested(stage_map.get("business_memory", {}), "metrics", "timelineMessages"))
+    decisions = as_int(nested(stage_map.get("business_memory", {}), "metrics", "decisions"))
+    learning = as_int(nested(stage_map.get("business_memory", {}), "metrics", "learningEvents"))
+    accounting = as_int(nested(stage_map.get("business_memory", {}), "metrics", "accountingEvents"))
+    executed = as_int(nested(stage_map.get("verified_hands", {}), "metrics", "actionsExecuted"))
     label = {"ok": "estable", "attention": "con avisos", "blocked": "bloqueado"}[status]
     return (
         f"Ciclo autonomo {label}: WhatsApp {perceived}/{expected}, "
@@ -489,20 +604,31 @@ def run_autonomous_cycle_once(
         "memory": read_json(runtime / "memory-state.json"),
         "supervisor": read_json(runtime / "supervisor-state.json"),
         "hands": read_json(runtime / "hands-state.json"),
+        "input_arbiter": read_json(runtime / "input-arbiter-state.json"),
+        "life": read_json(runtime / "life-controller-state.json"),
+        "agent_supervisor": read_json(runtime / "agent-supervisor-state.json"),
+        "update": read_json(runtime / "update-state.json"),
+        "workspace_setup": read_json(runtime / "workspace-setup-state.json"),
+        "workspace_guardian": read_json(runtime / "workspace-guardian-state.json"),
+        "cabin": read_json(runtime / "cabin-readiness.json"),
     }
 
     stages = [
-        build_eyes_stage(states),
-        build_timeline_stage(states["timeline"]),
-        build_brain_stage(states["cognitive"], states["operating"]),
-        build_memory_accounting_stage(states["memory"], states["operating"]),
-        build_supervisor_stage(states["supervisor"]),
-        build_hands_stage(states["hands"]),
+        build_life_controller_stage(states["life"], states["agent_supervisor"], states["update"]),
+        build_workspace_guardian_stage(states["workspace_setup"], states["workspace_guardian"], states["cabin"], states["orchestrator"]),
+        build_input_arbiter_stage(states["input_arbiter"]),
+        build_reader_core_stage(states),
+        build_business_memory_stage(states["memory"], states["timeline"], states["cognitive"], states["operating"]),
+        build_verified_hands_stage(states["hands"], states["input_arbiter"]),
     ]
     status = worst_status([stage["status"] for stage in stages])
     focus = {
         "decision": latest_decision(states["cognitive"], states["memory"]),
         "lastAction": latest_action(runtime, limit),
+        "input": {
+            "phase": text(states["input_arbiter"].get("phase")),
+            "summary": text(states["input_arbiter"].get("summary")),
+        },
     }
     phase = derive_phase(status, stages, focus)
     blockers = collect_blockers(states, stages)

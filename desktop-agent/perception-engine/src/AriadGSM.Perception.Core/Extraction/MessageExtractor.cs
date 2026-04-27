@@ -5,6 +5,7 @@ using AriadGSM.Perception.ChannelResolution;
 using AriadGSM.Perception.Config;
 using AriadGSM.Perception.Reader;
 using AriadGSM.Perception.Semantics;
+using AriadGSM.Perception.Text;
 
 namespace AriadGSM.Perception.Extraction;
 
@@ -82,7 +83,7 @@ public sealed partial class MessageExtractor
 
     private static (string Direction, string Text) DetectDirection(string text, ReaderTextLine line, ResolvedChannel channel)
     {
-        var agentPrefixes = new[] { "Tu:", "T\u00C3\u00BA:", "You:", "Yo:" };
+        var agentPrefixes = new[] { "Tu:", "T\u00FA:", "T\u00C3\u00BA:", "You:", "Yo:" };
         foreach (var prefix in agentPrefixes)
         {
             if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -189,7 +190,7 @@ public sealed partial class MessageExtractor
 
     private static string Clean(string text)
     {
-        var clean = string.Join(" ", text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim();
+        var clean = string.Join(" ", TextRepair.Repair(text).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim();
         clean = clean
             .Replace("\u00E2\u20AC\u201C", "-", StringComparison.Ordinal)
             .Replace("\u00E2\u20AC\u201D", "-", StringComparison.Ordinal)
@@ -217,6 +218,6 @@ public sealed partial class MessageExtractor
     [GeneratedRegex(@"^\(?\d+\)?$")]
     private static partial Regex CounterOnlyRegex();
 
-    [GeneratedRegex(@"^(whatsapp|whatsapp business|buscar|search|chats|estados|status|calls|llamadas|comunidades|communities|nuevo chat|new chat|escribe un mensaje|type a message|mensaje|message|foto|photo|audio|chat fijado|pinned chat|cifrado|encrypted|hoy|ayer|today|yesterday|google chrome|microsoft edge|mozilla firefox|codex|telegram|copiar ruta|copy link)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(whatsapp|whatsapp business|buscar|search|chats|estados|status|calls|llamadas|comunidades|communities|nuevo chat|new chat|escribe un mensaje|type a message|mensaje|message|foto|photo|audio|chat fijado|pinned chat|cifrado|encrypted|hoy|ayer|today|yesterday|google chrome|microsoft edge|mozilla firefox|codex|telegram|copiar ruta|copy link|anadir esta pagina a marcadores|añadir esta pagina a marcadores|editar marcador|editar favorito|ver informacion del sitio|informacion del sitio|ctrl\+?d)$", RegexOptions.IgnoreCase)]
     private static partial Regex NoiseRegex();
 }

@@ -88,6 +88,7 @@ internal sealed class MainForm : Form
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         _timer.Stop();
+        _runtime.Stop("app_closing");
         _runtime.Dispose();
         base.OnFormClosing(e);
     }
@@ -600,7 +601,7 @@ internal sealed class MainForm : Form
         _startButton.Click += async (_, _) => await RunButtonAsync(_startButton, () => StartAgentCoreAsync(autonomous: true)).ConfigureAwait(true);
         _stopButton.Click += (_, _) =>
         {
-            _runtime.Stop();
+            _runtime.Stop("operator_button");
             RefreshStatus();
         };
         _onceButton.Click += async (_, _) => await RunButtonAsync(_onceButton, () => _runtime.RunOnceAsync()).ConfigureAwait(true);
@@ -1062,7 +1063,10 @@ internal sealed class MainForm : Form
 
         var actionsExecuted = StateNumber("hands-state.json", "actionsExecuted");
         var actionsVerified = StateNumber("hands-state.json", "actionsVerified");
-        _handsStatusLabel.Text = $"{actionsExecuted} acciones{Environment.NewLine}{actionsVerified} verificadas";
+        var inputPhase = StateText("input-arbiter-state.json", "phase");
+        _handsStatusLabel.Text = inputPhase == "operator_control"
+            ? $"cedidas a ti{Environment.NewLine}sin pelear mouse"
+            : $"{actionsExecuted} acciones{Environment.NewLine}{actionsVerified} verificadas";
     }
 
     private string BuildNeedsText(IReadOnlyList<HealthItem> errors, IReadOnlyList<HealthItem> warnings, bool isRunning)
@@ -1104,6 +1108,12 @@ internal sealed class MainForm : Form
         lines.Add($"WhatsApps: {ready}/{Math.Max(3, whatsappItems.Length)} canales listos para leer.");
         lines.Add($"Memoria: {StateNumber("memory-state.json", "summary", "memoryMessages")} mensajes guardados y {StateNumber("memory-state.json", "summary", "learningEvents")} aprendizajes.");
         lines.Add($"Contabilidad: {StateNumber("memory-state.json", "summary", "accountingEvents")} eventos detectados.");
+        var inputPhase = StateText("input-arbiter-state.json", "phase");
+        var inputSummary = StateText("input-arbiter-state.json", "summary");
+        if (!string.IsNullOrWhiteSpace(inputPhase))
+        {
+            lines.Add($"Mouse/teclado: {HumanPhase(inputPhase)}. {inputSummary}");
+        }
         lines.Add($"Manos: {StateNumber("hands-state.json", "actionsExecuted")} acciones ejecutadas, {StateNumber("hands-state.json", "actionsVerified")} verificadas.");
         lines.Add($"Procesos activos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}.");
 
@@ -1145,6 +1155,9 @@ internal sealed class MainForm : Form
                 ? "Windows ya dio permisos suficientes."
                 : "Ejecuta la app como administrador para mover ventanas y mouse sin fallar.",
             "Cabina WhatsApp" => $"Cabina WhatsApp: {item.Detail}",
+            "Life Controller" => $"Vida de la IA: {item.Detail}",
+            "Input Arbiter" => $"Mouse/teclado: {item.Detail}",
+            "Guardian cabina" => $"Cabina: {item.Detail}",
             "Ciclo autonomo" => $"Ciclo autonomo: {StateText("autonomous-cycle-state.json", new[] { "summary" }, item.Detail)}",
             "Hands" => $"Manos: {item.Detail}",
             "Supervisor" => $"Supervisor: {item.Detail}",
@@ -1162,6 +1175,10 @@ internal sealed class MainForm : Form
             "reasoning" => "pensando el siguiente paso",
             "learning" => "aprendiendo del historial",
             "observing" => "observando conversaciones",
+            "operator_control" => "te estoy dejando el control",
+            "operator_cooldown" => "esperando que sueltes el mouse",
+            "ai_control_granted" => "tomando el mouse por un momento",
+            "ai_control_released" => "solte el mouse",
             "waiting" => "esperando inicio",
             "blocked" => "bloqueada por seguridad",
             _ => phase

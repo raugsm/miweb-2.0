@@ -1,8 +1,8 @@
 {
-  "version": "0.5.23",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.23.zip",
-  "sha256": "a9680cf1498b706202d50ada83eb79fe9ff65f9bcc056ff7a039d90463dba6bf",
+  "version": "0.5.24",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.24.zip",
+  "sha256": "490265082bd9a24afdab608594e1d8b2b26118678c9275c37e2b50888a508889",
   "autoApply": true,
-  "notes": "Adds a Workspace Guardian that continuously owns the three WhatsApp columns while the IA runs, clears blocking windows, restores fixed Edge/Chrome/Firefox WhatsApp windows, exposes guardian status in the desktop activity panel, and lets Hands recover a registered browser handle before failing.",
-  "publishedAt": "2026-04-27T17:11:37Z"
+  "notes": "Adds the six-block autonomous cycle foundation: Life Controller, Workspace Guardian V2, Input Arbiter, Verified Hands, Reader Core cleanup, and Business Memory filtering. Hands now yields mouse/keyboard control to the operator instead of fighting input, the app exposes lifecycle/input states, the guardian avoids unnecessary foreground forcing, and memory rejects browser UI titles.",
+  "publishedAt": "2026-04-27T18:01:57Z"
 }

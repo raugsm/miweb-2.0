@@ -70,6 +70,7 @@ internal sealed partial class AgentRuntime : IDisposable
         _agentSupervisorStateFile = Path.Combine(_runtimeDir, "agent-supervisor-state.json");
         _cabinReadinessFile = Path.Combine(_runtimeDir, "cabin-readiness.json");
         _workspaceSetupStateFile = Path.Combine(_runtimeDir, "workspace-setup-state.json");
+        WriteLifeState("idle", "login_wait", "IA detenida esperando login e inicio manual.", "constructor");
     }
 
     public string RepoRoot => _repoRoot;
@@ -99,9 +100,11 @@ internal sealed partial class AgentRuntime : IDisposable
 
     public async Task StartAsync()
     {
+        WriteLifeState("starting", "preflight", "Revisando base local antes de encender motores.", "start");
         if (IsRunning)
         {
             WriteLog("Agent already running.");
+            WriteLifeState("running", "already_running", "La IA ya estaba encendida.", "start");
             return;
         }
 
@@ -113,6 +116,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
         if (report.HasBlockingErrors)
         {
+            WriteLifeState("blocked", "preflight_blocked", "No encendi motores porque el diagnostico base tiene errores.", "start");
             throw new InvalidOperationException("No puedo iniciar: hay errores base en el diagnostico previo.");
         }
 
@@ -156,11 +160,13 @@ internal sealed partial class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "hands-engine", "config", "hands.example.json"));
         StartCoreLoop();
         StartSupervisorLoop();
+        WriteLifeState("running", "engines_running", "Ojos, memoria, razonamiento y manos encendidos.", "start");
         await Task.CompletedTask.ConfigureAwait(false);
     }
 
     public async Task RunOnceAsync()
     {
+        WriteLifeState("running", "single_cycle", "Ejecutando una lectura completa bajo demanda.", "run_once");
         WriteLog("Running one full read cycle.");
         await RunWorkerOnceAsync(
             "Vision once",
@@ -190,9 +196,16 @@ internal sealed partial class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "hands-engine", "config", "hands.example.json")).ConfigureAwait(false);
     }
 
-    public void Stop()
+    public void Stop(string reason = "operator_or_app_shutdown")
     {
+        if (_stopping && !IsRunning)
+        {
+            WriteLifeState("stopped", "already_stopped", $"IA local ya estaba detenida: {reason}.", reason);
+            return;
+        }
+
         WriteLog("Stopping AriadGSM Agent.");
+        WriteLifeState("stopping", "shutdown_requested", "Apagando motores locales de forma ordenada.", reason);
         _stopping = true;
         _desiredRunning = false;
         StopWorkspaceGuardianLoop();
@@ -209,7 +222,8 @@ internal sealed partial class AgentRuntime : IDisposable
             _workerSpecs.Clear();
         }
 
-        WriteSupervisorState("stopped", "Agent stopped by operator or app shutdown.");
+        WriteSupervisorState("stopped", $"Agent stopped: {reason}.");
+        WriteLifeState("stopped", "engines_stopped", $"IA local detenida: {reason}.", reason);
     }
 
     public AgentSnapshot Snapshot()
@@ -277,8 +291,10 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Operating", "operating-state.json", "PythonCoreLoop"),
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
+            StateHealth("Input Arbiter", "input-arbiter-state.json", "Hands"),
             StateHealth("Supervisor", "supervisor-state.json", "PythonCoreLoop"),
             StateHealth("Ciclo autonomo", "autonomous-cycle-state.json", "PythonCoreLoop"),
+            StateHealth("Life Controller", "life-controller-state.json", "LifeController"),
             StateHealth("Agent Supervisor", "agent-supervisor-state.json", "ReliabilitySupervisor"),
             StateHealth("Alistamiento cabina", "workspace-setup-state.json", "WorkspaceSetup"),
             StateHealth("Guardian cabina", "workspace-guardian-state.json", "WorkspaceGuardian"),
@@ -339,8 +355,10 @@ internal sealed partial class AgentRuntime : IDisposable
         using var operating = ReadJsonStatus("operating-state.json");
         using var memory = ReadJsonStatus("memory-state.json");
         using var hands = ReadJsonStatus("hands-state.json");
+        using var inputArbiter = ReadJsonStatus("input-arbiter-state.json");
         using var supervisor = ReadJsonStatus("supervisor-state.json");
         using var autonomousCycle = ReadJsonStatus("autonomous-cycle-state.json");
+        using var life = ReadJsonStatus("life-controller-state.json");
         using var agentSupervisor = ReadJsonStatus("agent-supervisor-state.json");
         using var workspaceSetup = ReadJsonStatus("workspace-setup-state.json");
         using var workspaceGuardian = ReadJsonStatus("workspace-guardian-state.json");
@@ -365,11 +383,13 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Lectura: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
             $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
             $"Orchestrator: fase={Text(orchestrator, "phase")} | {Text(orchestrator, "summary")}",
+            $"Life Controller: {Text(life, "phase")} | {Text(life, "summary")}",
             $"Alistamiento: fase={Text(workspaceSetup, "phase")} | {Text(workspaceSetup, "summary")}",
             $"Guardian cabina: {Text(workspaceGuardian, "status")} | {Text(workspaceGuardian, "summary")}",
             $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")}",
             $"Cognitive/Memory: decisiones={NestedNumber(cognitive, "summary", "decisions")} | memoria={NestedNumber(memory, "summary", "memoryMessages")} | aprendizaje={NestedNumber(memory, "summary", "learningEvents")}",
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
+            $"Input Arbiter: {Text(inputArbiter, "phase")} | idle={Number(inputArbiter, "operatorIdleMs")}ms | {Text(inputArbiter, "summary")}",
             $"Hands: ejecutadas={Number(hands, "actionsExecuted")} | verificadas={Number(hands, "actionsVerified")} | bloqueadas={Number(hands, "actionsBlocked")} | ultimo={Text(hands, "lastSummary")}",
             $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}",
             $"Ciclo autonomo: fase={Text(autonomousCycle, "phase")} | {Text(autonomousCycle, "summary")}",
@@ -517,6 +537,7 @@ internal sealed partial class AgentRuntime : IDisposable
         startInfo.ArgumentList.Add(_updateStateFile);
 
         Process.Start(startInfo);
+        WriteLifeState("updating", "updater_launched", $"Actualizador iniciado para version {update.LatestVersion}.", "update");
         WriteLog($"Updater launched for version {update.LatestVersion}.");
         return true;
     }
@@ -706,6 +727,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
     public async Task<PreflightReport> BootstrapAutonomousWorkspaceAsync(TimeSpan timeout)
     {
+        WriteLifeState("starting", "workspace_bootstrap", "Preparando WhatsApp 1/2/3 antes de encender IA.", "bootstrap");
         WriteWorkspaceSetupState(
             "preparing",
             "Ordenando la cabina antes de encender IA.",
@@ -743,6 +765,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
         if (blockers.Length > 0)
         {
+            WriteLifeState("attention", "workspace_attention", "La IA no arranco porque la cabina necesita revision humana.", "bootstrap");
             WriteWorkspaceSetupState(
                 "attention",
                 "No encendi ojos ni manos porque la cabina no quedo lista.",
@@ -757,6 +780,7 @@ internal sealed partial class AgentRuntime : IDisposable
             "Cabina lista: Edge=WhatsApp 1, Chrome=WhatsApp 2, Firefox=WhatsApp 3.",
             100,
             []);
+        WriteLifeState("ready", "workspace_ready", "Cabina lista para encender motores autonomos.", "bootstrap");
         WriteLog("Workspace setup: cabin ready; engines may start now.");
         return report;
     }
@@ -1291,7 +1315,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
     public void Dispose()
     {
-        Stop();
+        Stop("dispose");
         _coreLoopCts?.Dispose();
         _supervisorCts?.Dispose();
         _workspaceGuardianCts?.Dispose();

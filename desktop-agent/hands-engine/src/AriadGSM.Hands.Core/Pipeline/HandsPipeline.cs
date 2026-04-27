@@ -5,6 +5,7 @@ using AriadGSM.Hands.Config;
 using AriadGSM.Hands.Decisions;
 using AriadGSM.Hands.Events;
 using AriadGSM.Hands.Execution;
+using AriadGSM.Hands.Input;
 using AriadGSM.Hands.Interaction;
 using AriadGSM.Hands.Orchestration;
 using AriadGSM.Hands.Perception;
@@ -27,6 +28,7 @@ public sealed class HandsPipeline
     private readonly ActionVerifier _verifier = new();
     private readonly ActionEventWriter _writer;
     private readonly HandsCursorStore _cursorStore;
+    private readonly InputArbiter _inputArbiter;
     private readonly HashSet<string> _processedDecisionKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _processedDecisionScopes = new(StringComparer.OrdinalIgnoreCase);
     private bool _cursorLoaded;
@@ -56,6 +58,7 @@ public sealed class HandsPipeline
         _executor = executor ?? (options.ExecuteActions ? new Win32HandsExecutor(options) : new DryRunHandsExecutor());
         _writer = new ActionEventWriter(options.ActionEventsFile);
         _cursorStore = new HandsCursorStore(options.CursorFile);
+        _inputArbiter = new InputArbiter(options);
     }
 
     public async ValueTask<HandsHealthState> RunOnceAsync(CancellationToken cancellationToken = default)
@@ -451,28 +454,52 @@ public sealed class HandsPipeline
         }
         else
         {
-            var execution = await _executor.ExecuteAsync(plan, cancellationToken).ConfigureAwait(false);
-            if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+            var lease = _inputArbiter.Acquire(plan);
+            var planForExecution = EnrichPlanWithInputArbiter(plan, lease);
+            if (!lease.Granted)
             {
-                _actionsExecuted++;
-            }
+                _actionsBlocked++;
+                var auditActionId = $"{actionId}-arbiter-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 5}";
+                if (existingIds.Contains(auditActionId))
+                {
+                    _actionsSkipped++;
+                    return false;
+                }
 
-            var verification = _verifier.Verify(plan, execution, perception);
-            var finalStatus = execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase) && verification.Verified
-                ? "verified"
-                : execution.Status;
-            if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+                actionEvent = CreateActionEvent(
+                    planForExecution,
+                    auditActionId,
+                    "blocked",
+                    new ActionVerification(false, lease.Reason, 0.96),
+                    safety.Reason,
+                    executionSummary: "Input Arbiter cedio el mouse al operador.");
+            }
+            else
             {
-                _actionsVerified++;
-            }
+                var execution = await _executor.ExecuteAsync(planForExecution, cancellationToken).ConfigureAwait(false);
+                _inputArbiter.Complete(lease, planForExecution, execution);
+                if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+                {
+                    _actionsExecuted++;
+                }
 
-            actionEvent = CreateActionEvent(
-                plan,
-                actionId,
-                finalStatus,
-                verification,
-                safety.Reason,
-                execution.Summary);
+                var verification = _verifier.Verify(planForExecution, execution, perception);
+                var finalStatus = execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase) && verification.Verified
+                    ? "verified"
+                    : execution.Status;
+                if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+                {
+                    _actionsVerified++;
+                }
+
+                actionEvent = CreateActionEvent(
+                    planForExecution,
+                    actionId,
+                    finalStatus,
+                    verification,
+                    safety.Reason,
+                    execution.Summary);
+            }
         }
 
         var errors = ActionContractValidator.Validate(actionEvent);
@@ -511,6 +538,27 @@ public sealed class HandsPipeline
         return enrichedPlan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
             && actionEvent.Status.Equals("blocked", StringComparison.OrdinalIgnoreCase)
             && text.Contains("no verified Interaction target coordinates", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ActionPlan EnrichPlanWithInputArbiter(ActionPlan plan, InputLease lease)
+    {
+        if (!lease.RequiresInput)
+        {
+            return plan;
+        }
+
+        var target = new Dictionary<string, object?>(plan.Target, StringComparer.OrdinalIgnoreCase)
+        {
+            ["inputArbiterLeaseId"] = lease.LeaseId,
+            ["inputArbiterGranted"] = lease.Granted,
+            ["inputArbiterReason"] = lease.Reason,
+            ["operatorIdleMs"] = lease.OperatorIdleMs,
+            ["operatorIdleRequiredMs"] = lease.RequiredIdleMs,
+            ["operatorHasPriority"] = !lease.Granted,
+            ["handsPausedOnly"] = !lease.Granted
+        };
+
+        return plan with { Target = target };
     }
 
     private static long VisitBucket(DateTimeOffset now, int revisitMinutes)

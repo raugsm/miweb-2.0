@@ -8,8 +8,10 @@
   "orchestratorCommandsFile": "desktop-agent\\runtime\\orchestrator-commands.json",
   "cabinReadinessFile": "desktop-agent\\runtime\\cabin-readiness.json",
   "cursorFile": "desktop-agent\\runtime\\hands-cursor.json",
+  "inputArbiterStateFile": "desktop-agent\\runtime\\input-arbiter-state.json",
   "autonomyLevel": 3,
   "executeActions": true,
+  "inputArbiterEnabled": true,
   "enableInteractionNavigator": true,
   "respectOrchestratorCommands": true,
   "allowTextInput": false,
@@ -23,6 +25,9 @@
   "navigatorMaxChatsPerCycle": 1,
   "navigatorRevisitMinutes": 30,
   "navigatorMinimumSecondsBetweenClicks": 2,
+  "operatorIdleRequiredMs": 1200,
+  "operatorCooldownMs": 1600,
+  "aiControlLeaseMs": 900,
   "processedDecisionCursorLimit": 2000,
   "channelMappings": [
     {

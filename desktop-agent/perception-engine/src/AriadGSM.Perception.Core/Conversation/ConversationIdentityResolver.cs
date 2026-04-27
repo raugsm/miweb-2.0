@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using AriadGSM.Perception.ChannelResolution;
 using AriadGSM.Perception.ChatRows;
 using AriadGSM.Perception.Reader;
+using AriadGSM.Perception.Text;
 using AriadGSM.Perception.VisionInput;
 
 namespace AriadGSM.Perception.Conversation;
@@ -193,7 +194,7 @@ public sealed partial class ConversationIdentityResolver
 
     private static string CleanTitle(string text)
     {
-        var clean = string.Join(" ", (text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim();
+        var clean = string.Join(" ", TextRepair.Repair(text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim();
         clean = clean
             .Replace("T\u00C3\u00BA:", "Tu:", StringComparison.OrdinalIgnoreCase)
             .Replace("\u2014", "-", StringComparison.Ordinal)

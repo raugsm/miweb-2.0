@@ -22,9 +22,13 @@ public sealed class HandsOptions
 
     public string CursorFile { get; init; } = @"desktop-agent\runtime\hands-cursor.json";
 
+    public string InputArbiterStateFile { get; init; } = @"desktop-agent\runtime\input-arbiter-state.json";
+
     public int AutonomyLevel { get; init; } = 3;
 
     public bool ExecuteActions { get; init; } = false;
+
+    public bool InputArbiterEnabled { get; init; } = true;
 
     public bool EnableInteractionNavigator { get; init; } = true;
 
@@ -51,6 +55,12 @@ public sealed class HandsOptions
     public int NavigatorRevisitMinutes { get; init; } = 30;
 
     public int NavigatorMinimumSecondsBetweenClicks { get; init; } = 2;
+
+    public int OperatorIdleRequiredMs { get; init; } = 1200;
+
+    public int OperatorCooldownMs { get; init; } = 1600;
+
+    public int AiControlLeaseMs { get; init; } = 900;
 
     public int ProcessedDecisionCursorLimit { get; init; } = 2000;
 

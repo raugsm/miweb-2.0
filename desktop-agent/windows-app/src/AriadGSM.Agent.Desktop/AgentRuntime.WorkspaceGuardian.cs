@@ -87,7 +87,7 @@ internal sealed partial class AgentRuntime
                 continue;
             }
 
-            var restored = RestoreAndPlaceWindow(target, expected);
+            var restored = RestoreAndPlaceWindow(target, expected, ForceForeground(reason));
             if (restored)
             {
                 actions.Add(new WorkspaceGuardianAction(
@@ -120,7 +120,7 @@ internal sealed partial class AgentRuntime
                 Thread.Sleep(80);
                 windows = VisibleWindows();
                 target = FindWindowByHandle(windows, target.Handle) ?? FindWorkspaceTarget(windows, mapping) ?? target;
-                RestoreAndPlaceWindow(target, expected);
+                RestoreAndPlaceWindow(target, expected, forceForeground: false);
             }
 
             var remaining = FindWorkspaceBlockers(VisibleWindows(), target, expected, mappings).Count();
@@ -204,14 +204,33 @@ internal sealed partial class AgentRuntime
         return windows.FirstOrDefault(item => item.Handle == handle);
     }
 
-    private bool RestoreAndPlaceWindow(WindowInfo window, WindowBounds expected)
+    private static bool ForceForeground(string reason)
+    {
+        return reason.Equals("bootstrap", StringComparison.OrdinalIgnoreCase)
+            || reason.Equals("prepare", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool RestoreAndPlaceWindow(WindowInfo window, WindowBounds expected, bool forceForeground)
     {
         try
         {
+            var needsPlacement = WindowNeedsPlacement(window.Bounds, expected);
+            if (!needsPlacement && !forceForeground)
+            {
+                return false;
+            }
+
             ShowWindow(window.Handle, ShowWindowRestore);
-            _ = SetWindowPos(window.Handle, HwndTop, expected.Left, expected.Top, expected.Width, expected.Height, SetWindowPosShowWindow);
-            _ = BringWindowToTop(window.Handle);
-            _ = SetForegroundWindow(window.Handle);
+            if (needsPlacement)
+            {
+                _ = SetWindowPos(window.Handle, HwndTop, expected.Left, expected.Top, expected.Width, expected.Height, SetWindowPosShowWindow);
+            }
+
+            if (forceForeground)
+            {
+                _ = BringWindowToTop(window.Handle);
+                _ = SetForegroundWindow(window.Handle);
+            }
             return true;
         }
         catch (Exception exception)
@@ -219,6 +238,18 @@ internal sealed partial class AgentRuntime
             WriteLog($"{window.ProcessName} #{window.ProcessId}: guardian could not place window: {exception.Message}");
             return false;
         }
+    }
+
+    private static bool WindowNeedsPlacement(WindowBounds actual, WindowBounds expected)
+    {
+        const int positionTolerance = 10;
+        const int sizeTolerance = 28;
+        return actual.Width <= 0
+            || actual.Height <= 0
+            || Math.Abs(actual.Left - expected.Left) > positionTolerance
+            || Math.Abs(actual.Top - expected.Top) > positionTolerance
+            || Math.Abs(actual.Width - expected.Width) > sizeTolerance
+            || Math.Abs(actual.Height - expected.Height) > sizeTolerance;
     }
 
     private IEnumerable<WindowInfo> FindWorkspaceBlockers(
