@@ -11,6 +11,8 @@
     "status",
     "phase",
     "summary",
+    "steps",
+    "permissionGate",
     "stages"
   ],
   "properties": {
@@ -34,6 +36,73 @@
     },
     "summary": {
       "type": "string"
+    },
+    "trigger": {
+      "type": "string",
+      "enum": ["start", "checkpoint", "recovery"]
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["stepId", "name", "status", "objective", "detail", "inputs", "outputs"],
+        "additionalProperties": true,
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "enum": ["observe", "understand", "plan", "request_permission", "act", "verify", "learn", "report"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "attention", "blocked"]
+          },
+          "objective": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metrics": {
+            "type": "object"
+          },
+          "gate": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "permissionGate": {
+      "type": "object",
+      "required": ["decision", "reason", "canHandsRun"],
+      "additionalProperties": true,
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": ["ALLOW", "ALLOW_WITH_LIMIT", "ASK_HUMAN", "PAUSE_FOR_OPERATOR", "BLOCK"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "canHandsRun": {
+          "type": "boolean"
+        }
+      }
     },
     "stages": {
       "type": "array",
@@ -61,6 +130,12 @@
           }
         }
       }
+    },
+    "directives": {
+      "type": "object"
+    },
+    "humanReport": {
+      "type": "object"
     }
   }
 }

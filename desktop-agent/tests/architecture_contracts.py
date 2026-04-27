@@ -377,8 +377,27 @@ def main() -> int:
             append_event=True,
         )
         assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
-        assert cycle_state["status"] in {"ok", "attention"}
+        assert cycle_state["status"] in {"ok", "attention", "blocked"}
         assert len(cycle_state["stages"]) == 6
+        assert [step["stepId"] for step in cycle_state["steps"]] == [
+            "observe",
+            "understand",
+            "plan",
+            "request_permission",
+            "act",
+            "verify",
+            "learn",
+            "report",
+        ]
+        assert cycle_state["permissionGate"]["decision"] in {
+            "ALLOW",
+            "ALLOW_WITH_LIMIT",
+            "ASK_HUMAN",
+            "PAUSE_FOR_OPERATOR",
+            "BLOCK",
+        }
+        assert (root / "autonomous-cycle-directives.json").exists()
+        assert (root / "autonomous-cycle-report.json").exists()
         cycle_event = json.loads(autonomous_cycle_events_file.read_text(encoding="utf-8").splitlines()[-1])
         assert not validate_contract(cycle_event, "autonomous_cycle_event")
     print("architecture contracts OK")

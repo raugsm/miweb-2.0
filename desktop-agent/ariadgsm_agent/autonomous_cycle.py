@@ -470,6 +470,333 @@ def build_business_memory_stage(memory: dict[str, Any], timeline: dict[str, Any]
     return stage
 
 
+def make_step(
+    step_id: str,
+    name: str,
+    status: str,
+    objective: str,
+    detail: str,
+    inputs: list[str],
+    outputs: list[str],
+    metrics: dict[str, Any] | None = None,
+    gate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "stepId": step_id,
+        "name": name,
+        "status": normalize_status(status),
+        "objective": objective,
+        "detail": detail,
+        "inputs": inputs,
+        "outputs": outputs,
+        "metrics": metrics or {},
+        "gate": gate or {},
+    }
+
+
+def step_status(values: list[str]) -> str:
+    return worst_status([normalize_status(value) for value in values])
+
+
+def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    supervisor = states["supervisor"]
+    input_arbiter = states["input_arbiter"]
+    summary = supervisor.get("summary") if isinstance(supervisor.get("summary"), dict) else {}
+    operator_has_priority = bool(input_arbiter.get("operatorHasPriority"))
+    input_phase = text(input_arbiter.get("phase"), "idle")
+    critical = as_int(summary.get("critical"))
+    blocked = as_int(summary.get("blocked"))
+    requires_human = as_int(summary.get("requiresHumanConfirmation"))
+
+    if operator_has_priority or input_phase in {"operator_control", "operator_cooldown"}:
+        decision = "PAUSE_FOR_OPERATOR"
+        reason = text(input_arbiter.get("summary"), "Bryams tiene prioridad de mouse/teclado.")
+        can_hands_run = False
+    elif critical > 0:
+        decision = "BLOCK"
+        reason = "Supervisor reporto hallazgos criticos."
+        can_hands_run = False
+    elif blocked > 0:
+        decision = "BLOCK"
+        reason = "Supervisor bloqueo acciones pendientes."
+        can_hands_run = False
+    elif requires_human > 0:
+        decision = "ASK_HUMAN"
+        reason = "Hay acciones que necesitan confirmacion humana."
+        can_hands_run = False
+    else:
+        decision = "ALLOW"
+        reason = "Permisos operativos suficientes para continuar el ciclo."
+        can_hands_run = True
+
+    return {
+        "decision": decision,
+        "reason": reason,
+        "canHandsRun": can_hands_run,
+        "canObserve": True,
+        "canUnderstand": True,
+        "canLearn": decision != "BLOCK",
+        "operatorHasPriority": operator_has_priority,
+        "inputPhase": input_phase,
+        "requiresHumanConfirmation": requires_human,
+        "blockedActions": blocked,
+        "criticalFindings": critical,
+    }
+
+
+def build_operating_steps(
+    states: dict[str, dict[str, Any]],
+    stages: list[dict[str, Any]],
+    gate: dict[str, Any],
+) -> list[dict[str, Any]]:
+    stage_map = {stage["stageId"]: stage for stage in stages}
+    reader = stage_map.get("reader_core", {})
+    memory_stage = stage_map.get("business_memory", {})
+    hands_stage = stage_map.get("verified_hands", {})
+    supervisor = states["supervisor"]
+    timeline = states["timeline"]
+    cognitive = states["cognitive"]
+    operating = states["operating"]
+    memory = states["memory"]
+
+    timeline_ingested = timeline.get("ingested") if isinstance(timeline.get("ingested"), dict) else {}
+    cognitive_summary = cognitive.get("summary") if isinstance(cognitive.get("summary"), dict) else {}
+    operating_summary = operating.get("summary") if isinstance(operating.get("summary"), dict) else {}
+    memory_summary = memory.get("summary") if isinstance(memory.get("summary"), dict) else {}
+    supervisor_summary = supervisor.get("summary") if isinstance(supervisor.get("summary"), dict) else {}
+
+    messages = as_int(timeline_ingested.get("messages"))
+    timelines = as_int(timeline_ingested.get("timelines"))
+    decisions = as_int(cognitive_summary.get("decisions"))
+    cases = as_int(operating_summary.get("cases"))
+    actions_written = as_int(hands_stage.get("metrics", {}).get("actionsWritten"))
+    actions_executed = as_int(hands_stage.get("metrics", {}).get("actionsExecuted"))
+    actions_verified = as_int(hands_stage.get("metrics", {}).get("actionsVerified"))
+    learning = as_int(memory_summary.get("learningEvents"))
+    accounting = as_int(memory_summary.get("accountingEvents"))
+    memory_messages = as_int(memory_summary.get("memoryMessages"))
+
+    observe_status = normalize_status(reader.get("status"))
+    understand_status = step_status([observe_status, "ok" if messages > 0 and timelines > 0 else "attention"])
+    plan_status = "ok" if decisions > 0 or cases > 0 else "attention"
+    if observe_status == "blocked":
+        plan_status = "blocked"
+
+    gate_decision = text(gate.get("decision"), "ALLOW")
+    permission_status = "ok"
+    if gate_decision in {"ASK_HUMAN", "PAUSE_FOR_OPERATOR"}:
+        permission_status = "attention"
+    if gate_decision == "BLOCK":
+        permission_status = "blocked"
+
+    if gate_decision == "BLOCK":
+        act_status = "blocked"
+        act_detail = "No actuo porque el gate del ciclo bloqueo acciones."
+    elif gate_decision == "PAUSE_FOR_OPERATOR":
+        act_status = "attention"
+        act_detail = "No muevo mouse porque Bryams tiene prioridad de control."
+    elif gate_decision == "ASK_HUMAN":
+        act_status = "attention"
+        act_detail = "Accion pendiente de confirmacion humana."
+    elif actions_executed > 0:
+        act_status = "ok"
+        act_detail = f"Hands ejecuto {actions_executed} acciones autorizadas."
+    elif actions_written > 0:
+        act_status = "attention"
+        act_detail = f"Hay {actions_written} acciones escritas pero no ejecutadas aun."
+    else:
+        act_status = "ok"
+        act_detail = "No habia accion de mouse necesaria en este ciclo."
+
+    if actions_executed > 0 and actions_verified >= actions_executed:
+        verify_status = "ok"
+        verify_detail = f"Verifique {actions_verified}/{actions_executed} acciones ejecutadas."
+    elif actions_executed > 0:
+        verify_status = "attention"
+        verify_detail = f"Falta verificar {actions_executed - actions_verified} acciones."
+    else:
+        verify_status = "ok"
+        verify_detail = "No hubo accion fisica que verificar."
+
+    learn_status = "ok" if memory_messages > 0 or learning > 0 or accounting > 0 else "attention"
+    if gate_decision == "BLOCK":
+        learn_status = step_status([learn_status, "attention"])
+
+    return [
+        make_step(
+            "observe",
+            "Observar",
+            observe_status,
+            "Saber que ventanas/canales estan disponibles antes de razonar.",
+            text(reader.get("detail"), "Lectura pendiente."),
+            ["vision-health.json", "perception-health.json", "cabin-readiness.json"],
+            ["canales observados", "mensajes visibles", "objetivos accionables"],
+            reader.get("metrics") if isinstance(reader.get("metrics"), dict) else {},
+        ),
+        make_step(
+            "understand",
+            "Entender",
+            understand_status,
+            "Convertir observaciones en conversaciones y senales de negocio.",
+            f"Timeline unio {messages} mensajes en {timelines} historias.",
+            ["timeline-state.json", "conversation-events.jsonl"],
+            ["historias", "senales utiles", "eventos rechazados"],
+            {"messages": messages, "timelines": timelines, "rejectedEvents": as_int(timeline_ingested.get("rejectedEvents"))},
+        ),
+        make_step(
+            "plan",
+            "Planear",
+            plan_status,
+            "Elegir la siguiente mejor accion de negocio sin tocar aun la PC.",
+            f"Decisiones={decisions}; casos={cases}; tareas={as_int(operating_summary.get('openTasks'))}.",
+            ["cognitive-state.json", "operating-state.json", "memory-state.json"],
+            ["decision propuesta", "caso actualizado", "siguiente accion"],
+            {
+                "decisions": decisions,
+                "cases": cases,
+                "openTasks": as_int(operating_summary.get("openTasks")),
+                "accountingDrafts": as_int(operating_summary.get("accountingDrafts")),
+            },
+        ),
+        make_step(
+            "request_permission",
+            "Pedir permiso",
+            permission_status,
+            "Autorizar, limitar, pausar o bloquear antes de actuar.",
+            text(gate.get("reason"), "Gate evaluado."),
+            ["supervisor-state.json", "input-arbiter-state.json"],
+            ["permissionGate", "allowedEngines", "humanRequired"],
+            {
+                "requiresHumanConfirmation": as_int(supervisor_summary.get("requiresHumanConfirmation")),
+                "blocked": as_int(supervisor_summary.get("blocked")),
+                "critical": as_int(supervisor_summary.get("critical")),
+            },
+            gate,
+        ),
+        make_step(
+            "act",
+            "Actuar",
+            act_status,
+            "Ejecutar solo acciones autorizadas por el gate.",
+            act_detail,
+            ["hands-state.json", "action-events.jsonl", "autonomous-cycle-directives.json"],
+            ["accion ejecutada", "accion cedida", "accion bloqueada"],
+            {
+                "actionsWritten": actions_written,
+                "actionsExecuted": actions_executed,
+                "actionsBlocked": as_int(hands_stage.get("metrics", {}).get("actionsBlocked")),
+                "actionsSkipped": as_int(hands_stage.get("metrics", {}).get("actionsSkipped")),
+            },
+        ),
+        make_step(
+            "verify",
+            "Verificar",
+            verify_status,
+            "Confirmar que la accion logro el objetivo correcto.",
+            verify_detail,
+            ["hands-state.json", "perception-health.json"],
+            ["accion verificada", "fallo explicado", "recuperacion requerida"],
+            {"actionsExecuted": actions_executed, "actionsVerified": actions_verified},
+        ),
+        make_step(
+            "learn",
+            "Aprender",
+            learn_status,
+            "Guardar experiencia como hecho, sospecha, aprendizaje o borrador.",
+            f"Memoria={memory_messages}; aprendizajes={learning}; contabilidad={accounting}.",
+            ["memory-state.json", "learning-events.jsonl", "accounting-events.jsonl"],
+            ["memoria actualizada", "aprendizaje candidato", "borrador contable"],
+            {"memoryMessages": memory_messages, "learningEvents": learning, "accountingEvents": accounting},
+        ),
+        make_step(
+            "report",
+            "Reportar",
+            "ok",
+            "Explicar el estado a Bryams en lenguaje humano.",
+            "Reporte humano generado para la interfaz.",
+            ["autonomous-cycle-state.json"],
+            ["autonomous-cycle-report.json", "resumen humano"],
+            {},
+        ),
+    ]
+
+
+def build_directives(
+    cycle_identifier: str,
+    created_at: str,
+    gate: dict[str, Any],
+    steps: list[dict[str, Any]],
+    next_actions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    gate_decision = text(gate.get("decision"), "ALLOW")
+    hands_allowed = bool(gate.get("canHandsRun"))
+    return {
+        "engine": "ariadgsm_autonomous_cycle",
+        "cycleId": cycle_identifier,
+        "updatedAt": created_at,
+        "gateDecision": gate_decision,
+        "gateReason": text(gate.get("reason")),
+        "allowedEngines": {
+            "vision": True,
+            "perception": True,
+            "timeline": True,
+            "cognitive": gate_decision != "BLOCK",
+            "memory": bool(gate.get("canLearn")),
+            "supervisor": True,
+            "hands": hands_allowed,
+            "domainEvents": True,
+        },
+        "handsPolicy": {
+            "mode": "run" if hands_allowed else "pause",
+            "reason": text(gate.get("reason")),
+            "operatorHasPriority": bool(gate.get("operatorHasPriority")),
+        },
+        "nextStep": next((step["stepId"] for step in steps if step["status"] != "ok"), "observe"),
+        "nextActions": next_actions,
+    }
+
+
+def build_human_report(
+    status: str,
+    phase: str,
+    summary: str,
+    gate: dict[str, Any],
+    steps: list[dict[str, Any]],
+    blockers: list[dict[str, Any]],
+    next_actions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    attention_steps = [step for step in steps if step.get("status") != "ok"]
+    headline = "Estoy trabajando contigo"
+    if status == "blocked":
+        headline = "Necesito tu ayuda para seguir"
+    elif attention_steps:
+        headline = "Estoy lista, pero estoy cuidando un punto"
+
+    what_happened = [
+        f"{step['name']}: {step['detail']}"
+        for step in steps
+        if step["stepId"] in {"observe", "understand", "plan", "learn"}
+    ]
+    needs = []
+    gate_decision = text(gate.get("decision"), "ALLOW")
+    if gate_decision != "ALLOW":
+        needs.append(text(gate.get("reason"), "Necesito revision antes de actuar."))
+    needs.extend(text(item.get("detail")) for item in blockers if text(item.get("detail")))
+    if not needs:
+        needs.append("No necesito intervencion inmediata.")
+
+    return {
+        "headline": headline,
+        "phase": phase,
+        "summary": summary,
+        "gateDecision": gate_decision,
+        "whatHappened": what_happened[:6],
+        "whatINeedFromBryams": needs[:6],
+        "nextActions": next_actions[:6],
+        "safeToContinue": status != "blocked" and gate_decision in {"ALLOW", "ALLOW_WITH_LIMIT"},
+    }
+
+
 def collect_blockers(states: dict[str, dict[str, Any]], stages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     blockers: list[dict[str, Any]] = []
     orchestrator = states["orchestrator"]
@@ -490,6 +817,9 @@ def collect_blockers(states: dict[str, dict[str, Any]], stages: list[dict[str, A
     for item in latest_findings:
         if not isinstance(item, dict):
             continue
+        reason = text(item.get("reason"))
+        if "allowed for execution" in reason.lower():
+            continue
         if item.get("severity") == "critical" or item.get("allowed") is False:
             blockers.append(
                 {
@@ -497,7 +827,7 @@ def collect_blockers(states: dict[str, dict[str, Any]], stages: list[dict[str, A
                     "code": item.get("sourceId", "supervisor_finding"),
                     "severity": item.get("severity", "review"),
                     "channelId": "",
-                    "detail": item.get("reason", ""),
+                    "detail": reason,
                 }
             )
     for stage in stages:
@@ -559,24 +889,26 @@ def collect_next_actions(states: dict[str, dict[str, Any]], hands_stage: dict[st
     return actions[:10]
 
 
-def derive_phase(status: str, stages: list[dict[str, Any]], focus: dict[str, Any]) -> str:
+def derive_phase(status: str, stages: list[dict[str, Any]], steps: list[dict[str, Any]], gate: dict[str, Any]) -> str:
     if status == "blocked":
         return "blocked"
-    stage_map = {stage["stageId"]: stage for stage in stages}
-    if nested(stage_map.get("input_arbiter", {}), "metrics", "operatorHasPriority"):
+    if bool(gate.get("operatorHasPriority")):
         return "operator_control"
-    if stage_map.get("verified_hands", {}).get("metrics", {}).get("actionsExecuted", 0):
-        return "acting"
-    if focus.get("decision"):
-        return "reasoning"
+    gate_decision = text(gate.get("decision"), "ALLOW")
+    if gate_decision == "ASK_HUMAN":
+        return "permission_wait"
+    for step in steps:
+        if step.get("status") != "ok":
+            return text(step.get("stepId"), "attention")
+    stage_map = {stage["stageId"]: stage for stage in stages}
+    if as_int(nested(stage_map.get("verified_hands", {}), "metrics", "actionsExecuted")):
+        return "verify"
     if as_int(nested(stage_map.get("business_memory", {}), "metrics", "learningEvents")) > 0:
-        return "learning"
-    if as_int(nested(stage_map.get("reader_core", {}), "metrics", "messagesExtracted")) > 0:
-        return "observing"
+        return "learn"
     return "waiting"
 
 
-def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[dict[str, Any]]) -> str:
+def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[dict[str, Any]], steps: list[dict[str, Any]], gate: dict[str, Any]) -> str:
     stage_map = {stage["stageId"]: stage for stage in stages}
     expected = as_int(nested(stage_map.get("reader_core", {}), "metrics", "expectedChannels"), 3)
     perceived = as_int(nested(stage_map.get("reader_core", {}), "metrics", "perceptionChannels"))
@@ -586,10 +918,12 @@ def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[d
     accounting = as_int(nested(stage_map.get("business_memory", {}), "metrics", "accountingEvents"))
     executed = as_int(nested(stage_map.get("verified_hands", {}), "metrics", "actionsExecuted"))
     label = {"ok": "estable", "attention": "con avisos", "blocked": "bloqueado"}[status]
+    gate_decision = text(gate.get("decision"), "ALLOW")
+    next_step = next((step["name"] for step in steps if step.get("status") != "ok"), "observar de nuevo")
     return (
         f"Ciclo autonomo {label}: WhatsApp {perceived}/{expected}, "
         f"mensajes={messages}, decisiones={decisions}, aprendizaje={learning}, "
-        f"contabilidad={accounting}, acciones={executed}."
+        f"contabilidad={accounting}, acciones={executed}, gate={gate_decision}, siguiente={next_step}."
     )
 
 
@@ -597,12 +931,17 @@ def run_autonomous_cycle_once(
     runtime_dir: Path | str = RUNTIME_DIR,
     state_file: Path | str | None = None,
     event_file: Path | str | None = None,
+    directives_file: Path | str | None = None,
+    report_file: Path | str | None = None,
     limit: int = 250,
     append_event: bool = True,
+    trigger: str = "checkpoint",
 ) -> dict[str, Any]:
     runtime = Path(runtime_dir)
     state_path = Path(state_file) if state_file is not None else runtime / "autonomous-cycle-state.json"
     event_path = Path(event_file) if event_file is not None else runtime / "autonomous-cycle-events.jsonl"
+    directives_path = Path(directives_file) if directives_file is not None else runtime / "autonomous-cycle-directives.json"
+    report_path = Path(report_file) if report_file is not None else runtime / "autonomous-cycle-report.json"
     states = {
         "vision": read_json(runtime / "vision-health.json"),
         "perception": read_json(runtime / "perception-health.json"),
@@ -633,7 +972,9 @@ def run_autonomous_cycle_once(
         build_business_memory_stage(states["memory"], states["timeline"], states["cognitive"], states["operating"]),
         build_verified_hands_stage(states["hands"], states["input_arbiter"]),
     ]
-    status = worst_status([stage["status"] for stage in stages])
+    gate = permission_gate(states)
+    steps = build_operating_steps(states, stages, gate)
+    status = worst_status([stage["status"] for stage in stages] + [step["status"] for step in steps])
     focus = {
         "decision": latest_decision(states["cognitive"], states["memory"]),
         "lastAction": latest_action(runtime, limit),
@@ -646,18 +987,33 @@ def run_autonomous_cycle_once(
             "summary": text(states["status_bus"].get("summary")),
         },
     }
-    phase = derive_phase(status, stages, focus)
+    phase = "start" if trigger == "start" and status != "blocked" else derive_phase(status, stages, steps, gate)
     blockers = collect_blockers(states, stages)
     next_actions = collect_next_actions(states, stages[-1])
     created_at = utc_now()
+    initial_cycle_id = cycle_id(created_at, stages + steps)
+    directives = build_directives(initial_cycle_id, created_at, gate, steps, next_actions)
+    summary = build_summary(status, states, stages, steps, gate)
+    human_report = build_human_report(status, phase, summary, gate, steps, blockers, next_actions)
     cycle = {
         "engine": "ariadgsm_autonomous_cycle",
         "status": status,
         "updatedAt": created_at,
-        "cycleId": cycle_id(created_at, stages),
+        "cycleId": initial_cycle_id,
+        "trigger": trigger,
         "phase": phase,
-        "summary": build_summary(status, states, stages),
+        "summary": summary,
+        "loopContract": {
+            "version": "0.8.0",
+            "order": ["observe", "understand", "plan", "request_permission", "act", "verify", "learn", "report"],
+            "sourceOfTruth": "autonomous-cycle-state.json",
+            "eventContract": "autonomous_cycle_event",
+        },
+        "steps": steps,
         "stages": stages,
+        "permissionGate": gate,
+        "directives": directives,
+        "humanReport": human_report,
         "currentFocus": focus,
         "blockers": blockers,
         "nextActions": next_actions,
@@ -665,6 +1021,9 @@ def run_autonomous_cycle_once(
             "stagesOk": sum(1 for stage in stages if stage["status"] == "ok"),
             "stagesAttention": sum(1 for stage in stages if stage["status"] == "attention"),
             "stagesBlocked": sum(1 for stage in stages if stage["status"] == "blocked"),
+            "stepsOk": sum(1 for step in steps if step["status"] == "ok"),
+            "stepsAttention": sum(1 for step in steps if step["status"] == "attention"),
+            "stepsBlocked": sum(1 for step in steps if step["status"] == "blocked"),
             "blockers": len(blockers),
             "nextActions": len(next_actions),
         },
@@ -672,6 +1031,8 @@ def run_autonomous_cycle_once(
             "runtimeDir": str(runtime),
             "eventFile": str(event_path),
             "stateFile": str(state_path),
+            "directivesFile": str(directives_path),
+            "reportFile": str(report_path),
         },
     }
     event = {
@@ -681,13 +1042,20 @@ def run_autonomous_cycle_once(
         "status": status,
         "phase": phase,
         "summary": cycle["summary"],
+        "trigger": trigger,
+        "steps": steps,
         "stages": stages,
+        "permissionGate": gate,
+        "directives": directives,
+        "humanReport": human_report,
         "currentFocus": focus,
         "blockers": blockers,
         "nextActions": next_actions,
         "metrics": cycle["metrics"],
     }
     write_json_atomic(state_path, cycle)
+    write_json_atomic(directives_path, directives)
+    write_json_atomic(report_path, human_report)
     if append_event:
         append_jsonl(event_path, event)
     return cycle
@@ -698,7 +1066,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--runtime-dir", type=Path, default=RUNTIME_DIR)
     parser.add_argument("--state-file", type=Path, default=None)
     parser.add_argument("--event-file", type=Path, default=None)
+    parser.add_argument("--directives-file", type=Path, default=None)
+    parser.add_argument("--report-file", type=Path, default=None)
     parser.add_argument("--limit", type=int, default=250)
+    parser.add_argument("--trigger", choices=["start", "checkpoint", "recovery"], default="checkpoint")
     parser.add_argument("--no-event", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
@@ -707,8 +1078,11 @@ def main(argv: list[str] | None = None) -> int:
         args.runtime_dir,
         state_file=args.state_file,
         event_file=args.event_file,
+        directives_file=args.directives_file,
+        report_file=args.report_file,
         limit=args.limit,
         append_event=not args.no_event,
+        trigger=args.trigger,
     )
     if args.json:
         print(json.dumps(state, ensure_ascii=True))

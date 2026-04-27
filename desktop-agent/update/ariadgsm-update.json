@@ -1,8 +1,8 @@
 {
-  "version": "0.7.0",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.7.0.zip",
-  "sha256": "af1ecb42189cfb1c9507ebb37e682c01ab77c7962cf8323749496857142b9c82",
+  "version": "0.8.0",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.0.zip",
+  "sha256": "162035cd14ca3b7842e5eb76667fffa29dd259b6f43f6a284abd39d4ce00a730",
   "autoApply": true,
-  "notes": "Version 0.7.0 adds Domain Event Contracts: validated business event envelope, registry, adapters from engine events, append-only domain event memory, readable human report, Domain Events health state, and tests for payment drafts, group rejection, actions, duplicates and privacy.",
-  "publishedAt": "2026-04-27T22:20:00Z"
+  "notes": "Version 0.8.0 adds the Autonomous Cycle Orchestrator: observe -> understand -> plan -> request_permission -> act -> verify -> learn -> report, permission gate, human report, engine directives, start/checkpoint integration, domain-event adaptation and tests for allow, operator handoff and blocked supervisor findings.",
+  "publishedAt": "2026-04-27T23:50:00Z"
 }

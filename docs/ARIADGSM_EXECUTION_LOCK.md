@@ -126,7 +126,7 @@ Pendiente para considerarlo producto final:
 Estado:
 
 ```text
-PARCIAL / NECESITA REDISENO COMO CICLO CENTRAL
+IMPLEMENTADO COMO CICLO CENTRAL 0.8.0
 ```
 
 Objetivo:
@@ -147,10 +147,18 @@ Definicion de terminado:
 
 - existe contrato de ciclo;
 - existe estado unico de ciclo;
-- el boton `Encender IA` no dispara motores sueltos;
+- el boton `Encender IA` registra inicio y checkpoint del ciclo;
 - el ciclo produce reporte humano;
 - el ciclo respeta permisos y handoff humano;
 - tiene pruebas de flujo completo sin mover mouse real.
+
+Entregables:
+
+- `docs/ARIADGSM_AUTONOMOUS_CYCLE_ORCHESTRATOR_DESIGN.md`
+- `desktop-agent/ariadgsm_agent/autonomous_cycle.py`
+- `desktop-agent/contracts/autonomous-cycle-event.schema.json`
+- `desktop-agent/tests/autonomous_cycle_orchestrator.py`
+- integracion minima con `AgentRuntime.cs`
 
 ### 6.3 Case Manager
 
@@ -319,11 +327,11 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como `Domain Event Contracts` ya tiene base implementada, el siguiente bloque
-activo es:
+Como `Domain Event Contracts` y `Autonomous Cycle Orchestrator` ya tienen base
+implementada, el siguiente bloque activo es:
 
 ```text
-Autonomous Cycle Orchestrator
+Case Manager
 ```
 
 Pero antes de codificar ese bloque, debe documentarse su alcance final si Bryams
@@ -332,15 +340,14 @@ pide estructura.
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_AUTONOMOUS_CYCLE_ORCHESTRATOR_DESIGN.md
+docs/ARIADGSM_CASE_MANAGER_DESIGN.md
 ```
 
 Y el entregable tecnico minimo posterior es:
 
 ```text
-desktop-agent/ariadgsm_agent/autonomous_cycle.py
-desktop-agent/contracts/autonomous-cycle-event.schema.json
-desktop-agent/tests/autonomous_cycle_orchestrator.py
-integracion con Windows App / AgentRuntime
+desktop-agent/ariadgsm_agent/case_manager.py
+desktop-agent/contracts/domain-event-registry.json
+desktop-agent/tests/case_manager.py
+integracion con Operating Core / Domain Events
 ```
-

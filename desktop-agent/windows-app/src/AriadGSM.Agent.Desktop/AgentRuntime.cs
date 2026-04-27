@@ -1910,6 +1910,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
         var modules = new[]
         {
+            ("AutonomousCycleStart", "ariadgsm_agent.autonomous_cycle", new[] { "--trigger", "start", "--json" }),
             ("Timeline", "ariadgsm_agent.timeline", new[] { "--json" }),
             ("Cognitive", "ariadgsm_agent.cognitive", new[] { "--autonomy-level", "3", "--json" }),
             ("Operating", "ariadgsm_agent.operating", new[] { "--autonomy-level", "3", "--json" }),

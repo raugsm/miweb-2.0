@@ -58,6 +58,14 @@
     "db": "./desktop-agent/runtime/domain-events.sqlite",
     "limit": 500
   },
+  "autonomousCycleCore": {
+    "stateFile": "./desktop-agent/runtime/autonomous-cycle-state.json",
+    "eventsFile": "./desktop-agent/runtime/autonomous-cycle-events.jsonl",
+    "directivesFile": "./desktop-agent/runtime/autonomous-cycle-directives.json",
+    "reportFile": "./desktop-agent/runtime/autonomous-cycle-report.json",
+    "trigger": "checkpoint",
+    "limit": 250
+  },
   "handsEngine": {
     "cognitiveDecisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
     "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",

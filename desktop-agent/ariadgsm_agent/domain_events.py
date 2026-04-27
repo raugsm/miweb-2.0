@@ -712,10 +712,13 @@ def adapt_learning_event(event: dict[str, Any]) -> list[dict[str, Any]]:
 def adapt_cycle_event(event: dict[str, Any]) -> list[dict[str, Any]]:
     status = clean_text(event.get("status") or "ok").lower()
     phase = clean_text(event.get("phase") or "checkpoint").lower()
+    gate = event.get("permissionGate") if isinstance(event.get("permissionGate"), dict) else {}
     if status == "blocked":
         domain_type = "CycleBlocked"
     elif phase in {"start", "starting"}:
         domain_type = "CycleStarted"
+    elif phase == "recovery":
+        domain_type = "CycleRecovered"
     else:
         domain_type = "CycleCheckpointCreated"
     return [
@@ -730,6 +733,9 @@ def adapt_cycle_event(event: dict[str, Any]) -> list[dict[str, Any]]:
                 "phase": phase,
                 "summary": clean_text(event.get("summary")),
                 "stageCount": len([item for item in event.get("stages") or [] if isinstance(item, dict)]),
+                "stepCount": len([item for item in event.get("steps") or [] if isinstance(item, dict)]),
+                "gateDecision": clean_text(gate.get("decision")),
+                "gateReason": clean_text(gate.get("reason")),
             },
             confidence=0.8 if status == "ok" else 0.7,
             summary=clean_text(event.get("summary")) or f"Autonomous cycle {status}.",
