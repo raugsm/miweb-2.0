@@ -1,8 +1,8 @@
 {
-  "version": "0.5.6",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.6.zip",
-  "sha256": "c2bc8597b66615d3c3a980a90c73a806b8e96678d05ccccf92057828b5e6ca51",
+  "version": "0.5.7",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.7.zip",
+  "sha256": "cbb5f2705b7dcb05e5232ddb3efac53068e59ad65df7307e234fbcf509e74006",
   "autoApply": true,
-  "notes": "Robust WhatsApp bootstrap: resolves Edge/Chrome from real install paths, opens clean WhatsApp windows, and reports browser-not-on-WhatsApp states.",
-  "publishedAt": "2026-04-27T02:44:00Z"
+  "notes": "Cabin Readiness: prepares WhatsApp 1/2/3 once, detects duplicate WhatsApp windows, profile errors, login/QR and 'Usar aqui' blockers, then reports clear attention states instead of opening endless browser windows.",
+  "publishedAt": "2026-04-27T02:56:00Z"
 }

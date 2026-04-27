@@ -1,12 +1,18 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Windows.Automation;
 
 namespace AriadGSM.Agent.Desktop;
 
@@ -32,6 +38,7 @@ internal sealed class AgentRuntime : IDisposable
     private readonly string _updateStateFile;
     private readonly string _activeVersionFile;
     private readonly string _agentSupervisorStateFile;
+    private readonly string _cabinReadinessFile;
     private CancellationTokenSource? _coreLoopCts;
     private Task? _coreLoopTask;
     private CancellationTokenSource? _supervisorCts;
@@ -55,6 +62,7 @@ internal sealed class AgentRuntime : IDisposable
         _updateStateFile = Path.Combine(_runtimeDir, "update-state.json");
         _activeVersionFile = Path.Combine(_runtimeDir, "active-version.json");
         _agentSupervisorStateFile = Path.Combine(_runtimeDir, "agent-supervisor-state.json");
+        _cabinReadinessFile = Path.Combine(_runtimeDir, "cabin-readiness.json");
     }
 
     public string RepoRoot => _repoRoot;
@@ -245,6 +253,7 @@ internal sealed class AgentRuntime : IDisposable
             StateHealth("Hands", "hands-state.json", "Hands"),
             StateHealth("Supervisor", "supervisor-state.json", "PythonCoreLoop"),
             StateHealth("Agent Supervisor", "agent-supervisor-state.json", "ReliabilitySupervisor"),
+            CabinReadinessHealth(),
             UpdateHealth(),
             WebPanelHealth(),
             CoreLoopHealth()
@@ -328,6 +337,12 @@ internal sealed class AgentRuntime : IDisposable
             $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}",
             $"Confiabilidad: {Text(agentSupervisor, "status")} | reinicios={Number(agentSupervisor, "restartCount")} | {Text(agentSupervisor, "lastSummary")}"
         };
+
+        if (File.Exists(_cabinReadinessFile))
+        {
+            using var cabin = ReadJsonStatus("cabin-readiness.json");
+            lines.Insert(4, $"Cabina: {Text(cabin, "status")} | {Text(cabin, "summary")}");
+        }
 
         if (blockers.Length > 0)
         {
@@ -527,44 +542,28 @@ internal sealed class AgentRuntime : IDisposable
         var opened = 0;
         foreach (var mapping in ReadChannelMappings())
         {
-            if (FindMatchingWindows(windows, mapping).Any())
+            var readiness = EvaluateChannelReadiness(mapping, windows);
+            if (readiness.IsReady)
             {
                 WriteLog($"{mapping.ChannelId}: WhatsApp already visible in {mapping.BrowserProcess}.");
                 continue;
             }
 
-            if (FindBrowserWindows(windows, mapping).Any())
+            if (readiness.RequiresHuman)
             {
-                WriteLog($"{mapping.ChannelId}: {mapping.BrowserProcess} is visible but not on WhatsApp Web. Opening a clean WhatsApp window.");
-            }
-
-            var browser = ResolveBrowser(mapping.BrowserProcess);
-            if (browser is null)
-            {
-                WriteLog($"{mapping.ChannelId}: could not open WhatsApp. Browser not found: {mapping.BrowserProcess}.");
+                WriteLog($"{mapping.ChannelId}: cabin needs human action before opening more windows: {readiness.Detail}");
                 continue;
             }
 
-            try
+            if (!readiness.CanLaunch)
             {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = browser,
-                    WorkingDirectory = _repoRoot,
-                    UseShellExecute = false
-                };
-                foreach (var argument in BuildBrowserLaunchArguments(mapping.BrowserProcess))
-                {
-                    startInfo.ArgumentList.Add(argument);
-                }
-
-                Process.Start(startInfo);
-                opened++;
-                WriteLog($"{mapping.ChannelId}: opening WhatsApp in {mapping.BrowserProcess} with {browser}.");
+                WriteLog($"{mapping.ChannelId}: not launching because channel is {readiness.Status}: {readiness.Detail}");
+                continue;
             }
-            catch (Exception exception)
+
+            if (LaunchWhatsAppWindow(mapping, readiness.Detail))
             {
-                WriteLog($"{mapping.ChannelId}: could not open WhatsApp: {exception.Message}");
+                opened++;
             }
         }
 
@@ -577,25 +576,57 @@ internal sealed class AgentRuntime : IDisposable
     public async Task<PreflightReport> PrepareWhatsAppWorkspaceAsync(TimeSpan timeout)
     {
         var deadline = DateTimeOffset.Now + timeout;
-        WriteLog("Autonomous bootstrap: preparing WhatsApp 1/2/3.");
+        var launchAttempts = ReadChannelMappings()
+            .ToDictionary(item => item.ChannelId, _ => 0, StringComparer.OrdinalIgnoreCase);
+        WriteLog("Cabin readiness: preparing WhatsApp 1/2/3.");
 
         while (DateTimeOffset.Now < deadline)
         {
             var windows = VisibleWindows();
-            var missing = ReadChannelMappings()
-                .Where(mapping => !FindMatchingWindows(windows, mapping).Any())
-                .Select(mapping => mapping.ChannelId)
+            var readiness = ReadChannelMappings()
+                .Select(mapping => EvaluateChannelReadiness(mapping, windows))
                 .ToArray();
+            WriteCabinReadinessState("preparing", readiness);
 
-            if (missing.Length == 0)
+            if (readiness.All(item => item.IsReady))
             {
                 ArrangeWhatsAppWorkspace();
-                WriteLog("Autonomous bootstrap: all WhatsApp channels are visible and arranged.");
+                WriteCabinReadinessState("ready", readiness);
+                WriteLog("Cabin readiness: all WhatsApp channels are visible and arranged.");
                 return Preflight();
             }
 
-            WriteLog($"Autonomous bootstrap: missing {string.Join(", ", missing)}. Opening required browsers.");
-            OpenMissingWhatsApps();
+            var blocked = readiness.Where(item => item.RequiresHuman).ToArray();
+            if (blocked.Length > 0)
+            {
+                WriteCabinReadinessState("attention", readiness);
+                foreach (var item in blocked)
+                {
+                    WriteLog($"{item.ChannelId}: cabin blocked by {item.Status}. {item.Detail}");
+                }
+
+                return Preflight();
+            }
+
+            foreach (var item in readiness.Where(item => item.CanLaunch))
+            {
+                if (!launchAttempts.TryGetValue(item.ChannelId, out var attempts))
+                {
+                    attempts = 0;
+                }
+
+                if (attempts >= 1)
+                {
+                    WriteLog($"{item.ChannelId}: already launched once; waiting instead of opening more windows. {item.Detail}");
+                    continue;
+                }
+
+                if (LaunchWhatsAppWindow(item.Mapping, item.Detail))
+                {
+                    launchAttempts[item.ChannelId] = attempts + 1;
+                }
+            }
+
             await Task.Delay(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
         }
 
@@ -606,10 +637,347 @@ internal sealed class AgentRuntime : IDisposable
                 && item.Severity == HealthSeverity.Warning)
             .Select(item => item.Name)
             .ToArray();
+        var finalReadiness = ReadChannelMappings()
+            .Select(mapping => EvaluateChannelReadiness(mapping, VisibleWindows()))
+            .ToArray();
+        WriteCabinReadinessState(stillMissing.Length == 0 ? "ready" : "attention", finalReadiness);
         WriteLog(stillMissing.Length == 0
-            ? "Autonomous bootstrap: WhatsApp workspace ready after wait."
-            : $"Autonomous bootstrap: still needs attention: {string.Join(", ", stillMissing)}.");
+            ? "Cabin readiness: WhatsApp workspace ready after wait."
+            : $"Cabin readiness: still needs attention: {string.Join(", ", stillMissing)}.");
         return finalReport;
+    }
+
+    private bool LaunchWhatsAppWindow(ChannelMapping mapping, string reason)
+    {
+        var browser = ResolveBrowser(mapping.BrowserProcess);
+        if (browser is null)
+        {
+            WriteLog($"{mapping.ChannelId}: could not open WhatsApp. Browser not found: {mapping.BrowserProcess}.");
+            return false;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = browser,
+                WorkingDirectory = _repoRoot,
+                UseShellExecute = false
+            };
+            foreach (var argument in BuildBrowserLaunchArguments(mapping.BrowserProcess))
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            Process.Start(startInfo);
+            WriteLog($"{mapping.ChannelId}: opening WhatsApp in {mapping.BrowserProcess} with {browser}. Reason: {reason}");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            WriteLog($"{mapping.ChannelId}: could not open WhatsApp: {exception.Message}");
+            return false;
+        }
+    }
+
+    private ChannelReadiness EvaluateChannelReadiness(ChannelMapping mapping, IReadOnlyList<WindowInfo> windows)
+    {
+        var matches = FindMatchingWindows(windows, mapping).ToArray();
+        if (matches.Length > 1)
+        {
+            return new ChannelReadiness(
+                mapping,
+                "DUPLICATE_WHATSAPP_WINDOWS",
+                false,
+                true,
+                false,
+                $"{mapping.BrowserProcess} tiene {matches.Length} ventanas de WhatsApp. Cierra duplicadas o elige 'Usar aqui' en una sola ventana.",
+                matches.Select(item => $"{item.ProcessName} #{item.ProcessId}: {item.Title}").ToArray());
+        }
+
+        if (matches.Length == 1)
+        {
+            var window = matches[0];
+            var lines = ReadWindowAccessibilityLines(window.Handle, 260);
+            if (DiagnoseWhatsAppBlocker(lines, window.Title) is { } blocker)
+            {
+                return new ChannelReadiness(
+                    mapping,
+                    blocker.Status,
+                    false,
+                    blocker.RequiresHuman,
+                    false,
+                    blocker.Detail,
+                    SampleLines(lines, window.Title));
+            }
+
+            if (LooksLikeWhatsAppReady(lines, window.Title))
+            {
+                return new ChannelReadiness(
+                    mapping,
+                    "READY",
+                    true,
+                    false,
+                    false,
+                    $"{window.ProcessName} #{window.ProcessId}: WhatsApp Web visible y utilizable.",
+                    SampleLines(lines, window.Title));
+            }
+
+            return new ChannelReadiness(
+                mapping,
+                "LOADING_OR_UNKNOWN",
+                false,
+                false,
+                false,
+                $"{window.ProcessName} #{window.ProcessId}: ventana WhatsApp visible, esperando que termine de cargar o muestre login.",
+                SampleLines(lines, window.Title));
+        }
+
+        var browserWindows = FindBrowserWindows(windows, mapping).ToArray();
+        if (browserWindows.Length > 0)
+        {
+            var window = browserWindows[0];
+            var lines = ReadWindowAccessibilityLines(window.Handle, 220);
+            if (DiagnoseWhatsAppBlocker(lines, window.Title) is { } blocker)
+            {
+                return new ChannelReadiness(
+                    mapping,
+                    blocker.Status,
+                    false,
+                    blocker.RequiresHuman,
+                    false,
+                    blocker.Detail,
+                    SampleLines(lines, window.Title));
+            }
+
+            return new ChannelReadiness(
+                mapping,
+                "BROWSER_NOT_ON_WHATSAPP",
+                false,
+                false,
+                true,
+                $"{mapping.BrowserProcess} esta abierto, pero no veo web.whatsapp.com. Abrire una sola ventana WhatsApp y luego esperare.",
+                [$"{window.ProcessName} #{window.ProcessId}: {window.Title}"]);
+        }
+
+        var browser = ResolveBrowser(mapping.BrowserProcess);
+        if (browser is null)
+        {
+            return new ChannelReadiness(
+                mapping,
+                "BROWSER_NOT_FOUND",
+                false,
+                true,
+                false,
+                $"No encuentro {mapping.BrowserProcess}. Instala el navegador o configura ARIADGSM_BROWSER_{NormalizeProcessName(mapping.BrowserProcess).ToUpperInvariant()}.",
+                []);
+        }
+
+        return new ChannelReadiness(
+            mapping,
+            "NOT_OPEN",
+            false,
+            false,
+            true,
+            $"No veo {mapping.BrowserProcess}. Abrire web.whatsapp.com una sola vez.",
+            []);
+    }
+
+    private static CabinBlocker? DiagnoseWhatsAppBlocker(IReadOnlyList<string> lines, string title)
+    {
+        var text = NormalizeForSearch(string.Join(" ", lines.Prepend(title)));
+        if (text.Contains("se produjo un error en el perfil", StringComparison.Ordinal)
+            || text.Contains("no se pueden leer tus preferencias", StringComparison.Ordinal))
+        {
+            return new CabinBlocker(
+                "PROFILE_ERROR",
+                true,
+                "El navegador muestra 'Se produjo un error en el perfil'. Pulsa Aceptar y revisa ese perfil antes de arrancar la IA.");
+        }
+
+        if (text.Contains("whatsapp esta abierto en otra ventana", StringComparison.Ordinal)
+            || text.Contains("usar aqui", StringComparison.Ordinal))
+        {
+            return new CabinBlocker(
+                "NEEDS_USE_HERE",
+                true,
+                "WhatsApp dice que ya esta abierto en otra ventana. Elige manualmente 'Usar aqui' en una sola ventana o cierra duplicadas.");
+        }
+
+        if (text.Contains("usa whatsapp en tu computadora", StringComparison.Ordinal)
+            || text.Contains("vincular dispositivo", StringComparison.Ordinal)
+            || text.Contains("codigo qr", StringComparison.Ordinal)
+            || text.Contains("iniciar sesion", StringComparison.Ordinal))
+        {
+            return new CabinBlocker(
+                "LOGIN_REQUIRED",
+                true,
+                "WhatsApp Web pide login/QR. Debes vincular ese canal antes de iniciar modo vivo/aprendizaje.");
+        }
+
+        return null;
+    }
+
+    private static bool LooksLikeWhatsAppReady(IReadOnlyList<string> lines, string title)
+    {
+        var text = NormalizeForSearch(string.Join(" ", lines.Prepend(title)));
+        return text.Contains("buscar un chat", StringComparison.Ordinal)
+            || text.Contains("buscar o iniciar un chat", StringComparison.Ordinal)
+            || text.Contains("whatsapp business en la web", StringComparison.Ordinal)
+            || text.Contains("tus mensajes personales estan cifrados", StringComparison.Ordinal)
+            || text.Contains("todos no leidos favoritos grupos", StringComparison.Ordinal);
+    }
+
+    private IReadOnlyList<string> ReadWindowAccessibilityLines(IntPtr handle, int maxNodes)
+    {
+        try
+        {
+            var root = AutomationElement.FromHandle(handle);
+            if (root is null)
+            {
+                return [];
+            }
+
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var nodes = root.FindAll(TreeScope.Descendants, System.Windows.Automation.Condition.TrueCondition);
+            var count = Math.Min(nodes.Count, Math.Max(20, maxNodes));
+            for (var index = 0; index < count && result.Count < 80; index++)
+            {
+                var element = nodes[index];
+                var text = ReadAutomationElementText(element);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    continue;
+                }
+
+                text = NormalizeText(text);
+                if (text.Length < 3 || !seen.Add(text))
+                {
+                    continue;
+                }
+
+                result.Add(text);
+            }
+
+            return result;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private void WriteCabinReadinessState(string status, IReadOnlyList<ChannelReadiness> readiness)
+    {
+        try
+        {
+            var summary = string.Join(" | ", readiness.Select(item => $"{item.ChannelId}:{item.Status}"));
+            var state = new Dictionary<string, object?>
+            {
+                ["status"] = status,
+                ["summary"] = summary,
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+                ["ready"] = readiness.Count > 0 && readiness.All(item => item.IsReady),
+                ["requiresHuman"] = readiness.Any(item => item.RequiresHuman),
+                ["channels"] = readiness.Select(item => new Dictionary<string, object?>
+                {
+                    ["channelId"] = item.ChannelId,
+                    ["browser"] = item.Mapping.BrowserProcess,
+                    ["status"] = item.Status,
+                    ["isReady"] = item.IsReady,
+                    ["requiresHuman"] = item.RequiresHuman,
+                    ["canLaunch"] = item.CanLaunch,
+                    ["detail"] = item.Detail,
+                    ["evidence"] = item.Evidence
+                }).ToArray()
+            };
+            WriteAllTextAtomicShared(_cabinReadinessFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch
+        {
+        }
+    }
+
+    private HealthItem CabinReadinessHealth()
+    {
+        if (!File.Exists(_cabinReadinessFile))
+        {
+            return new HealthItem("Cabina WhatsApp", "SIN PREPARAR", HealthSeverity.Info, null, "Se revisara antes del arranque autonomo.");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(ReadAllTextShared(_cabinReadinessFile));
+            var root = document.RootElement;
+            var status = TryString(root, "status") ?? "unknown";
+            var summary = TryString(root, "summary") ?? "Estado de cabina recibido.";
+            var updatedAt = TryDate(root, "updatedAt");
+            var requiresHuman = TryBool(root, "requiresHuman") ?? false;
+            var ready = TryBool(root, "ready") ?? false;
+            var severity = ready
+                ? HealthSeverity.Ok
+                : requiresHuman || status.Contains("attention", StringComparison.OrdinalIgnoreCase)
+                    ? HealthSeverity.Warning
+                    : HealthSeverity.Info;
+            return new HealthItem("Cabina WhatsApp", status.ToUpperInvariant(), severity, updatedAt, summary);
+        }
+        catch (Exception exception)
+        {
+            return new HealthItem("Cabina WhatsApp", "AVISO", HealthSeverity.Warning, DateTimeOffset.Now, $"No pude leer cabina: {exception.Message}");
+        }
+    }
+
+    private static IReadOnlyList<string> SampleLines(IReadOnlyList<string> lines, string title)
+    {
+        return lines.Prepend(title)
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToArray();
+    }
+
+    private static string ReadAutomationElementText(AutomationElement element)
+    {
+        var name = SafeRead(() => element.Current.Name) ?? string.Empty;
+        var value = string.Empty;
+        if (element.TryGetCurrentPattern(ValuePattern.Pattern, out var pattern) && pattern is ValuePattern valuePattern)
+        {
+            value = SafeRead(() => valuePattern.Current.Value) ?? string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(value) || name.Contains(value, StringComparison.OrdinalIgnoreCase)
+            ? name
+            : $"{name} {value}";
+    }
+
+    private static string NormalizeText(string value)
+    {
+        return string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim();
+    }
+
+    private static string NormalizeForSearch(string value)
+    {
+        var normalized = NormalizeText(value).ToLowerInvariant()
+            .Replace('á', 'a')
+            .Replace('é', 'e')
+            .Replace('í', 'i')
+            .Replace('ó', 'o')
+            .Replace('ú', 'u')
+            .Replace('ü', 'u');
+        return normalized;
+    }
+
+    private static T? SafeRead<T>(Func<T> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch
+        {
+            return default;
+        }
     }
 
     public void ArrangeWhatsAppWorkspace()
@@ -766,33 +1134,24 @@ internal sealed class AgentRuntime : IDisposable
         var items = new List<HealthItem>();
         foreach (var mapping in ReadChannelMappings())
         {
-            var matches = FindMatchingWindows(windows, mapping).ToArray();
-            if (matches.Length == 0)
+            var readiness = EvaluateChannelReadiness(mapping, windows);
+            if (!readiness.IsReady)
             {
-                var browserWindows = FindBrowserWindows(windows, mapping).ToArray();
-                var browser = ResolveBrowser(mapping.BrowserProcess);
-                var status = browserWindows.Length > 0 ? "NO_WHATSAPP" : "FALTA";
-                var detail = browserWindows.Length > 0
-                    ? $"Veo {mapping.BrowserProcess}, pero no esta en WhatsApp Web. Ventana actual: {browserWindows[0].Title}"
-                    : browser is null
-                        ? $"No encuentro ejecutable de {mapping.BrowserProcess}. Revisa instalacion o variable ARIADGSM_BROWSER_{NormalizeProcessName(mapping.BrowserProcess).ToUpperInvariant()}."
-                        : $"No veo WhatsApp visible en {mapping.BrowserProcess}. Preparar WhatsApps abrira {browser}.";
                 items.Add(new HealthItem(
                     $"WhatsApp {mapping.ChannelId}",
-                    status,
+                    readiness.Status,
                     HealthSeverity.Warning,
                     DateTimeOffset.Now,
-                    detail));
+                    readiness.Detail));
                 continue;
             }
 
-            var best = matches[0];
             items.Add(new HealthItem(
                 $"WhatsApp {mapping.ChannelId}",
                 "VISIBLE",
                 HealthSeverity.Ok,
                 DateTimeOffset.Now,
-                $"{best.ProcessName} #{best.ProcessId}: {best.Title}"));
+                readiness.Detail));
         }
 
         return items;
@@ -2306,6 +2665,20 @@ internal sealed class AgentRuntime : IDisposable
     private sealed record ProcessSpec(string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory);
 
     private sealed record WorkerSpec(string Name, string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory);
+
+    private sealed record ChannelReadiness(
+        ChannelMapping Mapping,
+        string Status,
+        bool IsReady,
+        bool RequiresHuman,
+        bool CanLaunch,
+        string Detail,
+        IReadOnlyList<string> Evidence)
+    {
+        public string ChannelId => Mapping.ChannelId;
+    }
+
+    private sealed record CabinBlocker(string Status, bool RequiresHuman, string Detail);
 
     private sealed class RestartTracker
     {

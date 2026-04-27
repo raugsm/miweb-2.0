@@ -1,4 +1,9 @@
 using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace AriadGSM.Agent.Desktop;
 
@@ -248,11 +253,14 @@ internal sealed class MainForm : Form
             RefreshStatus();
         };
         _onceButton.Click += async (_, _) => await RunButtonAsync(_onceButton, () => _runtime.RunOnceAsync()).ConfigureAwait(true);
-        _prepareWhatsAppsButton.Click += (_, _) =>
-        {
-            _runtime.OpenMissingWhatsApps();
-            RefreshStatus();
-        };
+        _prepareWhatsAppsButton.Click += async (_, _) =>
+            await RunButtonAsync(
+                _prepareWhatsAppsButton,
+                async () =>
+                {
+                    AppendLog("Preparando cabina WhatsApp 1/2/3 con diagnostico de bloqueos.");
+                    await _runtime.PrepareWhatsAppWorkspaceAsync(TimeSpan.FromSeconds(35)).ConfigureAwait(true);
+                }).ConfigureAwait(true);
         _panelButton.Click += (_, _) => _runtime.OpenPanel();
         _logsButton.Click += (_, _) => _runtime.OpenLogs();
         _diagnoseButton.Click += (_, _) =>
