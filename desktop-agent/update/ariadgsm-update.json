@@ -1,8 +1,8 @@
 {
-  "version": "0.5.29",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.29.zip",
-  "sha256": "333c825f74ba8bebe46465ee968830dfd6e0731e7e67c51dad40ee39143b010c",
+  "version": "0.5.30",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.30.zip",
+  "sha256": "ec7d33ee82f3693c5b3e6a314c43988386e40fb2a65bd1d7192ddefc05007d84",
   "autoApply": true,
-  "notes": "Adds Cabin Authority as the single window-control gate. The background monitor now observes only and never minimizes blocker windows. Hands can click only when Cabin Authority confirms the target WhatsApp channel is visible, ready and unblocked.",
-  "publishedAt": "2026-04-27T19:56:00Z"
+  "notes": "Prevents the control app from sitting on top of WhatsApp during autonomous work. AriadGSM IA Local is now treated as a real blocker for Cabin Authority, autonomous start stays minimized unless there is a blocking error, and Pausar IA requires confirmation before stopping engines.",
+  "publishedAt": "2026-04-27T20:10:00Z"
 }

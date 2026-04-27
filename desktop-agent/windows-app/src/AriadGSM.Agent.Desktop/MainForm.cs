@@ -678,6 +678,22 @@ internal sealed class MainForm : Form
         _startButton.Click += async (_, _) => await RunButtonAsync(_startButton, () => StartAgentCoreAsync(autonomous: true)).ConfigureAwait(true);
         _stopButton.Click += (_, _) =>
         {
+            if (_runtime.IsRunning)
+            {
+                var confirmation = MessageBox.Show(
+                    this,
+                    "Quieres pausar la IA local ahora? Si fue un click accidental, elijo seguir trabajando.",
+                    "Confirmar pausa",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+                if (confirmation != DialogResult.Yes)
+                {
+                    AppendLog("Pausa cancelada: confirmacion no aceptada.");
+                    return;
+                }
+            }
+
             _runtime.Stop("operator_button");
             RefreshStatus();
         };
@@ -799,14 +815,15 @@ internal sealed class MainForm : Form
         await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
         RefreshStatus();
 
-        if (autonomous && _startMinimized && !HasVisibleProblems())
+        var hasBlockingProblems = HasBlockingVisibleProblems();
+        if (autonomous && !hasBlockingProblems)
         {
             WindowState = FormWindowState.Minimized;
             ShowInTaskbar = true;
             return;
         }
 
-        if (!autonomous || HasVisibleProblems())
+        if (!autonomous || hasBlockingProblems)
         {
             BringControlCenterToFront();
         }
@@ -1717,6 +1734,13 @@ internal sealed class MainForm : Form
         return report.Items.Concat(health).Any(item =>
             item.Severity == HealthSeverity.Error
             || item.Severity == HealthSeverity.Warning);
+    }
+
+    private bool HasBlockingVisibleProblems()
+    {
+        var report = _runtime.Preflight();
+        var health = _runtime.Health();
+        return report.Items.Concat(health).Any(item => item.Severity == HealthSeverity.Error);
     }
 
     private void AppendLog(string line)

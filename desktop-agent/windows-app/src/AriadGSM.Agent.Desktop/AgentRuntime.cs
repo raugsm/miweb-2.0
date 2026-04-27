@@ -1128,9 +1128,7 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         return window.ProcessName.Equals("TextInputHost", StringComparison.OrdinalIgnoreCase)
             || window.ProcessName.Equals("ShellExperienceHost", StringComparison.OrdinalIgnoreCase)
-            || window.ProcessName.Equals("AriadGSM Agent", StringComparison.OrdinalIgnoreCase)
-            || window.Title.Equals("Program Manager", StringComparison.OrdinalIgnoreCase)
-            || window.Title.Contains("AriadGSM IA Local", StringComparison.OrdinalIgnoreCase);
+            || window.Title.Equals("Program Manager", StringComparison.OrdinalIgnoreCase);
     }
 
     private static double OverlapRatio(WindowBounds a, WindowBounds b)
