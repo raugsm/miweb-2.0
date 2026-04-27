@@ -20,32 +20,39 @@ internal static class Program
         var parsed = Args.Parse(args);
         var stateFile = parsed.Value("--state")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AriadGSM", "update-state.json");
+        var journalFile = Path.Combine(Path.GetDirectoryName(stateFile) ?? Environment.CurrentDirectory, "update-journal.jsonl");
 
         try
         {
             if (parsed.Has("--check"))
             {
-                Check(parsed, stateFile);
+                Check(parsed, stateFile, journalFile);
                 return 0;
             }
 
             if (parsed.Has("--apply"))
             {
-                Apply(parsed, stateFile);
+                ApplyVersioned(parsed, stateFile, journalFile);
                 return 0;
             }
 
-            WriteState(stateFile, UpdateState.Failed("No command supplied. Use --check or --apply."));
+            if (parsed.Has("--rollback"))
+            {
+                Rollback(parsed, stateFile, journalFile);
+                return 0;
+            }
+
+            WriteState(stateFile, journalFile, UpdateState.Failed("No command supplied. Use --check, --apply or --rollback."));
             return 1;
         }
         catch (Exception exception)
         {
-            WriteState(stateFile, UpdateState.Failed(exception.Message));
+            WriteState(stateFile, journalFile, UpdateState.Failed(exception.Message));
             return 2;
         }
     }
 
-    private static void Check(Args args, string stateFile)
+    private static void Check(Args args, string stateFile, string journalFile)
     {
         var currentDir = RequiredDirectory(args.Value("--current-dir"), "--current-dir");
         var manifestSource = RequiredValue(args.Value("--manifest"), "--manifest");
@@ -57,7 +64,7 @@ internal static class Program
             ? $"Version {manifest.Version} disponible."
             : $"Version actual {current}. No hay actualizacion aplicable.";
 
-        WriteState(stateFile, new UpdateState(
+        WriteState(stateFile, journalFile, new UpdateState(
             status,
             current,
             manifest.Version,
@@ -65,38 +72,41 @@ internal static class Program
             manifest.Sha256,
             manifest.AutoApply,
             detail,
-            DateTimeOffset.UtcNow));
+            DateTimeOffset.UtcNow,
+            null,
+            null,
+            null));
     }
 
-    private static void Apply(Args args, string stateFile)
+    private static void ApplyVersioned(Args args, string stateFile, string journalFile)
     {
         var currentDir = RequiredDirectory(args.Value("--current-dir"), "--current-dir");
+        var installRoot = ResolveInstallRoot(args.Value("--install-root"), currentDir);
+        var runtimeDir = Path.Combine(installRoot, "runtime");
+        var versionsDir = Path.Combine(installRoot, "versions");
+        var launcherDir = Path.Combine(installRoot, "launcher");
+        var activeVersionFile = Path.Combine(runtimeDir, "active-version.json");
         var packageSource = RequiredValue(args.Value("--package"), "--package");
-        var restart = args.Value("--restart");
-        var noRestart = args.Has("--no-restart");
+        var requestedVersion = args.Value("--version");
         var sha256 = args.Value("--sha256") ?? string.Empty;
+        var noRestart = args.Has("--no-restart");
 
-        WriteState(stateFile, UpdateState.Applying("Esperando que AriadGSM Agent cierre."));
+        Directory.CreateDirectory(runtimeDir);
+        Directory.CreateDirectory(versionsDir);
+
+        var workDir = Path.Combine(runtimeDir, "updates", DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss"));
+        var packagePath = Path.Combine(workDir, "AriadGSMAgent-update.zip");
+        var stagingDir = Path.Combine(workDir, "staging");
+        Directory.CreateDirectory(workDir);
+        Directory.CreateDirectory(stagingDir);
+
+        WriteState(stateFile, journalFile, UpdateState.Applying("Esperando que AriadGSM Agent cierre.", installRoot));
         if (int.TryParse(args.Value("--wait-pid"), out var pid) && pid > 0)
         {
             WaitForProcessExit(pid, TimeSpan.FromSeconds(45));
         }
 
-        var workDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AriadGSM",
-            "updates",
-            DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss"));
-        var packagePath = Path.Combine(workDir, "AriadGSMAgent-update.zip");
-        var stagingDir = Path.Combine(workDir, "staging");
-        var parentDir = Directory.GetParent(currentDir)?.FullName
-            ?? throw new InvalidOperationException("No pude ubicar la carpeta padre del agente.");
-        var backupDir = Path.Combine(parentDir, $"AriadGSMAgent-backup-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}");
-
-        Directory.CreateDirectory(workDir);
-        Directory.CreateDirectory(stagingDir);
-
-        WriteState(stateFile, UpdateState.Applying("Descargando o copiando paquete."));
+        WriteState(stateFile, journalFile, UpdateState.Applying("Descargando o copiando paquete.", installRoot));
         CopyOrDownload(packageSource, packagePath);
 
         if (!string.IsNullOrWhiteSpace(sha256))
@@ -108,76 +118,243 @@ internal static class Program
             }
         }
 
-        WriteState(stateFile, UpdateState.Applying("Extrayendo paquete en staging."));
+        WriteState(stateFile, journalFile, UpdateState.Applying("Extrayendo paquete en staging.", installRoot));
         ZipFile.ExtractToDirectory(packagePath, stagingDir, overwriteFiles: true);
-        var stagedAgent = Path.Combine(stagingDir, "AriadGSM Agent.exe");
-        if (!File.Exists(stagedAgent))
+        ValidatePackage(stagingDir);
+
+        var version = !string.IsNullOrWhiteSpace(requestedVersion)
+            ? requestedVersion
+            : ReadCurrentVersion(stagingDir);
+        if (string.IsNullOrWhiteSpace(version) || version.Equals("0.0.0", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("El paquete no contiene AriadGSM Agent.exe en la raiz.");
+            throw new InvalidOperationException("El paquete no declara una version valida.");
         }
 
-        WriteState(stateFile, UpdateState.Applying("Creando respaldo de la version anterior."));
-        CopyDirectory(currentDir, backupDir, overwrite: false);
+        WriteState(stateFile, journalFile, UpdateState.Applying($"Probando version {version} antes de activarla.", installRoot, version));
+        RunSelfTest(stagingDir);
 
-        try
+        var previous = ReadActiveVersion(activeVersionFile, currentDir);
+        var targetDir = Path.Combine(versionsDir, version);
+        WriteState(stateFile, journalFile, UpdateState.Applying($"Instalando version {version} en carpeta aislada.", installRoot, version, targetDir));
+        ReplaceDirectory(stagingDir, targetDir);
+
+        var stagedLauncher = Path.Combine(targetDir, "launcher");
+        if (Directory.Exists(stagedLauncher))
         {
-            WriteState(stateFile, UpdateState.Applying("Aplicando nueva version."));
-            CopyDirectory(stagingDir, currentDir, overwrite: true);
-        }
-        catch
-        {
-            CopyDirectory(backupDir, currentDir, overwrite: true);
-            throw;
+            WriteState(stateFile, journalFile, UpdateState.Applying("Actualizando launcher estable.", installRoot, version, targetDir));
+            ReplaceDirectory(stagedLauncher, launcherDir);
         }
 
-        var restartPath = !string.IsNullOrWhiteSpace(restart)
-            ? restart
-            : Path.Combine(currentDir, "AriadGSM Agent.exe");
-        WriteState(stateFile, UpdateState.Applied($"Actualizacion aplicada. Respaldo: {backupDir}"));
+        var active = new ActiveVersionState(
+            version,
+            targetDir,
+            previous.ActiveVersion,
+            previous.ActiveDirectory,
+            PendingConfirmation: !noRestart,
+            RollbackReason: null,
+            UpdatedAt: DateTimeOffset.UtcNow);
+        WriteActiveVersion(activeVersionFile, active);
+
+        var launcherExe = Path.Combine(launcherDir, "AriadGSM Launcher.exe");
+        var explicitRestart = args.Value("--restart");
+        var restartPath = File.Exists(launcherExe)
+            ? launcherExe
+            : !string.IsNullOrWhiteSpace(explicitRestart)
+                ? explicitRestart
+                : Path.Combine(targetDir, "AriadGSM Agent.exe");
+
+        WriteState(stateFile, journalFile, UpdateState.Applied($"Version {version} activada. Anterior: {previous.ActiveVersion}.", installRoot, version, targetDir));
 
         if (noRestart)
         {
-            WriteState(stateFile, UpdateState.Applied($"Actualizacion aplicada. Reinicio omitido por --no-restart. Respaldo: {backupDir}"));
+            WriteState(stateFile, journalFile, UpdateState.Applied($"Version {version} activada. Reinicio omitido por --no-restart.", installRoot, version, targetDir));
             return;
         }
 
-        if (File.Exists(restartPath))
+        if (!File.Exists(restartPath))
         {
-            if (!LooksLikeWindowsExecutable(restartPath))
-            {
-                WriteState(stateFile, UpdateState.Applied($"Actualizacion aplicada, pero no reinicie porque el archivo no parece un ejecutable Windows valido: {restartPath}. Respaldo: {backupDir}"));
-                return;
-            }
+            WriteState(stateFile, journalFile, UpdateState.Applied($"Version {version} activada, pero no encontre reinicio: {restartPath}.", installRoot, version, targetDir));
+            return;
+        }
 
-            try
+        if (!LooksLikeWindowsExecutable(restartPath))
+        {
+            WriteState(stateFile, journalFile, UpdateState.Applied($"Version {version} activada, pero el reinicio no parece ejecutable Windows: {restartPath}.", installRoot, version, targetDir));
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = restartPath,
+            WorkingDirectory = Path.GetDirectoryName(restartPath) ?? installRoot,
+            UseShellExecute = true
+        });
+    }
+
+    private static void Rollback(Args args, string stateFile, string journalFile)
+    {
+        var currentDir = RequiredDirectory(args.Value("--current-dir"), "--current-dir");
+        var installRoot = ResolveInstallRoot(args.Value("--install-root"), currentDir);
+        var activeVersionFile = Path.Combine(installRoot, "runtime", "active-version.json");
+        var current = ReadActiveVersion(activeVersionFile, currentDir);
+        if (string.IsNullOrWhiteSpace(current.PreviousVersion) || string.IsNullOrWhiteSpace(current.PreviousDirectory))
+        {
+            throw new InvalidOperationException("No hay version anterior registrada para rollback.");
+        }
+
+        var rollback = current with
+        {
+            ActiveVersion = current.PreviousVersion,
+            ActiveDirectory = current.PreviousDirectory,
+            PendingConfirmation = false,
+            RollbackReason = args.Value("--reason") ?? "Rollback solicitado.",
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        WriteActiveVersion(activeVersionFile, rollback);
+        WriteState(stateFile, journalFile, UpdateState.Applied($"Rollback aplicado a {rollback.ActiveVersion}.", installRoot, rollback.ActiveVersion, rollback.ActiveDirectory));
+    }
+
+    private static void ValidatePackage(string packageDir)
+    {
+        var required = new[]
+        {
+            "AriadGSM Agent.exe",
+            "ariadgsm-version.json",
+            Path.Combine("engines", "vision", "AriadGSM.Vision.Worker.exe"),
+            Path.Combine("engines", "perception", "AriadGSM.Perception.Worker.exe"),
+            Path.Combine("engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
+            Path.Combine("engines", "hands", "AriadGSM.Hands.Worker.exe"),
+            Path.Combine("config", "vision.json"),
+            Path.Combine("config", "perception.json"),
+            Path.Combine("config", "interaction.json"),
+            Path.Combine("config", "hands.json")
+        };
+
+        foreach (var relative in required)
+        {
+            var path = Path.Combine(packageDir, relative);
+            if (!File.Exists(path))
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = restartPath,
-                    WorkingDirectory = currentDir,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                });
-            }
-            catch (Exception exception)
-            {
-                WriteState(stateFile, UpdateState.Applied($"Actualizacion aplicada, pero no pude reiniciar: {exception.Message}. Respaldo: {backupDir}"));
+                throw new InvalidOperationException($"Paquete incompleto. Falta: {relative}");
             }
         }
     }
 
-    private static bool LooksLikeWindowsExecutable(string path)
+    private static void RunSelfTest(string packageDir)
     {
+        var agentExe = Path.Combine(packageDir, "AriadGSM Agent.exe");
+        Process? process;
         try
         {
-            Span<byte> header = stackalloc byte[2];
-            using var stream = File.OpenRead(path);
-            return stream.Read(header) == 2 && header[0] == (byte)'M' && header[1] == (byte)'Z';
+            process = Process.Start(new ProcessStartInfo
+            {
+                FileName = agentExe,
+                WorkingDirectory = packageDir,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }.WithArguments(["--self-test"]));
         }
-        catch
+        catch (Exception exception) when (exception.Message.Contains("elevaci", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("elevation", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            return;
         }
+
+        if (process is null)
+        {
+            throw new InvalidOperationException("No pude ejecutar self-test de AriadGSM Agent.");
+        }
+
+        if (!process.WaitForExit(30_000))
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+            }
+
+            throw new InvalidOperationException("Self-test de AriadGSM Agent excedio 30 segundos.");
+        }
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException($"Self-test de AriadGSM Agent fallo con codigo {process.ExitCode}.");
+        }
+    }
+
+    private static ProcessStartInfo WithArguments(this ProcessStartInfo startInfo, IEnumerable<string> args)
+    {
+        foreach (var arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        return startInfo;
+    }
+
+    private static string ResolveInstallRoot(string? configured, string currentDir)
+    {
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return RequiredDirectory(configured, "--install-root");
+        }
+
+        var current = new DirectoryInfo(currentDir);
+        while (current is not null)
+        {
+            if (current.Name.Equals("desktop-agent", StringComparison.OrdinalIgnoreCase))
+            {
+                return current.FullName;
+            }
+
+            if (Directory.Exists(Path.Combine(current.FullName, "desktop-agent")))
+            {
+                return Path.Combine(current.FullName, "desktop-agent");
+            }
+
+            current = current.Parent;
+        }
+
+        var parent = Directory.GetParent(currentDir)?.FullName;
+        if (parent is null)
+        {
+            throw new InvalidOperationException("No pude resolver install-root del agente.");
+        }
+
+        return parent;
+    }
+
+    private static ActiveVersionState ReadActiveVersion(string activeFile, string currentDir)
+    {
+        if (File.Exists(activeFile))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(ReadAllTextShared(activeFile));
+                var root = document.RootElement;
+                var version = TryString(root, "activeVersion") ?? ReadCurrentVersion(currentDir);
+                return new ActiveVersionState(
+                    version,
+                    TryString(root, "activeDirectory") ?? currentDir,
+                    TryString(root, "previousVersion"),
+                    TryString(root, "previousDirectory"),
+                    TryBool(root, "pendingConfirmation") ?? false,
+                    TryString(root, "rollbackReason"),
+                    TryDate(root, "updatedAt") ?? DateTimeOffset.UtcNow);
+            }
+            catch
+            {
+            }
+        }
+
+        return new ActiveVersionState(ReadCurrentVersion(currentDir), currentDir, null, null, false, null, DateTimeOffset.UtcNow);
+    }
+
+    private static void WriteActiveVersion(string activeFile, ActiveVersionState state)
+    {
+        WriteAllTextAtomicShared(activeFile, JsonSerializer.Serialize(state, JsonOptions));
     }
 
     private static UpdateManifest ReadManifest(string source)
@@ -259,7 +436,6 @@ internal static class Program
         }
         catch
         {
-            // The process already exited or cannot be observed; continue applying.
         }
     }
 
@@ -267,6 +443,42 @@ internal static class Program
     {
         using var stream = File.OpenRead(path);
         return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+    }
+
+    private static void ReplaceDirectory(string sourceDir, string destinationDir)
+    {
+        var parent = Directory.GetParent(destinationDir)?.FullName
+            ?? throw new InvalidOperationException($"Ruta destino invalida: {destinationDir}");
+        Directory.CreateDirectory(parent);
+
+        if (Directory.Exists(destinationDir))
+        {
+            var oldDir = $"{destinationDir}.old-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}";
+            Directory.Move(destinationDir, oldDir);
+            TryDeleteDirectory(oldDir);
+        }
+
+        CopyDirectory(sourceDir, destinationDir, overwrite: true);
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    Directory.Delete(path, recursive: true);
+                }
+
+                return;
+            }
+            catch when (attempt < 4)
+            {
+                Thread.Sleep(150 * (attempt + 1));
+            }
+        }
     }
 
     private static void CopyDirectory(string sourceDir, string destinationDir, bool overwrite)
@@ -286,6 +498,20 @@ internal static class Program
         }
     }
 
+    private static bool LooksLikeWindowsExecutable(string path)
+    {
+        try
+        {
+            Span<byte> header = stackalloc byte[2];
+            using var stream = File.OpenRead(path);
+            return stream.Read(header) == 2 && header[0] == (byte)'M' && header[1] == (byte)'Z';
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string RequiredValue(string? value, string name)
     {
         return string.IsNullOrWhiteSpace(value)
@@ -301,10 +527,23 @@ internal static class Program
             : throw new DirectoryNotFoundException($"{name} no existe: {path}");
     }
 
-    private static void WriteState(string stateFile, UpdateState state)
+    private static void WriteState(string stateFile, string journalFile, UpdateState state)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(stateFile)!);
         WriteAllTextAtomicShared(stateFile, JsonSerializer.Serialize(state, JsonOptions));
+        AppendJournal(journalFile, state);
+    }
+
+    private static void AppendJournal(string journalFile, UpdateState state)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(journalFile)!);
+            File.AppendAllText(journalFile, JsonSerializer.Serialize(state, JsonOptions).ReplaceLineEndings(" ") + Environment.NewLine, Encoding.UTF8);
+        }
+        catch
+        {
+        }
     }
 
     private static string ReadAllTextShared(string path)
@@ -321,6 +560,7 @@ internal static class Program
         {
             try
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 File.WriteAllText(tempPath, text, Encoding.UTF8);
                 File.Move(tempPath, path, overwrite: true);
                 return;
@@ -344,6 +584,52 @@ internal static class Program
             }
         }
     }
+
+    private static string? TryString(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty(name, out var value)
+                && value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString();
+            }
+        }
+
+        return null;
+    }
+
+    private static bool? TryBool(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty(name, out var value)
+                && (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False))
+            {
+                return value.GetBoolean();
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTimeOffset? TryDate(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty(name, out var value)
+                && value.ValueKind == JsonValueKind.String
+                && DateTimeOffset.TryParse(value.GetString(), out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
 }
 
 internal sealed record UpdateManifest(
@@ -362,23 +648,35 @@ internal sealed record UpdateState(
     string? Sha256,
     bool AutoApply,
     string Detail,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    string? InstallRoot,
+    string? TargetVersion,
+    string? TargetDirectory)
 {
-    public static UpdateState Applying(string detail)
+    public static UpdateState Applying(string detail, string? installRoot = null, string? targetVersion = null, string? targetDirectory = null)
     {
-        return new("applying", "unknown", "unknown", null, null, false, detail, DateTimeOffset.UtcNow);
+        return new("applying", "unknown", "unknown", null, null, false, detail, DateTimeOffset.UtcNow, installRoot, targetVersion, targetDirectory);
     }
 
-    public static UpdateState Applied(string detail)
+    public static UpdateState Applied(string detail, string? installRoot = null, string? targetVersion = null, string? targetDirectory = null)
     {
-        return new("applied", "unknown", "unknown", null, null, false, detail, DateTimeOffset.UtcNow);
+        return new("applied", "unknown", "unknown", null, null, false, detail, DateTimeOffset.UtcNow, installRoot, targetVersion, targetDirectory);
     }
 
     public static UpdateState Failed(string detail)
     {
-        return new("failed", "unknown", "unknown", null, null, false, detail, DateTimeOffset.UtcNow);
+        return new("failed", "unknown", "unknown", null, null, false, detail, DateTimeOffset.UtcNow, null, null, null);
     }
 }
+
+internal sealed record ActiveVersionState(
+    string ActiveVersion,
+    string ActiveDirectory,
+    string? PreviousVersion,
+    string? PreviousDirectory,
+    bool PendingConfirmation,
+    string? RollbackReason,
+    DateTimeOffset UpdatedAt);
 
 internal sealed class Args
 {

@@ -3,8 +3,13 @@ namespace AriadGSM.Agent.Desktop;
 internal static class Program
 {
     [STAThread]
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
+        if (args.Any(arg => arg.Equals("--self-test", StringComparison.OrdinalIgnoreCase)))
+        {
+            return RunSelfTest();
+        }
+
         using var mutex = new Mutex(initiallyOwned: true, "Global\\AriadGSM.Agent.Desktop", out var isFirstInstance);
         if (!isFirstInstance)
         {
@@ -13,10 +18,39 @@ internal static class Program
                 "AriadGSM Agent",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
-            return;
+            return 0;
         }
 
         ApplicationConfiguration.Initialize();
         Application.Run(new MainForm(args));
+        return 0;
+    }
+
+    private static int RunSelfTest()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var requiredFiles = new[]
+        {
+            "AriadGSM Agent.exe",
+            "ariadgsm-version.json",
+            Path.Combine("engines", "vision", "AriadGSM.Vision.Worker.exe"),
+            Path.Combine("engines", "perception", "AriadGSM.Perception.Worker.exe"),
+            Path.Combine("engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
+            Path.Combine("engines", "hands", "AriadGSM.Hands.Worker.exe"),
+            Path.Combine("config", "vision.json"),
+            Path.Combine("config", "perception.json"),
+            Path.Combine("config", "interaction.json"),
+            Path.Combine("config", "hands.json")
+        };
+
+        foreach (var relative in requiredFiles)
+        {
+            if (!File.Exists(Path.Combine(baseDir, relative)))
+            {
+                return 10;
+            }
+        }
+
+        return 0;
     }
 }

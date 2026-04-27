@@ -1,8 +1,8 @@
 {
-  "version": "0.5.4",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.4.zip",
-  "sha256": "a68f4c1ec7d4e66b43d872d03695b1005b138cbdb9c8dc3529a80eb0f63c366f",
+  "version": "0.5.5",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.5.zip",
+  "sha256": "03aac68838b05928a8c4a7a4c1f5bfcc1e53f0b9df1fdfe8e2e3b86f80589184",
   "autoApply": true,
-  "notes": "Reliability supervisor, log rotation, trusted conversation gate, safer Hands decisions and cleaner Timeline learning.",
-  "publishedAt": "2026-04-27T02:06:00Z"
+  "notes": "Update Core v2 with stable launcher, versioned installs, package self-test, atomic activation and rollback state.",
+  "publishedAt": "2026-04-27T02:31:00Z"
 }

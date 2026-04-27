@@ -30,6 +30,7 @@ internal sealed class AgentRuntime : IDisposable
     private readonly string _runtimeDir;
     private readonly string _logFile;
     private readonly string _updateStateFile;
+    private readonly string _activeVersionFile;
     private readonly string _agentSupervisorStateFile;
     private CancellationTokenSource? _coreLoopCts;
     private Task? _coreLoopTask;
@@ -52,6 +53,7 @@ internal sealed class AgentRuntime : IDisposable
         Directory.CreateDirectory(_runtimeDir);
         _logFile = Path.Combine(_runtimeDir, "windows-app.log");
         _updateStateFile = Path.Combine(_runtimeDir, "update-state.json");
+        _activeVersionFile = Path.Combine(_runtimeDir, "active-version.json");
         _agentSupervisorStateFile = Path.Combine(_runtimeDir, "agent-supervisor-state.json");
     }
 
@@ -429,6 +431,7 @@ internal sealed class AgentRuntime : IDisposable
         CopyDirectory(Path.GetDirectoryName(updaterExe)!, runnerDir, overwrite: true);
         var runnerExe = Path.Combine(runnerDir, Path.GetFileName(updaterExe));
         var currentExe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "AriadGSM Agent.exe");
+        var restartExe = ResolveLauncherExe() ?? currentExe;
 
         var startInfo = new ProcessStartInfo
         {
@@ -441,6 +444,10 @@ internal sealed class AgentRuntime : IDisposable
         startInfo.ArgumentList.Add("--apply");
         startInfo.ArgumentList.Add("--current-dir");
         startInfo.ArgumentList.Add(AppContext.BaseDirectory);
+        startInfo.ArgumentList.Add("--install-root");
+        startInfo.ArgumentList.Add(_desktopRoot);
+        startInfo.ArgumentList.Add("--version");
+        startInfo.ArgumentList.Add(update.LatestVersion);
         startInfo.ArgumentList.Add("--package");
         startInfo.ArgumentList.Add(update.PackageUrl);
         if (!string.IsNullOrWhiteSpace(update.Sha256))
@@ -450,7 +457,7 @@ internal sealed class AgentRuntime : IDisposable
         }
 
         startInfo.ArgumentList.Add("--restart");
-        startInfo.ArgumentList.Add(currentExe);
+        startInfo.ArgumentList.Add(restartExe);
         startInfo.ArgumentList.Add("--wait-pid");
         startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
         startInfo.ArgumentList.Add("--state");
@@ -841,6 +848,18 @@ internal sealed class AgentRuntime : IDisposable
             var status = TryString(root, "status") ?? "unknown";
             var detail = TryString(root, "detail") ?? "Estado de actualizacion recibido.";
             var updatedAt = TryDate(root, "updatedAt");
+            if (status.Equals("applying", StringComparison.OrdinalIgnoreCase)
+                && updatedAt is { } applyingAt
+                && DateTimeOffset.UtcNow - applyingAt.ToUniversalTime() > TimeSpan.FromMinutes(5))
+            {
+                return new HealthItem(
+                    "Actualizaciones",
+                    "BLOQUEADO",
+                    HealthSeverity.Error,
+                    updatedAt,
+                    $"Update lleva mas de 5 minutos en proceso. Ultimo paso: {detail}");
+            }
+
             var severity = status switch
             {
                 "available" => HealthSeverity.Warning,
@@ -987,6 +1006,19 @@ internal sealed class AgentRuntime : IDisposable
             Path.Combine(_repoRoot, "desktop-agent", "dist", "AriadGSMAgent-next", "updater", "AriadGSM Updater.exe"),
             Path.Combine(_repoRoot, "desktop-agent", "dist", "AriadGSMAgent", "updater", "AriadGSM Updater.exe"),
             Path.Combine(_repoRoot, "desktop-agent", "windows-app", "src", "AriadGSM.Agent.Updater", "bin", "Debug", "net10.0-windows", "AriadGSM Updater.exe")
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private string? ResolveLauncherExe()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(_desktopRoot, "launcher", "AriadGSM Launcher.exe"),
+            Path.Combine(AppContext.BaseDirectory, "launcher", "AriadGSM Launcher.exe"),
+            Path.Combine(_repoRoot, "desktop-agent", "dist", "AriadGSMLauncher", "AriadGSM Launcher.exe"),
+            Path.Combine(_repoRoot, "desktop-agent", "windows-app", "src", "AriadGSM.Agent.Launcher", "bin", "Debug", "net10.0-windows", "AriadGSM Launcher.exe")
         };
 
         return candidates.FirstOrDefault(File.Exists);

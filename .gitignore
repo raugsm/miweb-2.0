@@ -29,3 +29,5 @@ scripts/visual-agent/runtime/
 desktop-agent/runtime/
 desktop-agent/*.local.json
 desktop-agent/dist/
+desktop-agent/launcher/
+desktop-agent/versions/

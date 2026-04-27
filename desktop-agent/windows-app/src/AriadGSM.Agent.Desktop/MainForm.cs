@@ -305,7 +305,7 @@ internal sealed class MainForm : Form
         AppendLog($"Actualizaciones: {update.Detail}");
         if (update.Available && update.AutoApply && _runtime.TryLaunchUpdater(update))
         {
-            AppendLog("Actualizacion automatica iniciada. El agente se cerrara y el Updater lo abrira de nuevo.");
+            AppendLog("Actualizacion automatica iniciada. El updater instalara una version aislada, la probara y el launcher la abrira de nuevo.");
             Close();
             return;
         }

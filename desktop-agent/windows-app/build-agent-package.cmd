@@ -5,6 +5,7 @@ set "ROOT=%~dp0..\..\"
 for %%I in ("%ROOT%") do set "ROOT=%%~fI"
 set "DIST_BASE=%ROOT%\desktop-agent\dist"
 set "DIST=%DIST_BASE%\AriadGSMAgent"
+set "LAUNCHER_DIST=%ROOT%\desktop-agent\launcher"
 set /p AGENT_VERSION=<"%ROOT%\desktop-agent\windows-app\VERSION"
 set "AGENT_FILE_VERSION=%AGENT_VERSION%.0"
 pushd "%ROOT%" >nul 2>nul
@@ -32,6 +33,17 @@ mkdir "%DIST%\engines\interaction" >nul 2>&1
 mkdir "%DIST%\engines\hands" >nul 2>&1
 mkdir "%DIST%\config" >nul 2>&1
 mkdir "%DIST%\updater" >nul 2>&1
+mkdir "%DIST%\launcher" >nul 2>&1
+
+echo Building AriadGSM Launcher...
+dotnet restore "%ROOT%\desktop-agent\windows-app\src\AriadGSM.Agent.Launcher\AriadGSM.Agent.Launcher.csproj" -r win-x64
+if errorlevel 1 exit /b 1
+if exist "%LAUNCHER_DIST%" rmdir /s /q "%LAUNCHER_DIST%"
+mkdir "%LAUNCHER_DIST%" >nul 2>&1
+dotnet publish "%ROOT%\desktop-agent\windows-app\src\AriadGSM.Agent.Launcher\AriadGSM.Agent.Launcher.csproj" -c Release -r win-x64 --self-contained false -o "%LAUNCHER_DIST%" /p:Version=%AGENT_VERSION% /p:AssemblyVersion=%AGENT_FILE_VERSION% /p:FileVersion=%AGENT_FILE_VERSION% /p:InformationalVersion=%AGENT_VERSION%+%GIT_COMMIT%
+if errorlevel 1 exit /b 1
+xcopy "%LAUNCHER_DIST%\*" "%DIST%\launcher\" /e /i /y >nul
+if errorlevel 1 exit /b 1
 
 echo Building AriadGSM Agent Desktop...
 dotnet restore "%ROOT%\desktop-agent\windows-app\src\AriadGSM.Agent.Desktop\AriadGSM.Agent.Desktop.csproj" -r win-x64
