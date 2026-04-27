@@ -1,8 +1,8 @@
 {
-  "version": "0.5.18",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.18.zip",
-  "sha256": "1a0306b7bfc75466fe44ed4ecf581b70f1f220598870964085b9df98d006ccfa",
+  "version": "0.5.19",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.19.zip",
+  "sha256": "86e7361b0290962b09878ddc8e8ecf79189ecbafcf73a0e157f0f84d53a65fd1",
   "autoApply": true,
-  "notes": "Human dashboard pass: friendlier AriadGSM-branded interface with plain-language status cards, needs panel and activity summary while keeping technical diagnostics available for support.",
-  "publishedAt": "2026-04-27T16:35:00Z"
+  "notes": "Cabin identity pass: WhatsApp channels now store process/window/bounds identity, Chrome and Edge open controlled WhatsApp app windows instead of normal tabs, and Orchestrator reports hidden or covered registered channels instead of treating them as missing.",
+  "publishedAt": "2026-04-27T16:25:44Z"
 }
