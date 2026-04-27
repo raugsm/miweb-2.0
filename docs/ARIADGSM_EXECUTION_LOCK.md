@@ -1,0 +1,346 @@
+# AriadGSM Execution Lock
+
+Fecha: 2026-04-27
+Estado: contrato de continuidad para no perder el hilo
+
+## 1. Proposito
+
+Este documento existe para evitar que Codex cambie de rumbo por intuicion.
+
+A partir de ahora, cuando Bryams pida avanzar el proyecto, Codex debe leer este
+archivo y respetar el bloque activo, el orden bloqueado y la definicion de
+terminado.
+
+Si Codex considera que el siguiente paso tecnico deberia cambiar, no puede
+cambiarlo en silencio. Debe explicar:
+
+```text
+Quiero desviarme de Execution Lock por esta razon.
+Riesgo si sigo el orden actual.
+Riesgo si cambio de orden.
+Decision recomendada.
+```
+
+Y esperar confirmacion de Bryams si el cambio altera el orden.
+
+## 2. Frase de control del usuario
+
+Cuando Bryams quiera que no se improvise, puede escribir:
+
+```text
+Codex, sigue Execution Lock. No cambies de bloque.
+```
+
+Cuando quiera entrega completa sin pasos intermedios:
+
+```text
+Codex, activa Modo Entrega Completa para el bloque <nombre>.
+Sigue Execution Lock.
+Investiga, implementa, prueba, versiona y sube a GitHub.
+Solo detente ante bloqueo real.
+```
+
+Cuando quiera solo diseno:
+
+```text
+Codex, sigue Execution Lock. Solo documenta, no codifiques.
+```
+
+## 3. Regla central
+
+El producto final es:
+
+```text
+AriadGSM IA Local: una IA operadora del negocio AriadGSM, no un bot de WhatsApp.
+```
+
+La IA debe comportarse como Bryams a nivel operativo:
+
+- observa;
+- entiende;
+- recuerda;
+- prioriza;
+- cotiza;
+- negocia;
+- registra contabilidad;
+- aprende de errores;
+- usa herramientas;
+- pide permiso cuando hay riesgo;
+- verifica antes de dar por hecho.
+
+## 4. Documentos fuente
+
+Orden de autoridad:
+
+1. `docs/ARIADGSM_EXECUTION_LOCK.md`
+2. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
+3. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
+4. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
+5. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
+6. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
+7. Documentos tecnicos por motor dentro de `desktop-agent/`
+
+Si hay conflicto, manda este archivo.
+
+## 5. Orden bloqueado de la nueva etapa
+
+Este es el orden que Bryams marco y queda bloqueado:
+
+```text
+1. Domain Event Contracts
+2. Autonomous Cycle Orchestrator
+3. Case Manager
+4. Channel Routing Brain
+5. Accounting Core evidence-first
+```
+
+Ningun bloque posterior puede reemplazar este orden sin aprobacion.
+
+## 6. Estado actual de los 5 bloques
+
+### 6.1 Domain Event Contracts
+
+Estado:
+
+```text
+BASE IMPLEMENTADA
+```
+
+Ya existe:
+
+- `desktop-agent/contracts/domain-event-envelope.schema.json`
+- `desktop-agent/contracts/domain-event-registry.json`
+- `desktop-agent/ariadgsm_agent/domain_events.py`
+- `desktop-agent/tests/domain_events_contracts.py`
+- `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
+
+Pendiente para considerarlo producto final:
+
+- conectar todos los motores a estos eventos como fuente principal;
+- prohibir decisiones importantes fuera de domain events;
+- agregar eventos humanos/correcciones si faltan;
+- versionar contratos cuando cambien.
+
+### 6.2 Autonomous Cycle Orchestrator
+
+Estado:
+
+```text
+PARCIAL / NECESITA REDISENO COMO CICLO CENTRAL
+```
+
+Objetivo:
+
+```text
+observar -> entender -> planear -> pedir permiso -> actuar -> verificar -> aprender -> reportar
+```
+
+Debe resolver:
+
+- que ningun boton haga trabajo por su lado;
+- que Vision, Perception, Memory, Brain, Safety y Hands respondan a un ciclo comun;
+- que el ciclo tenga estado visible;
+- que cada paso emita domain events;
+- que el ciclo pueda pausar y retomar.
+
+Definicion de terminado:
+
+- existe contrato de ciclo;
+- existe estado unico de ciclo;
+- el boton `Encender IA` no dispara motores sueltos;
+- el ciclo produce reporte humano;
+- el ciclo respeta permisos y handoff humano;
+- tiene pruebas de flujo completo sin mover mouse real.
+
+### 6.3 Case Manager
+
+Estado:
+
+```text
+NO CERRADO / PARCIAL EN OPERATING CORE
+```
+
+Objetivo:
+
+Convertir mensajes y conversaciones en casos reales de trabajo.
+
+Debe entender:
+
+- cliente;
+- pais;
+- canal;
+- servicio;
+- marca/modelo;
+- estado;
+- pago/deuda;
+- prioridad;
+- riesgo;
+- herramienta probable;
+- siguiente accion.
+
+Definicion de terminado:
+
+- `CaseOpened`, `CaseUpdated`, `CaseNeedsHumanContext`, `CaseClosed` existen y se usan;
+- cada pago, precio, accion y aprendizaje se puede asociar a un caso;
+- la IA deja de tratar chats como mensajes sueltos;
+- existe vista humana de casos abiertos.
+
+### 6.4 Channel Routing Brain
+
+Estado:
+
+```text
+NO CERRADO / PARCIAL EN CHANNEL RESOLUTION
+```
+
+Objetivo:
+
+Resolver que un cliente puede entrar por un WhatsApp pero corresponder a otro.
+
+Debe decidir:
+
+- atender en el canal actual;
+- derivar a otro canal;
+- fusionar contexto;
+- marcar duplicado;
+- pedir confirmacion humana.
+
+Ejemplo:
+
+```text
+Cliente escribe por wa-2, pero el servicio es Xiaomi y el historial vive en wa-3.
+La IA no debe perder contexto ni moverlo por regla fija.
+Debe proponer ruta con evidencia.
+```
+
+Definicion de terminado:
+
+- existe evento `ChannelRouteProposed`;
+- existe evento `ChannelRouteAccepted` o aprobacion equivalente;
+- la ruta explica motivo y confianza;
+- no depende solo de posicion en pantalla;
+- se prueba cliente cruzando canales.
+
+### 6.5 Accounting Core evidence-first
+
+Estado:
+
+```text
+PARCIAL / NECESITA EVIDENCIA COMO REGLA CENTRAL
+```
+
+Objetivo:
+
+Pagos, deudas, reembolsos y caja deben nacer desde evidencia y caso asociado.
+
+Regla:
+
+```text
+La IA puede crear borradores contables.
+La IA no confirma contabilidad final sin evidencia suficiente o permiso.
+```
+
+Debe manejar:
+
+- `PaymentDrafted`;
+- `DebtDetected`;
+- `RefundCandidate`;
+- `AccountingEvidenceAttached`;
+- `AccountingRecordConfirmed`;
+- moneda;
+- monto;
+- metodo;
+- cliente;
+- caso;
+- fuente;
+- confianza;
+- estado.
+
+Definicion de terminado:
+
+- todo pago/deuda se vincula a caso;
+- se separa borrador de confirmado;
+- existe razon cuando falta evidencia;
+- hay reporte humano de contabilidad pendiente;
+- hay pruebas de pagos ambiguos, repetidos y confirmados.
+
+## 7. Bloques que NO pueden adelantarse
+
+Estos bloques son importantes, pero no deben sustituir el orden de la nueva
+etapa salvo que Bryams lo autorice:
+
+- Product Shell visual final.
+- Cabin Authority final.
+- Trust & Safety Core completo.
+- Hands Engine avanzado.
+- Updater final.
+- Cloud Sync final.
+
+Motivo:
+
+Son necesarios para producto, pero si se hacen antes de cerrar la columna mental
+del negocio, volvemos al patron de parches.
+
+Excepcion:
+
+Se puede tocar un bloque no activo si es dependencia minima para terminar el
+bloque actual, pero debe quedar declarado en el resumen.
+
+## 8. Como debe responder Codex antes de trabajar
+
+Si el usuario pide avanzar, Codex debe identificar:
+
+```text
+Bloque activo segun Execution Lock:
+Alcance:
+Archivos esperados:
+Pruebas esperadas:
+Version objetivo:
+Que NO voy a tocar:
+```
+
+En Modo Entrega Completa no debe pedir confirmacion por cada paso, pero si debe
+respetar el bloque activo.
+
+## 9. Formato de cierre obligatorio
+
+Al terminar un bloque, Codex debe cerrar asi:
+
+```text
+Bloque:
+Estado: 100% / parcial / bloqueado
+Que quedo hecho:
+Que se probo:
+Que no se pudo validar:
+Version:
+Commit:
+Siguiente bloque segun Execution Lock:
+```
+
+## 10. Siguiente bloque activo
+
+Como `Domain Event Contracts` ya tiene base implementada, el siguiente bloque
+activo es:
+
+```text
+Autonomous Cycle Orchestrator
+```
+
+Pero antes de codificar ese bloque, debe documentarse su alcance final si Bryams
+pide estructura.
+
+El entregable documental minimo es:
+
+```text
+docs/ARIADGSM_AUTONOMOUS_CYCLE_ORCHESTRATOR_DESIGN.md
+```
+
+Y el entregable tecnico minimo posterior es:
+
+```text
+desktop-agent/ariadgsm_agent/autonomous_cycle.py
+desktop-agent/contracts/autonomous-cycle-event.schema.json
+desktop-agent/tests/autonomous_cycle_orchestrator.py
+integracion con Windows App / AgentRuntime
+```
+

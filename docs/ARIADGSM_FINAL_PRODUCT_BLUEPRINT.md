@@ -1043,3 +1043,14 @@ No construimos un bot para WhatsApp.
 Construimos una IA operadora local para AriadGSM, con WhatsApp como una de sus ventanas de trabajo.
 ```
 
+## 30. Control de continuidad
+
+El orden operativo vigente vive en:
+
+```text
+docs/ARIADGSM_EXECUTION_LOCK.md
+```
+
+Ese archivo manda sobre el roadmap cuando Bryams pida avanzar por bloques. Su
+proposito es impedir que el desarrollo vuelva a saltar entre ideas, parches o
+prioridades cambiantes.
