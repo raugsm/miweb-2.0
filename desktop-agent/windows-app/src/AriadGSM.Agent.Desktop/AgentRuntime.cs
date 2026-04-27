@@ -42,6 +42,9 @@ internal sealed partial class AgentRuntime : IDisposable
     private readonly string _activeVersionFile;
     private readonly string _agentSupervisorStateFile;
     private readonly string _cabinReadinessFile;
+    private readonly string _cabinManagerStateFile;
+    private readonly string _cabinChannelRegistryFile;
+    private readonly string _statusBusStateFile;
     private readonly string _workspaceSetupStateFile;
     private CancellationTokenSource? _coreLoopCts;
     private Task? _coreLoopTask;
@@ -69,8 +72,13 @@ internal sealed partial class AgentRuntime : IDisposable
         _activeVersionFile = Path.Combine(_runtimeDir, "active-version.json");
         _agentSupervisorStateFile = Path.Combine(_runtimeDir, "agent-supervisor-state.json");
         _cabinReadinessFile = Path.Combine(_runtimeDir, "cabin-readiness.json");
+        _cabinManagerStateFile = Path.Combine(_runtimeDir, "cabin-manager-state.json");
+        _cabinChannelRegistryFile = Path.Combine(_runtimeDir, "cabin-channel-registry.json");
+        _statusBusStateFile = Path.Combine(_runtimeDir, "status-bus-state.json");
         _workspaceSetupStateFile = Path.Combine(_runtimeDir, "workspace-setup-state.json");
         WriteLifeState("idle", "login_wait", "IA detenida esperando login e inicio manual.", "constructor");
+        WriteCabinChannelRegistry(ReadChannelMappings());
+        WriteStatusBusState("idle", "login_wait", "Cabina esperando login e inicio manual.", []);
     }
 
     public string RepoRoot => _repoRoot;
@@ -296,6 +304,8 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Ciclo autonomo", "autonomous-cycle-state.json", "PythonCoreLoop"),
             StateHealth("Life Controller", "life-controller-state.json", "LifeController"),
             StateHealth("Agent Supervisor", "agent-supervisor-state.json", "ReliabilitySupervisor"),
+            StateHealth("Status Bus", "status-bus-state.json", "StatusBus"),
+            StateHealth("Cabin Manager", "cabin-manager-state.json", "CabinManager"),
             StateHealth("Alistamiento cabina", "workspace-setup-state.json", "WorkspaceSetup"),
             StateHealth("Guardian cabina", "workspace-guardian-state.json", "WorkspaceGuardian"),
             CabinReadinessHealth(),
@@ -361,6 +371,8 @@ internal sealed partial class AgentRuntime : IDisposable
         using var life = ReadJsonStatus("life-controller-state.json");
         using var agentSupervisor = ReadJsonStatus("agent-supervisor-state.json");
         using var workspaceSetup = ReadJsonStatus("workspace-setup-state.json");
+        using var statusBus = ReadJsonStatus("status-bus-state.json");
+        using var cabinManager = ReadJsonStatus("cabin-manager-state.json");
         using var workspaceGuardian = ReadJsonStatus("workspace-guardian-state.json");
 
         var whatsappSummary = preflight.Items
@@ -384,6 +396,8 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
             $"Orchestrator: fase={Text(orchestrator, "phase")} | {Text(orchestrator, "summary")}",
             $"Life Controller: {Text(life, "phase")} | {Text(life, "summary")}",
+            $"Status Bus: {Text(statusBus, "phase")} | {Text(statusBus, "summary")}",
+            $"Cabin Manager: {Text(cabinManager, "phase")} | {Text(cabinManager, "summary")}",
             $"Alistamiento: fase={Text(workspaceSetup, "phase")} | {Text(workspaceSetup, "summary")}",
             $"Guardian cabina: {Text(workspaceGuardian, "status")} | {Text(workspaceGuardian, "summary")}",
             $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")}",
@@ -598,29 +612,33 @@ internal sealed partial class AgentRuntime : IDisposable
     public void OpenMissingWhatsApps()
     {
         var windows = VisibleWindows();
+        var readiness = ReadChannelMappings()
+            .Select(mapping => EvaluateChannelReadiness(mapping, windows))
+            .ToArray();
+        WriteCabinManagerState("preparing", "manual_open_missing", readiness, CabinSummary(readiness));
         var opened = 0;
-        foreach (var mapping in ReadChannelMappings())
+        foreach (var item in readiness)
         {
-            var readiness = EvaluateChannelReadiness(mapping, windows);
-            if (readiness.IsReady)
+            var mapping = item.Mapping;
+            if (item.IsReady)
             {
                 WriteLog($"{mapping.ChannelId}: WhatsApp already visible in {mapping.BrowserProcess}.");
                 continue;
             }
 
-            if (readiness.RequiresHuman)
+            if (item.RequiresHuman && !item.CanLaunch)
             {
-                WriteLog($"{mapping.ChannelId}: cabin needs human action before opening more windows: {readiness.Detail}");
+                WriteLog($"{mapping.ChannelId}: cabin needs human action before opening more windows: {item.Detail}");
                 continue;
             }
 
-            if (!readiness.CanLaunch)
+            if (!item.CanLaunch)
             {
-                WriteLog($"{mapping.ChannelId}: not launching because channel is {readiness.Status}: {readiness.Detail}");
+                WriteLog($"{mapping.ChannelId}: not launching because channel is {item.Status}: {item.Detail}");
                 continue;
             }
 
-            if (LaunchWhatsAppWindow(mapping, readiness.Detail))
+            if (LaunchWhatsAppWindow(mapping, item.Detail))
             {
                 opened++;
             }
@@ -634,10 +652,12 @@ internal sealed partial class AgentRuntime : IDisposable
 
     public async Task<PreflightReport> PrepareWhatsAppWorkspaceAsync(TimeSpan timeout)
     {
+        var started = DateTimeOffset.Now;
         var deadline = DateTimeOffset.Now + timeout;
         var launchAttempts = ReadChannelMappings()
             .ToDictionary(item => item.ChannelId, _ => 0, StringComparer.OrdinalIgnoreCase);
         WriteLog("Cabin readiness: preparing WhatsApp 1/2/3.");
+        WriteStatusBusState("preparing", "cabin_prepare", "Cabin Manager esta revisando sesiones dedicadas de WhatsApp.", []);
 
         while (DateTimeOffset.Now < deadline)
         {
@@ -646,6 +666,7 @@ internal sealed partial class AgentRuntime : IDisposable
                 .Select(mapping => EvaluateChannelReadiness(mapping, windows))
                 .ToArray();
             WriteCabinReadinessState("preparing", readiness);
+            WriteCabinManagerState("preparing", "verify_channels", readiness, CabinSummary(readiness));
 
             if (readiness.All(item => item.IsReady))
             {
@@ -654,6 +675,7 @@ internal sealed partial class AgentRuntime : IDisposable
                     .Select(mapping => EvaluateChannelReadiness(mapping, VisibleWindows()))
                     .ToArray();
                 WriteCabinReadinessState("ready", arrangedReadiness);
+                WriteCabinManagerState("ready", "all_channels_ready", arrangedReadiness, CabinSummary(arrangedReadiness));
                 WriteLog("Cabin readiness: all WhatsApp channels are visible and arranged.");
                 return Preflight();
             }
@@ -675,12 +697,25 @@ internal sealed partial class AgentRuntime : IDisposable
             }
 
             var blocked = readiness.Where(item => item.RequiresHuman).ToArray();
-            if (blocked.Length > 0)
+            if (blocked.Length > 0 && !CanStartWithDegradedCabin(readiness))
             {
                 WriteCabinReadinessState("attention", readiness);
+                WriteCabinManagerState("attention", "human_required", readiness, CabinSummary(readiness));
                 foreach (var item in blocked)
                 {
                     WriteLog($"{item.ChannelId}: cabin blocked by {item.Status}. {item.Detail}");
+                }
+
+                return Preflight();
+            }
+
+            if (blocked.Length > 0 && CanStartWithDegradedCabin(readiness))
+            {
+                WriteCabinReadinessState("degraded", readiness);
+                WriteCabinManagerState("degraded", "human_required_degraded", readiness, CabinSummary(readiness));
+                foreach (var item in blocked)
+                {
+                    WriteLog($"{item.ChannelId}: cabin degraded by {item.Status}. {item.Detail}");
                 }
 
                 return Preflight();
@@ -695,7 +730,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
                 if (attempts >= 1)
                 {
-                    WriteLog($"{item.ChannelId}: already launched once; waiting instead of opening more windows. {item.Detail}");
+                    WriteLog($"{item.ChannelId}: dedicated WhatsApp already launched once; waiting instead of opening more windows. {item.Detail}");
                     continue;
                 }
 
@@ -703,6 +738,16 @@ internal sealed partial class AgentRuntime : IDisposable
                 {
                     launchAttempts[item.ChannelId] = attempts + 1;
                 }
+            }
+
+            if (CanStartWithDegradedCabin(readiness)
+                && readiness.Any(item => !item.IsReady)
+                && DateTimeOffset.Now - started > TimeSpan.FromSeconds(12))
+            {
+                WriteCabinReadinessState("degraded", readiness);
+                WriteCabinManagerState("degraded", "degraded_timeout", readiness, CabinSummary(readiness));
+                WriteLog("Cabin readiness: starting degraded instead of waiting for every channel forever.");
+                return Preflight();
             }
 
             await Task.Delay(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
@@ -718,10 +763,16 @@ internal sealed partial class AgentRuntime : IDisposable
         var finalReadiness = ReadChannelMappings()
             .Select(mapping => EvaluateChannelReadiness(mapping, VisibleWindows()))
             .ToArray();
-        WriteCabinReadinessState(stillMissing.Length == 0 ? "ready" : "attention", finalReadiness);
+        var finalStatus = finalReadiness.All(item => item.IsReady)
+            ? "ready"
+            : CanStartWithDegradedCabin(finalReadiness)
+                ? "degraded"
+                : "attention";
+        WriteCabinReadinessState(finalStatus, finalReadiness);
+        WriteCabinManagerState(finalStatus, finalStatus, finalReadiness, CabinSummary(finalReadiness));
         WriteLog(stillMissing.Length == 0
             ? "Cabin readiness: WhatsApp workspace ready after wait."
-            : $"Cabin readiness: still needs attention: {string.Join(", ", stillMissing)}.");
+            : $"Cabin readiness: partial/degraded after wait: {string.Join(", ", stillMissing)}.");
         return finalReport;
     }
 
@@ -756,14 +807,21 @@ internal sealed partial class AgentRuntime : IDisposable
         var finalReadiness = ReadChannelMappings()
             .Select(mapping => EvaluateChannelReadiness(mapping, VisibleWindows()))
             .ToArray();
-        WriteCabinReadinessState(finalReadiness.All(item => item.IsReady) ? "ready" : "attention", finalReadiness);
+        var readyChannels = finalReadiness.Count(item => item.IsReady);
+        var cabinStatus = finalReadiness.All(item => item.IsReady)
+            ? "ready"
+            : CanStartWithDegradedCabin(finalReadiness)
+                ? "degraded"
+                : "attention";
+        WriteCabinReadinessState(cabinStatus, finalReadiness);
+        WriteCabinManagerState(cabinStatus, cabinStatus, finalReadiness, CabinSummary(finalReadiness));
 
         var blockers = finalReadiness
             .Where(item => !item.IsReady)
             .Select(item => $"{item.ChannelId}: {item.Status} - {item.Detail}")
             .ToArray();
 
-        if (blockers.Length > 0)
+        if (readyChannels == 0)
         {
             WriteLifeState("attention", "workspace_attention", "La IA no arranco porque la cabina necesita revision humana.", "bootstrap");
             WriteWorkspaceSetupState(
@@ -775,12 +833,26 @@ internal sealed partial class AgentRuntime : IDisposable
             return Preflight();
         }
 
+        if (blockers.Length > 0)
+        {
+            WriteWorkspaceSetupState(
+                "degraded",
+                $"Arranco en modo degradado: {readyChannels}/3 WhatsApps listos. Sigo trabajando con canales disponibles.",
+                100,
+                blockers);
+            WriteLifeState("ready", "workspace_ready_degraded", $"Cabina parcial lista: {readyChannels}/3 canales. Motores pueden iniciar en modo degradado.", "bootstrap");
+            WriteStatusBusState("degraded", "workspace_ready_degraded", $"IA iniciara con {readyChannels}/3 WhatsApps; canales faltantes quedan pausados.", blockers);
+            WriteLog($"Workspace setup: degraded start allowed: {string.Join(" | ", blockers)}");
+            return report;
+        }
+
         WriteWorkspaceSetupState(
             "ready",
             "Cabina lista: Edge=WhatsApp 1, Chrome=WhatsApp 2, Firefox=WhatsApp 3.",
             100,
             []);
         WriteLifeState("ready", "workspace_ready", "Cabina lista para encender motores autonomos.", "bootstrap");
+        WriteStatusBusState("ready", "workspace_ready", "Cabina lista: los 3 WhatsApp pueden leer y aprender.", []);
         WriteLog("Workspace setup: cabin ready; engines may start now.");
         return report;
     }
@@ -796,6 +868,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
         try
         {
+            Directory.CreateDirectory(ResolveCabinProfileDirectory(mapping));
             var startInfo = new ProcessStartInfo
             {
                 FileName = browser,
@@ -808,8 +881,7 @@ internal sealed partial class AgentRuntime : IDisposable
             }
 
             Process.Start(startInfo);
-            var profile = string.IsNullOrWhiteSpace(mapping.ProfileDirectory) ? "default browser profile" : mapping.ProfileDirectory;
-            WriteLog($"{mapping.ChannelId}: opening WhatsApp in {mapping.BrowserProcess} profile {profile} with {browser}. Reason: {reason}");
+            WriteLog($"{mapping.ChannelId}: opening dedicated WhatsApp session in {mapping.BrowserProcess} profile {ResolveCabinProfileDirectory(mapping)} with {browser}. Reason: {reason}");
             return true;
         }
         catch (Exception exception)
@@ -899,8 +971,8 @@ internal sealed partial class AgentRuntime : IDisposable
                     mapping,
                     blocker.Status,
                     false,
-                    blocker.RequiresHuman,
                     false,
+                    true,
                     blocker.Detail,
                     SampleLines(lines, window.Title),
                     window);
@@ -908,11 +980,11 @@ internal sealed partial class AgentRuntime : IDisposable
 
             return new ChannelReadiness(
                 mapping,
-                "FIXED_BROWSER_NOT_ON_WHATSAPP",
+                "BROWSER_BUSY_OPEN_DEDICATED",
+                false,
                 false,
                 true,
-                false,
-                $"{mapping.ChannelId} pertenece fijo a {mapping.BrowserProcess}, pero esa ventana no esta en WhatsApp. No abrire duplicados ni cambiare sesiones; deja ese navegador en web.whatsapp.com.",
+                $"{mapping.ChannelId} pertenece a {mapping.BrowserProcess}, pero la ventana visible esta ocupada con otra pagina. Abrire o recuperare una sesion dedicada AriadGSM sin cerrar tu navegador.",
                 [$"{window.ProcessName} #{window.ProcessId}: {window.Title}"],
                 window);
         }
@@ -936,7 +1008,7 @@ internal sealed partial class AgentRuntime : IDisposable
             false,
             false,
             true,
-            $"No veo {mapping.BrowserProcess}. Abrire web.whatsapp.com una sola vez.",
+            $"No veo {mapping.BrowserProcess}. Abrire una sesion dedicada de web.whatsapp.com.",
             []);
     }
 
@@ -1115,6 +1187,9 @@ internal sealed partial class AgentRuntime : IDisposable
                 ["updatedAt"] = DateTimeOffset.UtcNow,
                 ["ready"] = readiness.Count > 0 && readiness.All(item => item.IsReady),
                 ["requiresHuman"] = readiness.Any(item => item.RequiresHuman),
+                ["canStartDegraded"] = CanStartWithDegradedCabin(readiness),
+                ["readyChannels"] = readiness.Count(item => item.IsReady),
+                ["expectedChannels"] = readiness.Count,
                 ["channels"] = readiness.Select(item => new Dictionary<string, object?>
                 {
                     ["channelId"] = item.ChannelId,
@@ -2319,24 +2394,32 @@ internal sealed partial class AgentRuntime : IDisposable
         return ResolveExecutable(envName, exe, KnownBrowserPaths(normalized));
     }
 
-    private static IReadOnlyList<string> BuildBrowserLaunchArguments(ChannelMapping mapping)
+    private IReadOnlyList<string> BuildBrowserLaunchArguments(ChannelMapping mapping)
     {
         var normalized = NormalizeProcessName(mapping.BrowserProcess);
-        const string url = "https://web.whatsapp.com/";
         var arguments = new List<string>();
+        var dedicatedProfile = ResolveCabinProfileDirectory(mapping);
 
-        if ((normalized.Equals("msedge", StringComparison.OrdinalIgnoreCase)
-                || normalized.Equals("chrome", StringComparison.OrdinalIgnoreCase))
-            && !string.IsNullOrWhiteSpace(mapping.ProfileDirectory))
+        if (normalized.Equals("msedge", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("chrome", StringComparison.OrdinalIgnoreCase))
         {
-            arguments.Add($"--profile-directory={mapping.ProfileDirectory}");
+            arguments.Add($"--user-data-dir={dedicatedProfile}");
+            arguments.Add("--no-first-run");
+            arguments.Add("--disable-session-crashed-bubble");
+            arguments.Add($"--app={WhatsAppWebUrl}");
+            return arguments;
         }
 
-        arguments.Add(normalized.Equals("firefox", StringComparison.OrdinalIgnoreCase)
-            ? "-new-window"
-            : "--new-window");
+        if (normalized.Equals("firefox", StringComparison.OrdinalIgnoreCase))
+        {
+            arguments.Add("-profile");
+            arguments.Add(dedicatedProfile);
+            arguments.Add("-new-window");
+            arguments.Add(WhatsAppWebUrl);
+            return arguments;
+        }
 
-        arguments.Add(url);
+        arguments.Add(WhatsAppWebUrl);
         return arguments;
     }
 
@@ -2580,6 +2663,12 @@ internal sealed partial class AgentRuntime : IDisposable
 
     private IReadOnlyList<ChannelMapping> ReadChannelMappings()
     {
+        var registryMappings = TryReadChannelMappingsFromRegistry();
+        if (registryMappings.Count > 0)
+        {
+            return registryMappings;
+        }
+
         var path = ResolveConfigPath(Path.Combine("desktop-agent", "perception-engine", "config", "perception.example.json"));
         if (!File.Exists(path))
         {
@@ -2613,6 +2702,43 @@ internal sealed partial class AgentRuntime : IDisposable
         catch
         {
             return DefaultChannelMappings();
+        }
+    }
+
+    private IReadOnlyList<ChannelMapping> TryReadChannelMappingsFromRegistry()
+    {
+        if (string.IsNullOrWhiteSpace(_cabinChannelRegistryFile) || !File.Exists(_cabinChannelRegistryFile))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(ReadAllTextShared(_cabinChannelRegistryFile));
+            if (!document.RootElement.TryGetProperty("channels", out var mappings)
+                || mappings.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var result = new List<ChannelMapping>();
+            foreach (var item in mappings.EnumerateArray())
+            {
+                var channelId = TryString(item, "channelId") ?? string.Empty;
+                var browserProcess = TryString(item, "browserProcess") ?? string.Empty;
+                var titleContains = TryString(item, "titleContains") ?? "WhatsApp";
+                var profileDirectory = TryString(item, "legacyProfileDirectory", "profileDirectory") ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(channelId) && !string.IsNullOrWhiteSpace(browserProcess))
+                {
+                    result.Add(new ChannelMapping(channelId, browserProcess, titleContains, profileDirectory));
+                }
+            }
+
+            return result;
+        }
+        catch
+        {
+            return [];
         }
     }
 
@@ -2725,6 +2851,7 @@ internal sealed partial class AgentRuntime : IDisposable
         return status.Contains("attention", StringComparison.OrdinalIgnoreCase)
             || status.Contains("warning", StringComparison.OrdinalIgnoreCase)
             || status.Contains("warn", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("degraded", StringComparison.OrdinalIgnoreCase)
             ? HealthSeverity.Warning
             : HealthSeverity.Ok;
     }

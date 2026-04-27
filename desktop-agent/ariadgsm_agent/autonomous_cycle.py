@@ -372,20 +372,29 @@ def build_life_controller_stage(life: dict[str, Any], agent_supervisor: dict[str
 
 def build_workspace_guardian_stage(
     workspace_setup: dict[str, Any],
+    cabin_manager: dict[str, Any],
     workspace_guardian: dict[str, Any],
     cabin: dict[str, Any],
     orchestrator: dict[str, Any],
 ) -> dict[str, Any]:
     setup_status = normalize_status(workspace_setup.get("status") if workspace_setup else "attention")
+    manager_status = normalize_status(cabin_manager.get("status") if cabin_manager else "attention")
     guardian_status = normalize_status(workspace_guardian.get("status") if workspace_guardian else "attention")
     cabin_status = normalize_status(cabin.get("status") if cabin else "attention")
-    status = worst_status([setup_status, guardian_status, cabin_status])
-    channels = workspace_guardian.get("channels") if isinstance(workspace_guardian.get("channels"), list) else []
+    status = worst_status([setup_status, manager_status, guardian_status, cabin_status])
+    channels = cabin_manager.get("channels") if isinstance(cabin_manager.get("channels"), list) else []
+    if not channels:
+        channels = workspace_guardian.get("channels") if isinstance(workspace_guardian.get("channels"), list) else []
     ready = sum(1 for item in channels if isinstance(item, dict) and text(item.get("status")).lower() == "ready")
-    blockers = workspace_guardian.get("blockers") if isinstance(workspace_guardian.get("blockers"), list) else []
+    blockers = cabin_manager.get("blockers") if isinstance(cabin_manager.get("blockers"), list) else []
+    if not blockers:
+        blockers = workspace_guardian.get("blockers") if isinstance(workspace_guardian.get("blockers"), list) else []
     detail = text(
-        workspace_guardian.get("summary"),
-        text(workspace_setup.get("summary"), "Cabina pendiente de diagnostico."),
+        cabin_manager.get("summary"),
+        text(
+            workspace_guardian.get("summary"),
+            text(workspace_setup.get("summary"), "Cabina pendiente de diagnostico."),
+        ),
     )
     return make_stage(
         "workspace_guardian",
@@ -395,10 +404,11 @@ def build_workspace_guardian_stage(
         {
             "readyChannels": ready,
             "expectedChannels": max(3, len(channels)),
+            "canStartDegraded": bool(cabin_manager.get("canStartDegraded")),
             "blockers": len(blockers),
             "orchestratorPhase": text(orchestrator.get("phase")),
         },
-        ["workspace-setup-state.json", "workspace-guardian-state.json", "cabin-readiness.json"],
+        ["cabin-manager-state.json", "workspace-setup-state.json", "workspace-guardian-state.json", "cabin-readiness.json"],
     )
 
 
@@ -606,16 +616,18 @@ def run_autonomous_cycle_once(
         "hands": read_json(runtime / "hands-state.json"),
         "input_arbiter": read_json(runtime / "input-arbiter-state.json"),
         "life": read_json(runtime / "life-controller-state.json"),
+        "status_bus": read_json(runtime / "status-bus-state.json"),
         "agent_supervisor": read_json(runtime / "agent-supervisor-state.json"),
         "update": read_json(runtime / "update-state.json"),
         "workspace_setup": read_json(runtime / "workspace-setup-state.json"),
+        "cabin_manager": read_json(runtime / "cabin-manager-state.json"),
         "workspace_guardian": read_json(runtime / "workspace-guardian-state.json"),
         "cabin": read_json(runtime / "cabin-readiness.json"),
     }
 
     stages = [
         build_life_controller_stage(states["life"], states["agent_supervisor"], states["update"]),
-        build_workspace_guardian_stage(states["workspace_setup"], states["workspace_guardian"], states["cabin"], states["orchestrator"]),
+        build_workspace_guardian_stage(states["workspace_setup"], states["cabin_manager"], states["workspace_guardian"], states["cabin"], states["orchestrator"]),
         build_input_arbiter_stage(states["input_arbiter"]),
         build_reader_core_stage(states),
         build_business_memory_stage(states["memory"], states["timeline"], states["cognitive"], states["operating"]),
@@ -628,6 +640,10 @@ def run_autonomous_cycle_once(
         "input": {
             "phase": text(states["input_arbiter"].get("phase")),
             "summary": text(states["input_arbiter"].get("summary")),
+        },
+        "statusBus": {
+            "phase": text(states["status_bus"].get("phase")),
+            "summary": text(states["status_bus"].get("summary")),
         },
     }
     phase = derive_phase(status, stages, focus)

@@ -1,0 +1,137 @@
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+
+namespace AriadGSM.Agent.Desktop;
+
+internal sealed partial class AgentRuntime
+{
+    private const string WhatsAppWebUrl = "https://web.whatsapp.com/";
+
+    private void WriteCabinManagerState(string status, string phase, IReadOnlyList<ChannelReadiness> readiness, string summary)
+    {
+        try
+        {
+            var channels = readiness.Select(item => new Dictionary<string, object?>
+            {
+                ["channelId"] = item.ChannelId,
+                ["browser"] = item.Mapping.BrowserProcess,
+                ["expectedUrl"] = WhatsAppWebUrl,
+                ["dedicatedProfileDirectory"] = CabinProfileDirectory(item.Mapping),
+                ["status"] = item.Status,
+                ["isReady"] = item.IsReady,
+                ["requiresHuman"] = item.RequiresHuman,
+                ["canLaunch"] = item.CanLaunch,
+                ["detail"] = item.Detail,
+                ["window"] = SerializeCabinWindow(item.Window),
+                ["evidence"] = item.Evidence.Take(8).ToArray()
+            }).ToArray();
+
+            var state = new Dictionary<string, object?>
+            {
+                ["status"] = status,
+                ["engine"] = "ariadgsm_cabin_manager",
+                ["phase"] = phase,
+                ["summary"] = summary,
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+                ["readyChannels"] = readiness.Count(item => item.IsReady),
+                ["expectedChannels"] = readiness.Count,
+                ["canStartDegraded"] = CanStartWithDegradedCabin(readiness),
+                ["requiresHuman"] = readiness.Any(item => item.RequiresHuman),
+                ["channels"] = channels,
+                ["rules"] = new[]
+                {
+                    "wa-1=Edge dedicado a WhatsApp 1",
+                    "wa-2=Chrome dedicado a WhatsApp 2",
+                    "wa-3=Firefox dedicado a WhatsApp 3",
+                    "No cierro navegadores del operador",
+                    "Si un navegador esta ocupado, abro o recupero sesion dedicada",
+                    "Si un canal falla, arranco en modo degradado con los canales listos"
+                }
+            };
+
+            WriteAllTextAtomicShared(_cabinManagerStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+            WriteCabinChannelRegistry(readiness.Select(item => item.Mapping).Distinct().ToArray());
+            WriteStatusBusState(status, phase, summary, readiness.Where(item => !item.IsReady).Select(item => $"{item.ChannelId}: {item.Status} - {item.Detail}").ToArray());
+        }
+        catch
+        {
+        }
+    }
+
+    private void WriteCabinChannelRegistry(IReadOnlyList<ChannelMapping> mappings)
+    {
+        try
+        {
+            var registry = new Dictionary<string, object?>
+            {
+                ["registryVersion"] = "ariadgsm_cabin_channels_v1",
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+                ["expectedUrl"] = WhatsAppWebUrl,
+                ["channels"] = mappings.Select(mapping => new Dictionary<string, object?>
+                {
+                    ["channelId"] = mapping.ChannelId,
+                    ["browserProcess"] = mapping.BrowserProcess,
+                    ["titleContains"] = mapping.TitleContains,
+                    ["legacyProfileDirectory"] = mapping.ProfileDirectory,
+                    ["dedicatedProfileDirectory"] = CabinProfileDirectory(mapping),
+                    ["launchMode"] = "dedicated_window",
+                    ["allowOperatorBrowserReuse"] = false
+                }).ToArray()
+            };
+            WriteAllTextAtomicShared(_cabinChannelRegistryFile, JsonSerializer.Serialize(registry, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch
+        {
+        }
+    }
+
+    private void WriteStatusBusState(string status, string phase, string summary, IReadOnlyList<string> blockers)
+    {
+        try
+        {
+            var state = new Dictionary<string, object?>
+            {
+                ["status"] = status,
+                ["engine"] = "ariadgsm_status_bus",
+                ["phase"] = phase,
+                ["summary"] = summary,
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+                ["blockers"] = blockers,
+                ["version"] = CurrentVersion,
+                ["visibleToOperator"] = true
+            };
+            WriteAllTextAtomicShared(_statusBusStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool CanStartWithDegradedCabin(IReadOnlyList<ChannelReadiness> readiness)
+    {
+        return readiness.Any(item => item.IsReady);
+    }
+
+    private static string CabinProfileDirectory(ChannelMapping mapping)
+    {
+        var safeBrowser = NormalizeProcessName(mapping.BrowserProcess);
+        var safeChannel = mapping.ChannelId.Replace("-", "_", StringComparison.OrdinalIgnoreCase);
+        return Path.Combine("desktop-agent", "runtime", "browser-profiles", $"{safeChannel}_{safeBrowser}");
+    }
+
+    private string ResolveCabinProfileDirectory(ChannelMapping mapping)
+    {
+        return Path.Combine(_repoRoot, CabinProfileDirectory(mapping));
+    }
+
+    private static string CabinSummary(IReadOnlyList<ChannelReadiness> readiness)
+    {
+        var ready = readiness.Count(item => item.IsReady);
+        var total = readiness.Count;
+        var states = string.Join(" | ", readiness.Select(item => $"{item.ChannelId}:{item.Status}"));
+        return ready == total
+            ? $"Cabina lista {ready}/{total}: {states}."
+            : $"Cabina parcial {ready}/{total}: {states}.";
+    }
+}

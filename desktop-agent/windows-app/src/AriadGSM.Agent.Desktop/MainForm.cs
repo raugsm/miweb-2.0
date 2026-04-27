@@ -707,16 +707,16 @@ internal sealed class MainForm : Form
             RefreshStatus(report);
         }
 
-        if (report.HasBlockingErrors || (autonomous && HasMissingWhatsApps(report)))
+        if (report.HasBlockingErrors)
         {
-            AppendLog("Arranque bloqueado despues de preparar entorno. Revisa el panel amarillo; puede faltar login QR o navegador.");
+            AppendLog("Arranque bloqueado despues de preparar entorno. Revisa el panel amarillo.");
             BringControlCenterToFront();
             return;
         }
 
         if (autonomous)
         {
-            AppendLog("Cabina lista. Retiro el panel para no tapar WhatsApp y empiezo lectura/aprendizaje.");
+            AppendLog("Cabina preparada. Si algun canal falta, trabajo en modo degradado y lo dejo visible en el panel.");
             WindowState = FormWindowState.Minimized;
             ShowInTaskbar = true;
             await Task.Delay(TimeSpan.FromMilliseconds(350)).ConfigureAwait(true);
@@ -1033,6 +1033,12 @@ internal sealed class MainForm : Form
 
     private string BuildHumanSubtitle(bool isRunning)
     {
+        var statusBus = StateText("status-bus-state.json", "summary");
+        if (!string.IsNullOrWhiteSpace(statusBus))
+        {
+            return statusBus;
+        }
+
         var cycle = StateText("autonomous-cycle-state.json", "summary");
         if (!string.IsNullOrWhiteSpace(cycle))
         {
@@ -1106,6 +1112,18 @@ internal sealed class MainForm : Form
             .ToArray();
         var ready = whatsappItems.Count(item => item.Severity == HealthSeverity.Ok);
         lines.Add($"WhatsApps: {ready}/{Math.Max(3, whatsappItems.Length)} canales listos para leer.");
+        var cabinSummary = StateText("cabin-manager-state.json", "summary");
+        if (!string.IsNullOrWhiteSpace(cabinSummary))
+        {
+            lines.Add($"Cabina: {cabinSummary}");
+        }
+
+        var statusBus = StateText("status-bus-state.json", "summary");
+        if (!string.IsNullOrWhiteSpace(statusBus))
+        {
+            lines.Add($"Estado actual: {statusBus}");
+        }
+
         lines.Add($"Memoria: {StateNumber("memory-state.json", "summary", "memoryMessages")} mensajes guardados y {StateNumber("memory-state.json", "summary", "learningEvents")} aprendizajes.");
         lines.Add($"Contabilidad: {StateNumber("memory-state.json", "summary", "accountingEvents")} eventos detectados.");
         var inputPhase = StateText("input-arbiter-state.json", "phase");
@@ -1155,6 +1173,8 @@ internal sealed class MainForm : Form
                 ? "Windows ya dio permisos suficientes."
                 : "Ejecuta la app como administrador para mover ventanas y mouse sin fallar.",
             "Cabina WhatsApp" => $"Cabina WhatsApp: {item.Detail}",
+            "Cabin Manager" => $"Cabina: {item.Detail}",
+            "Status Bus" => $"Estado actual: {item.Detail}",
             "Life Controller" => $"Vida de la IA: {item.Detail}",
             "Input Arbiter" => $"Mouse/teclado: {item.Detail}",
             "Guardian cabina" => $"Cabina: {item.Detail}",

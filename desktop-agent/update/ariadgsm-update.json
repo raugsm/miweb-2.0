@@ -1,8 +1,8 @@
 {
-  "version": "0.5.24",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.24.zip",
-  "sha256": "490265082bd9a24afdab608594e1d8b2b26118678c9275c37e2b50888a508889",
+  "version": "0.5.25",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.25.zip",
+  "sha256": "67926b8ed1116c5ca04bef5a7ebe334ffb7d522e6ff634b4757c696543adc2d4",
   "autoApply": true,
-  "notes": "Adds the six-block autonomous cycle foundation: Life Controller, Workspace Guardian V2, Input Arbiter, Verified Hands, Reader Core cleanup, and Business Memory filtering. Hands now yields mouse/keyboard control to the operator instead of fighting input, the app exposes lifecycle/input states, the guardian avoids unnecessary foreground forcing, and memory rejects browser UI titles.",
-  "publishedAt": "2026-04-27T18:01:57Z"
+  "notes": "Adds Cabin Manager and Status Bus. WhatsApp channels are now prepared as dedicated browser sessions, busy normal browser pages no longer block the full cabin, startup can continue in degraded mode when at least one WhatsApp is ready, and the interface reports the real cabin phase instead of going silent.",
+  "publishedAt": "2026-04-27T18:24:21Z"
 }
