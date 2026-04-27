@@ -173,6 +173,12 @@ Business Brain
   -> Action Domain
   -> Risk/Supervisor Domain
   -> Learning Domain
+  -> Evaluation Domain
+  -> Privacy & Data Governance Domain
+  -> Human Collaboration Domain
+  -> Domain Event Contracts
+  -> External System Adapters
+  -> Autonomous Cycle Orchestrator
 ```
 
 ## 4. Mapa general
@@ -193,10 +199,19 @@ flowchart TB
   Action["Action Layer"]
   Risk["Risk & Permission"]
   Learning["Learning Domain"]
+  Eval["Evaluation"]
+  Privacy["Privacy & Data Governance"]
+  Human["Human Collaboration"]
+  Contracts["Domain Event Contracts"]
+  Adapters["External System Adapters"]
+  Cycle["Autonomous Cycle Orchestrator"]
   Cloud["ariadgsm.com Cloud"]
   Audit["Audit & Observability"]
 
+  Adapters --> Intake
   Intake --> Brain
+  Contracts --> Brain
+  Cycle --> Brain
   Brain --> Customer
   Brain --> Routing
   Brain --> Case
@@ -207,10 +222,15 @@ flowchart TB
   Brain --> Procedure
   Brain --> Conversation
   Brain --> Risk
+  Brain --> Human
+  Brain --> Privacy
   Risk --> Action
   Action --> Audit
+  Audit --> Eval
+  Eval --> Learning
   Brain --> Learning
   Learning --> Brain
+  Privacy --> Cloud
   Customer --> Cloud
   Routing --> Case
   Case --> Cloud
@@ -1219,7 +1239,232 @@ Prueba de aceptacion cognitiva:
 12. Cloud sincroniza y reporta.
 ```
 
-## 23. Orden recomendado de construccion
+## 23. Dominios transversales obligatorios
+
+Estos dominios no son areas del negocio como ventas o contabilidad. Son capacidades transversales para que la IA sea estable, segura, medible y corregible.
+
+### 23.1 Domain Event Contracts
+
+Capacidad mental:
+
+Convertir lo que la IA ve y decide en eventos estructurados, para que los dominios no se pasen texto libre ambiguo.
+
+Motivo:
+
+OpenAI recomienda structured outputs para reducir riesgo de prompt injection y errores entre nodos. DDD recomienda lenguaje publicado entre contextos.
+
+Eventos base:
+
+```text
+ObservationCreated
+CustomerIdentified
+ProviderIdentified
+ChannelRouteProposed
+CaseOpened
+CaseUpdated
+ServiceDetected
+QuoteProposed
+PaymentDrafted
+DebtDetected
+RefundCandidate
+MarketSignalDetected
+ProcedureCandidateCreated
+ToolActionRequested
+HumanApprovalRequired
+LearningCandidateCreated
+DecisionExplained
+```
+
+Preguntas de razonamiento:
+
+- Que evento representa mejor esta situacion?
+- Que campos son obligatorios?
+- Que confianza tiene?
+- Que dominio puede consumirlo?
+- Que dato no debe viajar por privacidad?
+
+Prueba de aceptacion cognitiva:
+
+- Ninguna accion sensible nace de texto libre sin evento validado.
+- Un pago, caso o ruta entre WhatsApps se puede rastrear por eventos.
+
+### 23.2 Evaluation Domain
+
+Capacidad mental:
+
+Medir si la IA esta mejorando o empeorando antes de publicar una version.
+
+Motivo:
+
+OpenAI recomienda usar traces, graders, datasets y eval runs para evaluar workflows de agentes.
+
+Debe evaluar:
+
+- identidad de cliente/proveedor/grupo
+- derivacion entre WhatsApps
+- creacion/fusion de casos
+- deteccion de pagos/deudas/reembolsos
+- cotizaciones
+- respuestas sugeridas
+- bloqueos por riesgo
+- aprendizaje aprobado/rechazado
+- accion fisica verificada
+
+Preguntas de razonamiento:
+
+- Que caso de prueba representa un fallo real anterior?
+- Que salida esperada debe producir la IA?
+- Que regresion no podemos permitir?
+- Que version mejoro y en que dominio empeoro?
+
+Prueba de aceptacion cognitiva:
+
+- Cada version importante tiene reporte de evals.
+- Un fallo repetido crea prueba nueva antes de volver a tocar codigo.
+
+### 23.3 Privacy & Data Governance
+
+Capacidad mental:
+
+Decidir que datos puede ver, guardar, mostrar, subir o compartir la IA.
+
+Motivo:
+
+OpenAI, Microsoft y OWASP alertan sobre fuga de datos, terceros, prompt injection y sobreexposicion de informacion sensible.
+
+Datos sensibles en AriadGSM:
+
+- telefonos
+- nombres reales
+- comprobantes
+- cuentas de pago
+- IMEI
+- credenciales
+- licencias
+- conversaciones privadas
+- precios internos
+- proveedores
+- saldos/deudas
+
+Preguntas de razonamiento:
+
+- Este dato es necesario para el caso?
+- Debe guardarse completo, resumido o redactado?
+- Puede subir a ariadgsm.com?
+- Puede aparecer en una respuesta al cliente?
+- Cuanto tiempo debe conservarse?
+- Que dato debe quedar solo local?
+
+Prueba de aceptacion cognitiva:
+
+- La IA no envia datos de un cliente a otro.
+- La nube no recibe secretos innecesarios.
+- Los reportes muestran lo suficiente para operar sin exponer de mas.
+
+### 23.4 Autonomous Cycle Orchestrator
+
+Capacidad mental:
+
+Gobernar el ciclo continuo de la IA: observar, entender, decidir, pedir permiso, actuar, verificar, aprender y recuperarse.
+
+Motivo:
+
+Microsoft Agent Framework separa agentes abiertos y workflows con checkpoints, estado y humano en el ciclo. AriadGSM necesita ambos.
+
+Estados del ciclo:
+
+```text
+IDLE
+OBSERVING
+UNDERSTANDING
+PLANNING
+WAITING_HUMAN
+ACTING
+VERIFYING
+LEARNING
+RECOVERING
+PAUSED_BY_OPERATOR
+FAILED_NEEDS_REVIEW
+```
+
+Preguntas de razonamiento:
+
+- En que estado estoy?
+- Que objetivo estoy persiguiendo?
+- Cual fue el ultimo checkpoint valido?
+- Puedo continuar o debo pausar?
+- Que pasa si Bryams toma el mouse?
+- Que accion se repitio demasiado?
+- Debo reintentar, cambiar estrategia o pedir ayuda?
+
+Prueba de aceptacion cognitiva:
+
+- La IA puede explicar en que estado esta y por que.
+- Si falla a medio flujo, retoma desde checkpoint o pide ayuda sin repetir acciones peligrosas.
+
+### 23.5 Human Collaboration
+
+Capacidad mental:
+
+Trabajar con Bryams como socio operativo, no solo pedir permiso.
+
+Debe poder:
+
+- presentar opciones
+- pedir aprobacion
+- explicar dudas
+- recibir correccion
+- aprender preferencias
+- recordar decisiones del operador
+- convertir correcciones en aprendizaje candidato
+
+Preguntas de razonamiento:
+
+- Que informacion necesita Bryams para decidir?
+- Puedo explicar esto en lenguaje humano?
+- Esta correccion cambia un caso, una politica, un precio, un proveedor o un procedimiento?
+- Debo aplicar la correccion solo ahora o convertirla en aprendizaje?
+
+Prueba de aceptacion cognitiva:
+
+- Cuando Bryams corrige, la IA muestra que entendio que cambio.
+- La misma correccion no debe repetirse como error en versiones futuras.
+
+### 23.6 External System Adapters / Anti-Corruption Layer
+
+Capacidad mental:
+
+Proteger el modelo AriadGSM de cambios, ruido y formatos raros de sistemas externos.
+
+Motivo:
+
+Microsoft DDD recomienda anti-corruption layers cuando un sistema externo puede filtrar su modelo o errores al dominio interno.
+
+Sistemas externos:
+
+- WhatsApp Web
+- Edge/Chrome/Firefox
+- herramientas GSM
+- USB Redirector
+- proveedores
+- OCR
+- ariadgsm.com
+- APIs futuras
+
+Preguntas de razonamiento:
+
+- Que significa este dato en lenguaje AriadGSM?
+- Es dato confiable, ruido o formato externo?
+- El cambio externo rompe el contrato interno?
+- Como traduzco error de herramienta a estado de caso?
+- Que parte debe corregirse en adapter y no en Business Brain?
+
+Prueba de aceptacion cognitiva:
+
+- Si WhatsApp cambia UI, no se contamina Customer/Case/Accounting.
+- Si una herramienta cambia mensaje de error, el adapter traduce a estados internos.
+
+## 24. Orden recomendado de construccion
 
 No empezar por mouse ni por UI.
 
@@ -1227,21 +1472,27 @@ Orden serio:
 
 ```text
 1. Domain Map validado.
-2. Case Manager.
-3. Channel Routing Brain.
-4. Accounting Core evidence-first.
-5. Customer/Provider Identity.
-6. Service Catalog + Tool Inventory.
-7. Pricing + Market Intelligence.
-8. Conversation Brain.
-9. Risk/Permission Matrix.
-10. Action Layer con verificacion.
-11. Learning Review.
-12. ariadgsm.com business cockpit.
-13. Evals y observabilidad por version.
+2. Domain Event Contracts.
+3. Autonomous Cycle Orchestrator.
+4. Case Manager.
+5. Channel Routing Brain.
+6. Accounting Core evidence-first.
+7. Customer/Provider Identity.
+8. Service Catalog + Tool Inventory.
+9. Pricing + Market Intelligence.
+10. Conversation Brain.
+11. Risk/Permission Matrix.
+12. Human Collaboration.
+13. Action Layer con verificacion.
+14. Learning Review.
+15. Evaluation Domain.
+16. Privacy & Data Governance.
+17. External System Adapters.
+18. ariadgsm.com business cockpit.
+19. Evals y observabilidad por version.
 ```
 
-## 24. Que no se debe hacer
+## 25. Que no se debe hacer
 
 No hacer:
 
@@ -1255,7 +1506,7 @@ No hacer:
 - Depender de la nube para cada decision en vivo.
 - Construir UI tecnica que Bryams no pueda entender.
 
-## 25. Prueba maestra de dominio
+## 26. Prueba maestra de dominio
 
 Un sistema AriadGSM correcto debe poder responder:
 
@@ -1278,18 +1529,22 @@ Como lo pruebo?
 
 Si no puede responder eso, todavia no es IA operativa de negocio.
 
-## 26. Primera version objetivo
+## 27. Primera version objetivo
 
 Version objetivo recomendada: `0.7.0-domain-core`
 
 Alcance:
 
+- Domain Event Contracts basicos.
+- Autonomous Cycle Orchestrator basico.
 - Case Manager basico.
 - Channel Routing basico para derivar/fusionar entre WhatsApps sin perder contexto.
 - Accounting drafts con evidencia.
 - Customer/Provider classification.
 - Service Catalog inicial.
 - Decision trace visible.
+- Human Collaboration basico.
+- Evaluation checklist inicial.
 - UI menos tecnica basada en negocio.
 
 Fuera de alcance para esa version:
@@ -1299,7 +1554,7 @@ Fuera de alcance para esa version:
 - Ejecucion tecnica completa sin permiso.
 - Contabilidad final sin revision.
 
-## 27. Conclusion
+## 28. Conclusion
 
 La estructura robusta no es:
 
