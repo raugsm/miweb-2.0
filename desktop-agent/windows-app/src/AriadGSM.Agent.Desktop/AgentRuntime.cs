@@ -743,6 +743,19 @@ internal sealed class AgentRuntime : IDisposable
         if (matches.Length == 1)
         {
             var window = matches[0];
+            if (FindCoveringWindow(window, windows) is { } coveringWindow)
+            {
+                return new ChannelReadiness(
+                    mapping,
+                    "COVERED_BY_WINDOW",
+                    false,
+                    true,
+                    false,
+                    $"{window.ProcessName} #{window.ProcessId} es {mapping.ChannelId}, pero '{coveringWindow.Title}' esta encima. No abrire otra ventana; primero libero o reporto esta zona.",
+                    [$"{window.ProcessName} #{window.ProcessId}: {window.Title}", $"Cubre: {coveringWindow.ProcessName} #{coveringWindow.ProcessId}: {coveringWindow.Title}"],
+                    window);
+            }
+
             var lines = ReadWindowAccessibilityLines(window.Handle, 260);
             if (DiagnoseWhatsAppBlocker(lines, window.Title) is { } blocker)
             {
@@ -801,11 +814,11 @@ internal sealed class AgentRuntime : IDisposable
 
             return new ChannelReadiness(
                 mapping,
-                "BROWSER_NOT_ON_WHATSAPP",
-                false,
+                "FIXED_BROWSER_NOT_ON_WHATSAPP",
                 false,
                 true,
-                $"{mapping.BrowserProcess} esta abierto, pero no veo web.whatsapp.com. Abrire una sola ventana WhatsApp y luego esperare.",
+                false,
+                $"{mapping.ChannelId} pertenece fijo a {mapping.BrowserProcess}, pero esa ventana no esta en WhatsApp. No abrire duplicados ni cambiare sesiones; deja ese navegador en web.whatsapp.com.",
                 [$"{window.ProcessName} #{window.ProcessId}: {window.Title}"],
                 window);
         }
@@ -868,10 +881,47 @@ internal sealed class AgentRuntime : IDisposable
         return null;
     }
 
+    private static WindowInfo? FindCoveringWindow(WindowInfo target, IReadOnlyList<WindowInfo> windows)
+    {
+        return windows
+            .Where(window => window.ZOrder < target.ZOrder)
+            .Where(window => !window.ProcessName.Equals(target.ProcessName, StringComparison.OrdinalIgnoreCase)
+                || window.ProcessId != target.ProcessId)
+            .Where(window => !IsIgnoredCoverageWindow(window))
+            .Where(window => OverlapRatio(window.Bounds, target.Bounds) >= 0.20)
+            .OrderBy(window => window.ZOrder)
+            .FirstOrDefault();
+    }
+
+    private static bool IsIgnoredCoverageWindow(WindowInfo window)
+    {
+        return window.ProcessName.Equals("TextInputHost", StringComparison.OrdinalIgnoreCase)
+            || window.ProcessName.Equals("ShellExperienceHost", StringComparison.OrdinalIgnoreCase)
+            || window.ProcessName.Equals("AriadGSM Agent", StringComparison.OrdinalIgnoreCase)
+            || window.Title.Equals("Program Manager", StringComparison.OrdinalIgnoreCase)
+            || window.Title.Contains("AriadGSM IA Local", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static double OverlapRatio(WindowBounds a, WindowBounds b)
+    {
+        if (a.Width <= 0 || a.Height <= 0 || b.Width <= 0 || b.Height <= 0)
+        {
+            return 0;
+        }
+
+        var left = Math.Max(a.Left, b.Left);
+        var top = Math.Max(a.Top, b.Top);
+        var right = Math.Min(a.Left + a.Width, b.Left + b.Width);
+        var bottom = Math.Min(a.Top + a.Height, b.Top + b.Height);
+        var width = Math.Max(0, right - left);
+        var height = Math.Max(0, bottom - top);
+        var intersection = width * height;
+        return intersection / (double)Math.Max(1, b.Width * b.Height);
+    }
+
     private bool TryAutoRecoverChannel(ChannelMapping mapping, IReadOnlyList<WindowInfo> windows, string status)
     {
-        var window = FindMatchingWindows(windows, mapping).FirstOrDefault()
-            ?? FindBrowserWindows(windows, mapping).FirstOrDefault();
+        var window = FindMatchingWindows(windows, mapping).FirstOrDefault();
         if (window is null)
         {
             return false;
@@ -885,62 +935,27 @@ internal sealed class AgentRuntime : IDisposable
         {
         }
 
-        var buttons = status switch
+        if (status.Equals("COVERED_BY_WINDOW", StringComparison.OrdinalIgnoreCase))
         {
-            "PROFILE_ERROR" => new[] { "aceptar", "ok", "accept" },
-            "NEEDS_USE_HERE" => new[] { "usar aqui", "use here" },
-            _ => []
-        };
-        return buttons.Length > 0 && TryInvokeAutomationButton(window.Handle, buttons);
+            try
+            {
+                _ = SetWindowPos(window.Handle, HwndTop, window.Bounds.Left, window.Bounds.Top, window.Bounds.Width, window.Bounds.Height, SetWindowPosShowWindow);
+                _ = BringWindowToTop(window.Handle);
+                _ = SetForegroundWindow(window.Handle);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsAutoRecoverableCabinStatus(string status)
     {
-        return status.Equals("PROFILE_ERROR", StringComparison.OrdinalIgnoreCase)
-            || status.Equals("NEEDS_USE_HERE", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool TryInvokeAutomationButton(IntPtr handle, IReadOnlyList<string> normalizedNames)
-    {
-        try
-        {
-            var root = AutomationElement.FromHandle(handle);
-            if (root is null)
-            {
-                return false;
-            }
-
-            var nodes = root.FindAll(TreeScope.Descendants, System.Windows.Automation.Condition.TrueCondition);
-            for (var index = 0; index < nodes.Count; index++)
-            {
-                var element = nodes[index];
-                var controlType = SafeRead(() => element.Current.ControlType);
-                if (controlType is not null && controlType != ControlType.Button)
-                {
-                    continue;
-                }
-
-                var name = NormalizeForSearch(ReadAutomationElementText(element));
-                if (string.IsNullOrWhiteSpace(name)
-                    || !normalizedNames.Any(item => name.Equals(item, StringComparison.OrdinalIgnoreCase)
-                        || name.Contains(item, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                if (element.TryGetCurrentPattern(InvokePattern.Pattern, out var pattern)
-                    && pattern is InvokePattern invoke)
-                {
-                    invoke.Invoke();
-                    return true;
-                }
-            }
-        }
-        catch
-        {
-        }
-
-        return false;
+        return status.Equals("COVERED_BY_WINDOW", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool LooksLikeWhatsAppReady(IReadOnlyList<string> lines, string title)
@@ -2187,17 +2202,9 @@ internal sealed class AgentRuntime : IDisposable
             arguments.Add($"--profile-directory={mapping.ProfileDirectory}");
         }
 
-        if (normalized.Equals("msedge", StringComparison.OrdinalIgnoreCase)
-            || normalized.Equals("chrome", StringComparison.OrdinalIgnoreCase))
-        {
-            arguments.Add($"--app={url}");
-            return arguments;
-        }
-
-        if (normalized.Equals("firefox", StringComparison.OrdinalIgnoreCase))
-        {
-            arguments.Add("-new-window");
-        }
+        arguments.Add(normalized.Equals("firefox", StringComparison.OrdinalIgnoreCase)
+            ? "-new-window"
+            : "--new-window");
 
         arguments.Add(url);
         return arguments;
