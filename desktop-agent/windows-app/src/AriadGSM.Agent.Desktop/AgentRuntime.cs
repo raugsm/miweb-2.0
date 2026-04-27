@@ -656,6 +656,7 @@ internal sealed partial class AgentRuntime : IDisposable
         var deadline = DateTimeOffset.Now + timeout;
         var launchAttempts = ReadChannelMappings()
             .ToDictionary(item => item.ChannelId, _ => 0, StringComparer.OrdinalIgnoreCase);
+        var arrangedOnce = false;
         WriteLog("Cabin setup orchestrator: preparing WhatsApp 1/2/3.");
         WriteStatusBusState("preparing", "observe_channels", "Revisando Edge, Chrome y Firefox antes de mover algo.", []);
         progress?.Report(new CabinSetupProgress(
@@ -678,8 +679,13 @@ internal sealed partial class AgentRuntime : IDisposable
 
             if (readiness.All(item => item.IsReady))
             {
-                PublishCabinSetup(progress, "preparing", "arrange_windows", 82, readiness, "Los 3 WhatsApps estan vivos. Estoy acomodando la cabina.");
-                ArrangeWhatsAppWorkspace();
+                if (!arrangedOnce)
+                {
+                    arrangedOnce = true;
+                    PublishCabinSetup(progress, "preparing", "arrange_windows", 82, readiness, "Los 3 WhatsApps estan vivos. Estoy acomodando la cabina una sola vez.");
+                    ArrangeWhatsAppWorkspace();
+                }
+
                 var arrangedReadiness = ReadChannelMappings()
                     .Select(mapping => EvaluateChannelReadiness(mapping, VisibleWindows()))
                     .ToArray();
@@ -688,20 +694,12 @@ internal sealed partial class AgentRuntime : IDisposable
                 return Preflight();
             }
 
-            var recovered = false;
-            foreach (var item in readiness.Where(item => IsAutoRecoverableCabinStatus(item.Status)))
+            if (!arrangedOnce && readiness.Any(item => item.Status.Equals("COVERED_BY_WINDOW", StringComparison.OrdinalIgnoreCase)))
             {
-                if (TryAutoRecoverChannel(item.Mapping, windows, item.Status))
-                {
-                    recovered = true;
-                    WriteLog($"{item.ChannelId}: cabin auto-recovered {item.Status}.");
-                }
-            }
-
-            if (recovered)
-            {
-                PublishCabinSetup(progress, "preparing", "recover_window", 38, readiness, "Una ventana estaba tapada. La traje al frente y vuelvo a validar.");
-                await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                arrangedOnce = true;
+                PublishCabinSetup(progress, "preparing", "arrange_windows", 48, readiness, "Detecte ventanas superpuestas. Acomodo la cabina una vez y vuelvo a validar.");
+                ArrangeWhatsAppWorkspace();
+                await Task.Delay(TimeSpan.FromMilliseconds(1200)).ConfigureAwait(false);
                 continue;
             }
 
@@ -766,7 +764,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
                 if (attempts >= 1)
                 {
-                    WriteLog($"{item.ChannelId}: dedicated WhatsApp already launched once; waiting instead of opening more windows. {item.Detail}");
+                    WriteLog($"{item.ChannelId}: WhatsApp Web already launched once; waiting instead of opening more windows. {item.Detail}");
                     continue;
                 }
 
@@ -796,7 +794,11 @@ internal sealed partial class AgentRuntime : IDisposable
             [],
             false,
             false));
-        ArrangeWhatsAppWorkspace();
+        if (!arrangedOnce)
+        {
+            ArrangeWhatsAppWorkspace();
+        }
+
         var finalReport = Preflight();
         var stillMissing = finalReport.Items
             .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase)
@@ -920,7 +922,6 @@ internal sealed partial class AgentRuntime : IDisposable
 
         try
         {
-            Directory.CreateDirectory(ResolveCabinProfileDirectory(mapping));
             var startInfo = new ProcessStartInfo
             {
                 FileName = browser,
@@ -933,7 +934,7 @@ internal sealed partial class AgentRuntime : IDisposable
             }
 
             Process.Start(startInfo);
-            WriteLog($"{mapping.ChannelId}: opening dedicated WhatsApp session in {mapping.BrowserProcess} profile {ResolveCabinProfileDirectory(mapping)} with {browser}. Reason: {reason}");
+            WriteLog($"{mapping.ChannelId}: opening WhatsApp Web in {mapping.BrowserProcess} with {browser}. Reason: {reason}");
             return true;
         }
         catch (Exception exception)
@@ -1032,13 +1033,25 @@ internal sealed partial class AgentRuntime : IDisposable
 
             return new ChannelReadiness(
                 mapping,
-                "BROWSER_BUSY_OPEN_DEDICATED",
+                "BROWSER_BUSY_OPEN_WEB",
                 false,
                 false,
                 true,
-                $"{mapping.ChannelId} pertenece a {mapping.BrowserProcess}, pero la ventana visible esta ocupada con otra pagina. Abrire o recuperare una sesion dedicada AriadGSM sin cerrar tu navegador.",
+                $"{mapping.ChannelId} pertenece a {mapping.BrowserProcess}, pero la ventana visible esta ocupada con otra pagina. Primero buscare pestana WhatsApp; si no existe, abrire web.whatsapp.com en ese navegador.",
                 [$"{window.ProcessName} #{window.ProcessId}: {window.Title}"],
                 window);
+        }
+
+        if (IsBrowserProcessRunning(mapping.BrowserProcess))
+        {
+            return new ChannelReadiness(
+                mapping,
+                "BROWSER_RUNNING_NO_VISIBLE_WHATSAPP",
+                false,
+                false,
+                true,
+                $"{mapping.BrowserProcess} esta abierto, pero no veo una ventana WhatsApp Web visible. Buscare pestanas y, si no hay, abrire web.whatsapp.com en ese navegador.",
+                []);
         }
 
         var browser = ResolveBrowser(mapping.BrowserProcess);
@@ -1060,7 +1073,7 @@ internal sealed partial class AgentRuntime : IDisposable
             false,
             false,
             true,
-            $"No veo {mapping.BrowserProcess}. Abrire una sesion dedicada de web.whatsapp.com.",
+            $"No veo {mapping.BrowserProcess} con WhatsApp Web. Abrire web.whatsapp.com en ese navegador, no la app instalada.",
             []);
     }
 
@@ -2450,22 +2463,25 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         var normalized = NormalizeProcessName(mapping.BrowserProcess);
         var arguments = new List<string>();
-        var dedicatedProfile = ResolveCabinProfileDirectory(mapping);
 
         if (normalized.Equals("msedge", StringComparison.OrdinalIgnoreCase)
             || normalized.Equals("chrome", StringComparison.OrdinalIgnoreCase))
         {
-            arguments.Add($"--user-data-dir={dedicatedProfile}");
+            arguments.Add("--new-window");
             arguments.Add("--no-first-run");
             arguments.Add("--disable-session-crashed-bubble");
-            arguments.Add($"--app={WhatsAppWebUrl}");
+            arguments.Add("--disable-features=DesktopPWAsLinkCapturing");
+            if (!string.IsNullOrWhiteSpace(mapping.ProfileDirectory))
+            {
+                arguments.Add($"--profile-directory={mapping.ProfileDirectory}");
+            }
+
+            arguments.Add(WhatsAppWebUrl);
             return arguments;
         }
 
         if (normalized.Equals("firefox", StringComparison.OrdinalIgnoreCase))
         {
-            arguments.Add("-profile");
-            arguments.Add(dedicatedProfile);
             arguments.Add("-new-window");
             arguments.Add(WhatsAppWebUrl);
             return arguments;
@@ -2809,7 +2825,8 @@ internal sealed partial class AgentRuntime : IDisposable
         var process = NormalizeProcessName(mapping.BrowserProcess);
         return windows.Where(window =>
             NormalizeProcessName(window.ProcessName).Equals(process, StringComparison.OrdinalIgnoreCase)
-            && window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase))
+            && (window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase)
+                || LooksLikeWhatsAppWindowTitle(window.Title)))
             .OrderBy(window => window.ZOrder);
     }
 
@@ -2818,8 +2835,26 @@ internal sealed partial class AgentRuntime : IDisposable
         var process = NormalizeProcessName(mapping.BrowserProcess);
         return windows.Where(window =>
             NormalizeProcessName(window.ProcessName).Equals(process, StringComparison.OrdinalIgnoreCase)
-            && !window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase))
+            && !window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase)
+            && !LooksLikeWhatsAppWindowTitle(window.Title))
             .OrderBy(window => window.ZOrder);
+    }
+
+    private static bool LooksLikeWhatsAppWindowTitle(string title)
+    {
+        return NormalizeForSearch(title).Contains("whatsapp", StringComparison.Ordinal);
+    }
+
+    private static bool IsBrowserProcessRunning(string processName)
+    {
+        try
+        {
+            return Process.GetProcessesByName(NormalizeProcessName(processName)).Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static IReadOnlyList<WindowInfo> VisibleWindows()

@@ -46,7 +46,9 @@ internal sealed partial class AgentRuntime
                     "wa-3=Firefox WhatsApp 3",
                     "No cierro navegadores del operador",
                     "Primero busco ventanas o pestanas existentes",
-                    "Solo abro una sesion nueva si no encuentro una existente",
+                    "Solo abro web.whatsapp.com en el navegador asignado si no encuentro una existente",
+                    "No uso WhatsApp instalado ni ventanas PWA",
+                    "Acomodo la cabina una sola vez por alistamiento",
                     "Si un canal falla, arranco en modo degradado con los canales listos"
                 }
             };
@@ -76,8 +78,8 @@ internal sealed partial class AgentRuntime
                     ["titleContains"] = mapping.TitleContains,
                     ["legacyProfileDirectory"] = mapping.ProfileDirectory,
                     ["dedicatedProfileDirectory"] = CabinProfileDirectory(mapping),
-                    ["launchMode"] = "dedicated_window",
-                    ["allowOperatorBrowserReuse"] = false
+                    ["launchMode"] = "browser_window",
+                    ["allowOperatorBrowserReuse"] = true
                 }).ToArray()
             };
             WriteAllTextAtomicShared(_cabinChannelRegistryFile, JsonSerializer.Serialize(registry, new JsonSerializerOptions { WriteIndented = true }));

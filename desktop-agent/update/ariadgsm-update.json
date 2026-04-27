@@ -1,8 +1,8 @@
 {
-  "version": "0.5.27",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.27.zip",
-  "sha256": "5055f9e2a5fb409571248438cf7a50f3fca8786b4bfb699190e34c5617d19120",
+  "version": "0.5.28",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.28.zip",
+  "sha256": "5758f31862bb604ca36ee36268bc7b7bac47c8ab84949833c22af4dcd5211d4e",
   "autoApply": true,
-  "notes": "Adds Cabin Setup Orchestrator. Alistar WhatsApps now stays visible, pauses engines, shows real progress, tracks each channel independently, searches existing sessions first, opens only missing WhatsApps, validates, arranges, and reports ready/partial/blocked before IA start.",
-  "publishedAt": "2026-04-27T18:56:31Z"
+  "notes": "Stabilizes cabin setup: Edge=wa-1, Chrome=wa-2, Firefox=wa-3 are found as browser WhatsApp Web windows first; missing channels open web.whatsapp.com in the assigned browser only, not the installed WhatsApp/PWA. Setup arranges windows once, keeps the control center visible, hides partial cabin until Alistar WhatsApps is pressed, and shows monotonic 0-100 progress.",
+  "publishedAt": "2026-04-27T19:27:07Z"
 }

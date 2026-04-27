@@ -30,10 +30,14 @@ internal sealed class MainForm : Form
     private readonly Label _versionLabel = new();
     private readonly Label _summaryLabel = new();
     private readonly Label _assistantDetailLabel = new();
+    private readonly TableLayoutPanel _dashboardRoot = new();
+    private readonly TableLayoutPanel _cabinSetupPanel = new();
     private readonly Label _cabinSetupTitleLabel = new();
     private readonly Label _cabinSetupDetailLabel = new();
     private readonly Label _cabinSetupChannelsLabel = new();
-    private readonly ProgressBar _cabinSetupProgress = new();
+    private readonly Panel _cabinSetupProgressTrack = new();
+    private readonly Panel _cabinSetupProgressFill = new();
+    private readonly Label _cabinSetupPercentLabel = new();
     private readonly Label _whatsAppStatusLabel = new();
     private readonly Label _learningStatusLabel = new();
     private readonly Label _accountingStatusLabel = new();
@@ -60,6 +64,7 @@ internal sealed class MainForm : Form
     private IReadOnlyList<HealthItem> _cachedHealth = [];
     private DateTimeOffset _lastHeavyRefreshAt = DateTimeOffset.MinValue;
     private bool _cabinSetupActive;
+    private int _cabinSetupMaxProgress;
     private string RememberedLoginFile => Path.Combine(_runtime.RuntimeDir, "desktop-login.json");
 
     public MainForm(string[] args)
@@ -115,26 +120,23 @@ internal sealed class MainForm : Form
         Height = 820;
         MinimumSize = new Size(940, 680);
         StartPosition = FormStartPosition.CenterScreen;
-        Font = new Font("Segoe UI", 10);
-        BackColor = Color.FromArgb(239, 247, 255);
+        Font = new Font("Segoe UI Variable Text", 10);
+        BackColor = Color.FromArgb(235, 243, 252);
         BuildLoginUi();
 
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new Padding(18),
-            RowCount = 6,
-            ColumnCount = 1
-        };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 56));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
+        _dashboardRoot.Dock = DockStyle.Fill;
+        _dashboardRoot.Padding = new Padding(18);
+        _dashboardRoot.RowCount = 6;
+        _dashboardRoot.ColumnCount = 1;
+        _dashboardRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        _dashboardRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        _dashboardRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
+        _dashboardRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));
+        _dashboardRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 56));
+        _dashboardRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
         _dashboardPanel.Dock = DockStyle.Fill;
         _dashboardPanel.Visible = false;
-        _dashboardPanel.Controls.Add(root);
+        _dashboardPanel.Controls.Add(_dashboardRoot);
         Controls.Add(_dashboardPanel);
         Controls.Add(_loginPanel);
         _loginPanel.BringToFront();
@@ -145,7 +147,7 @@ internal sealed class MainForm : Form
             BackColor = Color.White,
             Padding = new Padding(18)
         };
-        root.Controls.Add(header, 0, 0);
+        _dashboardRoot.Controls.Add(header, 0, 0);
 
         var logoPath = Path.Combine(AppContext.BaseDirectory, "assets", "ariadgsm-logo.jpg");
         if (File.Exists(logoPath))
@@ -165,7 +167,7 @@ internal sealed class MainForm : Form
         {
             Text = "AriadGSM IA Local",
             ForeColor = Color.FromArgb(12, 79, 170),
-            Font = new Font("Segoe UI", 20, FontStyle.Bold),
+            Font = new Font("Segoe UI Variable Display", 20, FontStyle.Bold),
             AutoSize = true,
             Location = new Point(260, 16)
         };
@@ -173,20 +175,20 @@ internal sealed class MainForm : Form
         {
             Text = "Tu asistente local para WhatsApp, aprendizaje del negocio y contabilidad",
             ForeColor = Color.FromArgb(58, 82, 112),
-            Font = new Font("Segoe UI", 10, FontStyle.Regular),
+            Font = new Font("Segoe UI Variable Text", 10, FontStyle.Regular),
             AutoSize = true,
             Location = new Point(262, 58)
         };
         _versionBadge.Text = $"Version {_runtime.CurrentVersion}";
         _versionBadge.ForeColor = Color.White;
         _versionBadge.BackColor = Color.FromArgb(24, 120, 242);
-        _versionBadge.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+        _versionBadge.Font = new Font("Segoe UI Variable Text", 10, FontStyle.Bold);
         _versionBadge.TextAlign = ContentAlignment.MiddleCenter;
         _versionBadge.Location = new Point(790, 18);
         _versionBadge.Size = new Size(132, 30);
         _versionLabel.Text = $"{_runtime.VersionSummary}";
         _versionLabel.ForeColor = Color.FromArgb(73, 114, 170);
-        _versionLabel.Font = new Font("Segoe UI", 8, FontStyle.Regular);
+        _versionLabel.Font = new Font("Segoe UI Variable Text", 8, FontStyle.Regular);
         _versionLabel.AutoEllipsis = true;
         _versionLabel.Location = new Point(262, 82);
         _versionLabel.Size = new Size(650, 22);
@@ -209,7 +211,7 @@ internal sealed class MainForm : Form
             WrapContents = true,
             Padding = new Padding(0, 12, 0, 0)
         };
-        root.Controls.Add(buttons, 0, 1);
+        _dashboardRoot.Controls.Add(buttons, 0, 1);
 
         ConfigureButton(_startButton, "Encender IA", Color.FromArgb(24, 120, 242));
         ConfigureButton(_stopButton, "Pausar IA", Color.FromArgb(205, 61, 61));
@@ -228,48 +230,57 @@ internal sealed class MainForm : Form
             _diagnoseButton
         ]);
 
-        var cabinSetupPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            RowCount = 2,
-            ColumnCount = 2,
-            BackColor = Color.White,
-            Padding = new Padding(16, 10, 16, 10),
-            Margin = new Padding(0, 0, 0, 8)
-        };
-        cabinSetupPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
-        cabinSetupPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
-        cabinSetupPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        cabinSetupPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.Controls.Add(cabinSetupPanel, 0, 2);
+        _cabinSetupPanel.Dock = DockStyle.Fill;
+        _cabinSetupPanel.RowCount = 2;
+        _cabinSetupPanel.ColumnCount = 2;
+        _cabinSetupPanel.BackColor = Color.White;
+        _cabinSetupPanel.Padding = new Padding(16, 10, 16, 10);
+        _cabinSetupPanel.Margin = new Padding(0, 0, 0, 8);
+        _cabinSetupPanel.Visible = false;
+        _cabinSetupPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
+        _cabinSetupPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+        _cabinSetupPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        _cabinSetupPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _dashboardRoot.Controls.Add(_cabinSetupPanel, 0, 2);
 
         _cabinSetupTitleLabel.Text = "Cabina WhatsApp";
         _cabinSetupTitleLabel.Dock = DockStyle.Fill;
-        _cabinSetupTitleLabel.Font = new Font("Segoe UI", 13, FontStyle.Bold);
+        _cabinSetupTitleLabel.Font = new Font("Segoe UI Variable Display", 13, FontStyle.Bold);
         _cabinSetupTitleLabel.ForeColor = Color.FromArgb(12, 79, 170);
         _cabinSetupTitleLabel.TextAlign = ContentAlignment.MiddleLeft;
-        cabinSetupPanel.Controls.Add(_cabinSetupTitleLabel, 0, 0);
+        _cabinSetupPanel.Controls.Add(_cabinSetupTitleLabel, 0, 0);
 
-        _cabinSetupProgress.Dock = DockStyle.Fill;
-        _cabinSetupProgress.Minimum = 0;
-        _cabinSetupProgress.Maximum = 100;
-        _cabinSetupProgress.Style = ProgressBarStyle.Continuous;
-        _cabinSetupProgress.Value = 0;
-        cabinSetupPanel.Controls.Add(_cabinSetupProgress, 1, 0);
+        _cabinSetupProgressTrack.Dock = DockStyle.Fill;
+        _cabinSetupProgressTrack.BackColor = Color.FromArgb(224, 235, 249);
+        _cabinSetupProgressTrack.Margin = new Padding(0, 8, 0, 6);
+        _cabinSetupProgressTrack.Padding = new Padding(0);
+        _cabinSetupProgressTrack.Controls.Add(_cabinSetupProgressFill);
+        _cabinSetupProgressTrack.Controls.Add(_cabinSetupPercentLabel);
+        _cabinSetupProgressTrack.Resize += (_, _) => RenderCabinProgressBar();
+        _cabinSetupProgressFill.BackColor = Color.FromArgb(24, 120, 242);
+        _cabinSetupProgressFill.Dock = DockStyle.Left;
+        _cabinSetupProgressFill.Width = 0;
+        _cabinSetupPercentLabel.Dock = DockStyle.Fill;
+        _cabinSetupPercentLabel.Text = "0%";
+        _cabinSetupPercentLabel.TextAlign = ContentAlignment.MiddleCenter;
+        _cabinSetupPercentLabel.ForeColor = Color.FromArgb(12, 79, 170);
+        _cabinSetupPercentLabel.Font = new Font("Segoe UI Variable Text", 9, FontStyle.Bold);
+        _cabinSetupPercentLabel.BringToFront();
+        _cabinSetupPanel.Controls.Add(_cabinSetupProgressTrack, 1, 0);
 
         _cabinSetupDetailLabel.Text = "Pulsa Alistar WhatsApps para preparar Edge, Chrome y Firefox antes de encender la IA.";
         _cabinSetupDetailLabel.Dock = DockStyle.Fill;
-        _cabinSetupDetailLabel.Font = new Font("Segoe UI", 9, FontStyle.Regular);
+        _cabinSetupDetailLabel.Font = new Font("Segoe UI Variable Text", 9, FontStyle.Regular);
         _cabinSetupDetailLabel.ForeColor = Color.FromArgb(58, 82, 112);
         _cabinSetupDetailLabel.TextAlign = ContentAlignment.TopLeft;
-        cabinSetupPanel.Controls.Add(_cabinSetupDetailLabel, 0, 1);
+        _cabinSetupPanel.Controls.Add(_cabinSetupDetailLabel, 0, 1);
 
         _cabinSetupChannelsLabel.Text = "wa-1 Edge: esperando | wa-2 Chrome: esperando | wa-3 Firefox: esperando";
         _cabinSetupChannelsLabel.Dock = DockStyle.Fill;
-        _cabinSetupChannelsLabel.Font = new Font("Segoe UI", 9, FontStyle.Regular);
+        _cabinSetupChannelsLabel.Font = new Font("Segoe UI Variable Text", 9, FontStyle.Regular);
         _cabinSetupChannelsLabel.ForeColor = Color.FromArgb(35, 55, 82);
         _cabinSetupChannelsLabel.TextAlign = ContentAlignment.TopLeft;
-        cabinSetupPanel.Controls.Add(_cabinSetupChannelsLabel, 1, 1);
+        _cabinSetupPanel.Controls.Add(_cabinSetupChannelsLabel, 1, 1);
 
         var problemPanel = new TableLayoutPanel
         {
@@ -280,7 +291,7 @@ internal sealed class MainForm : Form
         };
         problemPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
         problemPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
-        root.Controls.Add(problemPanel, 0, 3);
+        _dashboardRoot.Controls.Add(problemPanel, 0, 3);
 
         var assistantPanel = new TableLayoutPanel
         {
@@ -297,13 +308,13 @@ internal sealed class MainForm : Form
         problemPanel.Controls.Add(assistantPanel, 0, 0);
 
         _summaryLabel.Dock = DockStyle.Fill;
-        _summaryLabel.Font = new Font("Segoe UI", 16, FontStyle.Bold);
+        _summaryLabel.Font = new Font("Segoe UI Variable Display", 16, FontStyle.Bold);
         _summaryLabel.ForeColor = Color.FromArgb(12, 79, 170);
         _summaryLabel.TextAlign = ContentAlignment.MiddleLeft;
         assistantPanel.Controls.Add(_summaryLabel, 0, 0);
 
         _assistantDetailLabel.Dock = DockStyle.Fill;
-        _assistantDetailLabel.Font = new Font("Segoe UI", 10, FontStyle.Regular);
+        _assistantDetailLabel.Font = new Font("Segoe UI Variable Text", 10, FontStyle.Regular);
         _assistantDetailLabel.ForeColor = Color.FromArgb(58, 82, 112);
         _assistantDetailLabel.TextAlign = ContentAlignment.MiddleLeft;
         assistantPanel.Controls.Add(_assistantDetailLabel, 0, 1);
@@ -366,7 +377,7 @@ internal sealed class MainForm : Form
         _healthList.Columns.Add("Estado", 100);
         _healthList.Columns.Add("Resumen", 690);
         EnableDoubleBuffering(_healthList);
-        root.Controls.Add(_healthList, 0, 4);
+        _dashboardRoot.Controls.Add(_healthList, 0, 4);
 
         var activityPanel = new TableLayoutPanel
         {
@@ -377,7 +388,7 @@ internal sealed class MainForm : Form
         };
         activityPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         activityPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.Controls.Add(activityPanel, 0, 5);
+        _dashboardRoot.Controls.Add(activityPanel, 0, 5);
 
         var activityTitle = new Label
         {
@@ -701,7 +712,7 @@ internal sealed class MainForm : Form
         button.FlatStyle = FlatStyle.Flat;
         button.BackColor = color;
         button.ForeColor = Color.White;
-        button.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        button.Font = new Font("Segoe UI Variable Text", 9, FontStyle.Bold);
         button.FlatAppearance.BorderSize = 0;
         button.Margin = new Padding(0, 0, 9, 0);
     }
@@ -1058,6 +1069,9 @@ internal sealed class MainForm : Form
     {
         AppendLog("Alistando WhatsApps: pauso motores, localizo sesiones abiertas, acomodo cabina y valido antes de encender IA.");
         _cabinSetupActive = true;
+        _cabinSetupMaxProgress = 0;
+        SetCabinSetupVisible(true);
+        SetCabinProgressValue(0);
         TopMost = true;
         BringControlCenterToFront();
         _runtime.Stop("prepare_whatsapps");
@@ -1083,6 +1097,8 @@ internal sealed class MainForm : Form
         finally
         {
             _cabinSetupActive = false;
+            BringControlCenterToFront();
+            await Task.Delay(120).ConfigureAwait(true);
             TopMost = false;
             BringControlCenterToFront();
         }
@@ -1129,7 +1145,7 @@ internal sealed class MainForm : Form
         _summaryLabel.Text = BuildHumanHeadline(isRunning, errors.Length, warnings.Length);
         _assistantDetailLabel.Text = BuildHumanSubtitle(isRunning);
         UpdateMetricCards(preflight);
-        if (!_cabinSetupActive)
+        if (!_cabinSetupActive && _cabinSetupPanel.Visible)
         {
             UpdateCabinSetupFromState();
         }
@@ -1142,7 +1158,8 @@ internal sealed class MainForm : Form
 
     private void UpdateCabinSetupProgress(CabinSetupProgress progress)
     {
-        _cabinSetupProgress.Value = Math.Clamp(progress.Percent, _cabinSetupProgress.Minimum, _cabinSetupProgress.Maximum);
+        SetCabinSetupVisible(true);
+        SetCabinProgressValue(progress.Percent);
         _cabinSetupTitleLabel.Text = progress.IsReady
             ? "Cabina lista"
             : progress.CanStart
@@ -1153,11 +1170,16 @@ internal sealed class MainForm : Form
             Environment.NewLine,
             progress.Channels.Select(channel => $"{channel.ChannelId} {BrowserLabel(channel.Browser)}: {HumanChannelStatus(channel.Status)}"));
         _startButton.Enabled = progress.CanStart || !_cabinSetupActive;
-        Application.DoEvents();
+        _cabinSetupPanel.Refresh();
     }
 
     private void UpdateCabinSetupFromState()
     {
+        if (!_cabinSetupPanel.Visible)
+        {
+            return;
+        }
+
         var workspaceProgress = StateNumber("workspace-setup-state.json", "progress");
         var summary = StateText("cabin-manager-state.json", "summary");
         if (string.IsNullOrWhiteSpace(summary))
@@ -1167,7 +1189,7 @@ internal sealed class MainForm : Form
 
         if (workspaceProgress > 0)
         {
-            _cabinSetupProgress.Value = Math.Clamp(workspaceProgress, _cabinSetupProgress.Minimum, _cabinSetupProgress.Maximum);
+            SetCabinProgressValue(workspaceProgress);
         }
 
         if (!string.IsNullOrWhiteSpace(summary))
@@ -1188,6 +1210,33 @@ internal sealed class MainForm : Form
                     ? "Cabina parcial"
                     : "Cabina pendiente";
         }
+    }
+
+    private void SetCabinSetupVisible(bool visible)
+    {
+        if (_cabinSetupPanel.Visible == visible)
+        {
+            return;
+        }
+
+        _cabinSetupPanel.Visible = visible;
+        _dashboardRoot.RowStyles[2].Height = visible ? 96 : 0;
+        _dashboardRoot.PerformLayout();
+    }
+
+    private void SetCabinProgressValue(int value)
+    {
+        _cabinSetupMaxProgress = Math.Clamp(Math.Max(_cabinSetupMaxProgress, value), 0, 100);
+        _cabinSetupPercentLabel.Text = $"{_cabinSetupMaxProgress}%";
+        RenderCabinProgressBar();
+    }
+
+    private void RenderCabinProgressBar()
+    {
+        var width = Math.Max(0, _cabinSetupProgressTrack.ClientSize.Width);
+        var fillWidth = (int)Math.Round(width * (_cabinSetupMaxProgress / 100.0));
+        _cabinSetupProgressFill.Width = Math.Clamp(fillWidth, 0, width);
+        _cabinSetupPercentLabel.BringToFront();
     }
 
     private CabinSetupChannelProgress[] CabinChannelsFromState()
@@ -1242,7 +1291,8 @@ internal sealed class MainForm : Form
             "OPENING_MISSING_SESSION" => "abriendo WhatsApp Web",
             "VALIDATING" => "validando",
             "NOT_OPEN" => "no abierto",
-            "BROWSER_BUSY_OPEN_DEDICATED" => "navegador ocupado",
+            "BROWSER_BUSY_OPEN_WEB" => "navegador ocupado",
+            "BROWSER_RUNNING_NO_VISIBLE_WHATSAPP" => "navegador abierto sin WhatsApp visible",
             "LOADING_OR_UNKNOWN" => "cargando",
             "COVERED_BY_WINDOW" => "tapado por otra ventana",
             "NEEDS_USE_HERE" => "necesita Usar aqui",
@@ -1272,7 +1322,8 @@ internal sealed class MainForm : Form
     private string BuildHumanSubtitle(bool isRunning)
     {
         var statusBus = StateText("status-bus-state.json", "summary");
-        if (!string.IsNullOrWhiteSpace(statusBus))
+        var statusPhase = StateText("status-bus-state.json", "phase");
+        if (!string.IsNullOrWhiteSpace(statusBus) && (_cabinSetupPanel.Visible || !IsCabinSetupPhase(statusPhase)))
         {
             return statusBus;
         }
@@ -1286,6 +1337,22 @@ internal sealed class MainForm : Form
         return isRunning
             ? "Estoy mirando WhatsApp, guardando memoria y avisando si algo necesita permiso."
             : $"Hola {_operatorName}. Cuando presiones Encender IA preparo WhatsApp, miro, aprendo y sincronizo.";
+    }
+
+    private static bool IsCabinSetupPhase(string phase)
+    {
+        return phase.Equals("observe_channels", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("classify_channels", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("locate_existing_session", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("open_missing_channels", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("validate_channels", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("arrange_windows", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("human_required", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("human_required_degraded", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("partial_ready", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("ready", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("degraded", StringComparison.OrdinalIgnoreCase)
+            || phase.Equals("attention", StringComparison.OrdinalIgnoreCase);
     }
 
     private void UpdateMetricCards(PreflightReport preflight)
@@ -1351,13 +1418,14 @@ internal sealed class MainForm : Form
         var ready = whatsappItems.Count(item => item.Severity == HealthSeverity.Ok);
         lines.Add($"WhatsApps: {ready}/{Math.Max(3, whatsappItems.Length)} canales listos para leer.");
         var cabinSummary = StateText("cabin-manager-state.json", "summary");
-        if (!string.IsNullOrWhiteSpace(cabinSummary))
+        if (_cabinSetupPanel.Visible && !string.IsNullOrWhiteSpace(cabinSummary))
         {
             lines.Add($"Cabina: {cabinSummary}");
         }
 
         var statusBus = StateText("status-bus-state.json", "summary");
-        if (!string.IsNullOrWhiteSpace(statusBus))
+        var statusPhase = StateText("status-bus-state.json", "phase");
+        if (!string.IsNullOrWhiteSpace(statusBus) && (_cabinSetupPanel.Visible || !IsCabinSetupPhase(statusPhase)))
         {
             lines.Add($"Estado actual: {statusBus}");
         }
