@@ -1,8 +1,8 @@
 {
-  "version": "0.5.20",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.20.zip",
-  "sha256": "2e78db8e5cd39d3da6be300a9a9f9853f231dd3e4218855bcde320840f7af614",
+  "version": "0.5.21",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.21.zip",
+  "sha256": "cf90d4525a97d7ee3c3918f96f9b7af453061d08d2c8ebd04f328bce3c6a2e6d",
   "autoApply": true,
-  "notes": "Strict fixed-session cabin: Edge is WhatsApp 1, Chrome is WhatsApp 2, Firefox is WhatsApp 3. The agent no longer opens duplicate windows when a fixed browser is already open, no longer presses browser recovery buttons like Usar aqui, and reports covered WhatsApp zones instead of stealing sessions.",
-  "publishedAt": "2026-04-27T16:35:22Z"
+  "notes": "Hands now uses the cabin window registry as the source of truth for Edge/Chrome/Firefox channel identity, requires focus before clicking, and suspends dependent actions when a chat row is missing instead of continuing with unsafe capture attempts.",
+  "publishedAt": "2026-04-27T16:48:10Z"
 }
