@@ -167,7 +167,8 @@ public sealed class PerceptionPipeline
             await _writer.AppendAsync(perceptionEvent, cancellationToken).ConfigureAwait(false);
             foreach (var read in reads)
             {
-                if (read.Extraction.Messages.Count == 0)
+                if (read.Extraction.Messages.Count == 0
+                    || (_options.RequireReliableConversationIdentity && !read.Conversation.Quality.IsReliable))
                 {
                     continue;
                 }

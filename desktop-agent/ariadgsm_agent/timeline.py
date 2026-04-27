@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -37,6 +38,46 @@ def parse_datetime(value: Any) -> datetime | None:
 
 def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+
+
+def normalize_identity_text(value: Any) -> str:
+    normalized = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
+    normalized = re.sub(r"[^a-zA-Z0-9\s]+", " ", normalized.lower())
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def unreliable_conversation_reasons(event: dict[str, Any]) -> list[str]:
+    quality = event.get("quality") if isinstance(event.get("quality"), dict) else {}
+    if quality and quality.get("isReliable") is False:
+        reasons = quality.get("rejectionReasons")
+        if isinstance(reasons, list) and reasons:
+            return [str(reason) for reason in reasons]
+        return ["quality_not_reliable"]
+
+    title = normalize_identity_text(event.get("conversationTitle") or event.get("conversationId"))
+    blocked = (
+        "whatsapp",
+        "whatsapp business",
+        "paginas mas",
+        "perfil 1",
+        "anadir esta pagina a marcadores",
+        "editar marcador",
+        "editar favorito",
+        "leer en voz alta",
+        "informacion del sitio",
+        "ver informacion del sitio",
+        "ctrl d",
+        "google chrome",
+        "microsoft edge",
+        "mozilla firefox",
+        "http",
+        "drive google",
+    )
+    if not title:
+        return ["missing_title"]
+    if any(token == title or token in title for token in blocked):
+        return ["browser_or_generic_title"]
+    return []
 
 
 def message_fingerprint(channel_id: str, conversation_id: str, message: dict[str, Any]) -> str:
@@ -159,6 +200,8 @@ def build_timelines(events: list[dict[str, Any]], history_limit_days: int = 30) 
     for event in events:
         if event.get("eventType") != "conversation_event":
             continue
+        if unreliable_conversation_reasons(event):
+            continue
         channel_id = str(event.get("channelId") or "unknown").strip()
         conversation_id = str(event.get("conversationId") or f"{channel_id}-unknown").strip()
         key = (channel_id, conversation_id)
@@ -233,6 +276,7 @@ def run_timeline_once(
 ) -> dict[str, Any]:
     live_events = read_jsonl_events(conversation_events_file, "conversation_event", limit)
     history_events = read_jsonl_events(history_events_file, "conversation_event", limit) if history_events_file else []
+    rejected_events = sum(1 for event in [*live_events, *history_events] if unreliable_conversation_reasons(event))
     timelines = build_timelines([*live_events, *history_events], history_limit_days=history_limit_days)
     output_events = [timeline.to_event("timeline") for timeline in timelines if timeline.messages]
     write_jsonl(timeline_events_file, output_events, replace_output=replace_output)
@@ -248,6 +292,7 @@ def run_timeline_once(
         "ingested": {
             "liveEvents": len(live_events),
             "historyEvents": len(history_events),
+            "rejectedEvents": rejected_events,
             "timelines": len(output_events),
             "messages": sum(len(event.get("messages") or []) for event in output_events),
             "completeTimelines": sum(1 for event in output_events if (event.get("timeline") or {}).get("complete")),

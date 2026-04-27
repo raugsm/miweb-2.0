@@ -28,7 +28,12 @@ public sealed class InteractionContext
             return null;
         }
 
-        if (!IsNoisyTitle(title))
+        if (IsNoisyTitle(title))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(title))
         {
             var normalizedTitle = Normalize(title);
             var exact = rows
@@ -54,11 +59,7 @@ public sealed class InteractionContext
             }
         }
 
-        return rows
-            .OrderByDescending(item => item.UnreadCount)
-            .ThenByDescending(item => item.Confidence)
-            .ThenBy(item => item.Top)
-            .FirstOrDefault();
+        return null;
     }
 
     private static bool IsNoisyTitle(string? value)

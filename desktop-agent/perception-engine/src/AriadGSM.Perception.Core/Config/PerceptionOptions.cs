@@ -32,6 +32,8 @@ public sealed class PerceptionOptions
 
     public int MinimumReaderLinesForGoodRead { get; init; } = 6;
 
+    public bool RequireReliableConversationIdentity { get; init; } = true;
+
     public bool EnableOcrFallback { get; init; } = true;
 
     public string OcrCommand { get; init; } = string.Empty;

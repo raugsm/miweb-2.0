@@ -1,8 +1,8 @@
 {
-  "version": "0.5.3",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.3.zip",
-  "sha256": "8fdfdd90dec049b4d7b2c66610fa1c8f98214fe442e8fbbe64192e20b6716519",
+  "version": "0.5.4",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.4.zip",
+  "sha256": "a68f4c1ec7d4e66b43d872d03695b1005b138cbdb9c8dc3529a80eb0f63c366f",
   "autoApply": true,
-  "notes": "Interaction Engine, logo AriadGSM exacto, cabina operativa clara y Hands usando objetivos verificados antes de mover el mouse.",
-  "publishedAt": "2026-04-26T20:35:00Z"
+  "notes": "Reliability supervisor, log rotation, trusted conversation gate, safer Hands decisions and cleaner Timeline learning.",
+  "publishedAt": "2026-04-27T02:06:00Z"
 }

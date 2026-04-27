@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using AriadGSM.Hands.Config;
 using AriadGSM.Hands.Decisions;
 using AriadGSM.Hands.Events;
@@ -23,6 +24,7 @@ public sealed class HandsPipeline
     private readonly IHandsExecutor _executor;
     private readonly ActionVerifier _verifier = new();
     private readonly ActionEventWriter _writer;
+    private readonly HashSet<string> _processedDecisionScopes = new(StringComparer.OrdinalIgnoreCase);
     private int _idleCycles;
     private int _decisionsRead;
     private int _actionsPlanned;
@@ -68,7 +70,21 @@ public sealed class HandsPipeline
 
             foreach (var decision in decisions)
             {
-                foreach (var plan in _planner.Plan(decision))
+                if (!IsActionableDecision(decision))
+                {
+                    _actionsSkipped++;
+                    continue;
+                }
+
+                var decisionScope = $"{decision.DecisionId}|{interaction.SourceInteractionEventId}";
+                var plans = _planner.Plan(decision);
+                if (!_processedDecisionScopes.Add(decisionScope))
+                {
+                    _actionsSkipped += plans.Count;
+                    continue;
+                }
+
+                foreach (var plan in plans)
                 {
                     var enrichedPlan = EnrichPlanWithInteraction(plan, interaction);
                     var scopedActionId = ScopedActionId(enrichedPlan);
@@ -146,6 +162,58 @@ public sealed class HandsPipeline
             _lastError = exception.Message;
             return await WriteStateAsync(CreateState("error", _lastSummary, exception.Message), CancellationToken.None).ConfigureAwait(false);
         }
+    }
+
+    private bool IsActionableDecision(DecisionEvent decision)
+    {
+        if (_options.MaxDecisionAgeMinutes > 0
+            && decision.CreatedAt != default
+            && DateTimeOffset.UtcNow - decision.CreatedAt.ToUniversalTime() > TimeSpan.FromMinutes(_options.MaxDecisionAgeMinutes))
+        {
+            return false;
+        }
+
+        return !IsNoisyConversationTitle(decision.ConversationTitle);
+    }
+
+    private static bool IsNoisyConversationTitle(string? title)
+    {
+        var normalized = NormalizeTitle(title);
+        if (normalized.Length == 0)
+        {
+            return true;
+        }
+
+        var blocked = new[]
+        {
+            "whatsapp business",
+            "paginas mas",
+            "perfil 1",
+            "marcador",
+            "favorito",
+            "leer en voz alta",
+            "informacion del sitio",
+            "ctrl+d",
+            "ctrl d",
+            "http://",
+            "https://"
+        };
+        return blocked.Any(token => normalized.Contains(token, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeTitle(string? title)
+    {
+        var normalized = (title ?? string.Empty).Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(char.ToLowerInvariant(character));
+            }
+        }
+
+        return string.Join(" ", builder.ToString().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static ActionPlan EnrichPlanWithInteraction(ActionPlan plan, InteractionContext interaction)

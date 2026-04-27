@@ -17,9 +17,13 @@
   "browserUiTitlePatterns": [
     "anadir esta pagina a marcadores",
     "editar marcador",
+    "editar favorito",
     "marcadores",
+    "favorito",
     "leer en voz alta",
     "informacion del sitio",
+    "ver informacion del sitio",
+    "ctrl d",
     "copiar ruta",
     "nueva pestana",
     "google chrome",

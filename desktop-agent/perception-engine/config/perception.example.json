@@ -13,6 +13,7 @@
   "minimumUsefulTextLength": 3,
   "minimumMessageConfidence": 0.55,
   "minimumReaderLinesForGoodRead": 6,
+  "requireReliableConversationIdentity": true,
   "enableOcrFallback": true,
   "ocrCommand": "",
   "ocrArguments": "{image} {left} {top} {width} {height}",

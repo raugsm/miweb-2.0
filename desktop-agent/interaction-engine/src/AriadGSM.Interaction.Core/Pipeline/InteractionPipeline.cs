@@ -229,7 +229,7 @@ public sealed class InteractionPipeline
             reasons.Add("low_value_payment_group");
         }
 
-        if (confidence < _options.MinimumActionableConfidence)
+        if (confidence < _options.MinimumActionableConfidence && !LooksLikeRealChatTitle(normalizedTitle))
         {
             reasons.Add("low_confidence");
         }
@@ -307,6 +307,25 @@ public sealed class InteractionPipeline
             || normalizedTitle.EndsWith(" whatsapp business", StringComparison.Ordinal)
             || normalizedTitle.Contains(" paginas mas", StringComparison.Ordinal)
             || normalizedTitle.Contains(" perfil 1", StringComparison.Ordinal);
+    }
+
+    private static bool LooksLikeRealChatTitle(string normalizedTitle)
+    {
+        if (normalizedTitle.Length < 3 || !normalizedTitle.Any(char.IsLetter))
+        {
+            return false;
+        }
+
+        return !IsGenericWhatsAppTitle(normalizedTitle)
+            && !normalizedTitle.Contains("marcador", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("favorito", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("pagina", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("informacion del sitio", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("leer en voz alta", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("http", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("google chrome", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("microsoft edge", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("mozilla firefox", StringComparison.Ordinal);
     }
 
     private static string StableInteractionEventId(PerceptionSnapshot snapshot, IReadOnlyList<InteractionTarget> targets)

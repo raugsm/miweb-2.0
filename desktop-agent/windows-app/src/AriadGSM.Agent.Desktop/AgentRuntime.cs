@@ -14,17 +14,29 @@ internal sealed class AgentRuntime : IDisposable
 {
     private const string DefaultUpdateManifestUrl = "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/ariadgsm-update.json";
     private const int ShowWindowRestore = 9;
+    private const long MaxLogBytes = 16L * 1024 * 1024;
+    private const int MaxLogArchives = 5;
+    private const int MaxRestartsPerWindow = 4;
     private static readonly TimeSpan ToolResolveTtl = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan RunningStateStaleAfter = TimeSpan.FromSeconds(45);
+    private static readonly TimeSpan SupervisorInterval = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan RestartWindow = TimeSpan.FromMinutes(5);
     private readonly List<ManagedProcess> _processes = [];
+    private readonly List<WorkerSpec> _workerSpecs = [];
+    private readonly Dictionary<string, RestartTracker> _restartTrackers = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private readonly string _repoRoot;
     private readonly string _desktopRoot;
     private readonly string _runtimeDir;
     private readonly string _logFile;
     private readonly string _updateStateFile;
+    private readonly string _agentSupervisorStateFile;
     private CancellationTokenSource? _coreLoopCts;
     private Task? _coreLoopTask;
+    private CancellationTokenSource? _supervisorCts;
+    private Task? _supervisorTask;
+    private bool _desiredRunning;
+    private bool _stopping;
     private string? _cachedPython;
     private DateTimeOffset _pythonResolvedAt = DateTimeOffset.MinValue;
     private string? _cachedNode;
@@ -40,6 +52,7 @@ internal sealed class AgentRuntime : IDisposable
         Directory.CreateDirectory(_runtimeDir);
         _logFile = Path.Combine(_runtimeDir, "windows-app.log");
         _updateStateFile = Path.Combine(_runtimeDir, "update-state.json");
+        _agentSupervisorStateFile = Path.Combine(_runtimeDir, "agent-supervisor-state.json");
     }
 
     public string RepoRoot => _repoRoot;
@@ -49,6 +62,8 @@ internal sealed class AgentRuntime : IDisposable
     public string ExecutableDirectory => AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
     public string VersionSummary => ReadVersionSummary();
+
+    public string CurrentVersion => ReadCurrentVersion();
 
     public string LogFile => _logFile;
 
@@ -87,6 +102,14 @@ internal sealed class AgentRuntime : IDisposable
         Directory.CreateDirectory(_runtimeDir);
         WriteLog("Starting AriadGSM Agent without PowerShell.");
         StopExternalWorkerProcesses();
+        lock (_gate)
+        {
+            _desiredRunning = true;
+            _stopping = false;
+            _workerSpecs.Clear();
+            _restartTrackers.Clear();
+        }
+
         StartWebPanel();
         StartWorker(
             "Vision",
@@ -109,6 +132,7 @@ internal sealed class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "hands-engine", "src", "AriadGSM.Hands.Worker", "AriadGSM.Hands.Worker.csproj"),
             Path.Combine("desktop-agent", "hands-engine", "config", "hands.example.json"));
         StartCoreLoop();
+        StartSupervisorLoop();
         await Task.CompletedTask.ConfigureAwait(false);
     }
 
@@ -141,6 +165,9 @@ internal sealed class AgentRuntime : IDisposable
     public void Stop()
     {
         WriteLog("Stopping AriadGSM Agent.");
+        _stopping = true;
+        _desiredRunning = false;
+        _supervisorCts?.Cancel();
         _coreLoopCts?.Cancel();
         lock (_gate)
         {
@@ -150,7 +177,10 @@ internal sealed class AgentRuntime : IDisposable
             }
 
             _processes.Clear();
+            _workerSpecs.Clear();
         }
+
+        WriteSupervisorState("stopped", "Agent stopped by operator or app shutdown.");
     }
 
     public AgentSnapshot Snapshot()
@@ -212,6 +242,7 @@ internal sealed class AgentRuntime : IDisposable
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
             StateHealth("Supervisor", "supervisor-state.json", "PythonCoreLoop"),
+            StateHealth("Agent Supervisor", "agent-supervisor-state.json", "ReliabilitySupervisor"),
             UpdateHealth(),
             WebPanelHealth(),
             CoreLoopHealth()
@@ -228,6 +259,7 @@ internal sealed class AgentRuntime : IDisposable
                 .Where(item => !item.Process.HasExited)
                 .Select(item => $"{item.Name} #{item.Process.Id}")
                 .Concat(_coreLoopTask is { IsCompleted: false } ? ["PythonCoreLoop"] : [])
+                .Concat(_supervisorTask is { IsCompleted: false } ? ["ReliabilitySupervisor"] : [])
                 .ToArray();
         }
     }
@@ -241,8 +273,7 @@ internal sealed class AgentRuntime : IDisposable
 
         try
         {
-            return File.ReadLines(_logFile)
-                .TakeLast(300)
+            return ReadTailLinesShared(_logFile, 512 * 1024)
                 .Where(ContainsProblemSignal)
                 .TakeLast(maxLines)
                 .ToArray();
@@ -267,6 +298,7 @@ internal sealed class AgentRuntime : IDisposable
         using var memory = ReadJsonStatus("memory-state.json");
         using var hands = ReadJsonStatus("hands-state.json");
         using var supervisor = ReadJsonStatus("supervisor-state.json");
+        using var agentSupervisor = ReadJsonStatus("agent-supervisor-state.json");
 
         var whatsappSummary = preflight.Items
             .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
@@ -291,7 +323,8 @@ internal sealed class AgentRuntime : IDisposable
             $"Cognitive/Memory: decisiones={NestedNumber(cognitive, "summary", "decisions")} | memoria={NestedNumber(memory, "summary", "memoryMessages")} | aprendizaje={NestedNumber(memory, "summary", "learningEvents")}",
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
             $"Hands: ejecutadas={Number(hands, "actionsExecuted")} | verificadas={Number(hands, "actionsVerified")} | bloqueadas={Number(hands, "actionsBlocked")} | ultimo={Text(hands, "lastSummary")}",
-            $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}"
+            $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}",
+            $"Confiabilidad: {Text(agentSupervisor, "status")} | reinicios={Number(agentSupervisor, "restartCount")} | {Text(agentSupervisor, "lastSummary")}"
         };
 
         if (blockers.Length > 0)
@@ -870,7 +903,14 @@ internal sealed class AgentRuntime : IDisposable
             return;
         }
 
-        StartProcess(name, spec.FileName, spec.Arguments, spec.WorkingDirectory);
+        var workerSpec = new WorkerSpec(name, spec.FileName, spec.Arguments, spec.WorkingDirectory);
+        lock (_gate)
+        {
+            _workerSpecs.RemoveAll(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            _workerSpecs.Add(workerSpec);
+        }
+
+        StartManagedWorker(workerSpec, "startup");
     }
 
     private async Task RunWorkerOnceAsync(string name, string packagedExe, string projectPath, string configPath)
@@ -954,6 +994,11 @@ internal sealed class AgentRuntime : IDisposable
 
     private void StartCoreLoop()
     {
+        if (_coreLoopTask is { IsCompleted: false })
+        {
+            return;
+        }
+
         var python = ResolvePython();
         if (python is null)
         {
@@ -980,10 +1025,53 @@ internal sealed class AgentRuntime : IDisposable
                     WriteLog($"Python core loop error: {exception.Message}");
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(1.5), _coreLoopCts.Token).ConfigureAwait(false);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1.5), _coreLoopCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
 
             WriteLog("Python core loop stopped.");
+        });
+    }
+
+    private void StartSupervisorLoop()
+    {
+        if (_supervisorTask is { IsCompleted: false })
+        {
+            return;
+        }
+
+        _supervisorCts = new CancellationTokenSource();
+        _supervisorTask = Task.Run(async () =>
+        {
+            WriteLog("Reliability supervisor started.");
+            WriteSupervisorState("ok", "Supervisor watching local engines.");
+            while (!_supervisorCts.IsCancellationRequested)
+            {
+                try
+                {
+                    RecoverExpectedWorkers();
+                    WriteSupervisorState("ok", "Supervisor watching local engines.");
+                    await Task.Delay(SupervisorInterval, _supervisorCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    WriteLog($"Reliability supervisor error: {exception.Message}");
+                    WriteSupervisorState("warning", exception.Message);
+                    await Task.Delay(SupervisorInterval).ConfigureAwait(false);
+                }
+            }
+
+            WriteLog("Reliability supervisor stopped.");
         });
     }
 
@@ -1026,10 +1114,25 @@ internal sealed class AgentRuntime : IDisposable
         process.BeginErrorReadLine();
         lock (_gate)
         {
-            _processes.Add(new ManagedProcess(name, process));
+            _processes.Add(new ManagedProcess(name, process, null));
         }
 
         WriteLog($"{name} started pid={process.Id}");
+    }
+
+    private void StartManagedWorker(WorkerSpec spec, string reason)
+    {
+        var process = CreateProcess(spec.Name, spec.FileName, spec.Arguments, spec.WorkingDirectory, null);
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        lock (_gate)
+        {
+            _processes.RemoveAll(item => item.Name.Equals(spec.Name, StringComparison.OrdinalIgnoreCase) && item.Process.HasExited);
+            _processes.Add(new ManagedProcess(spec.Name, process, spec));
+        }
+
+        WriteLog($"{spec.Name} started pid={process.Id} reason={reason}");
     }
 
     private async Task RunProcessToExitAsync(
@@ -1085,9 +1188,9 @@ internal sealed class AgentRuntime : IDisposable
         var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         process.OutputDataReceived += (_, eventArgs) =>
         {
-            if (!string.IsNullOrWhiteSpace(eventArgs.Data))
+            if (!string.IsNullOrWhiteSpace(eventArgs.Data) && !ShouldSuppressProcessOutput(eventArgs.Data))
             {
-                WriteLogNoThrow($"{name}: {eventArgs.Data}");
+                WriteLogNoThrow($"{name}: {CompactLogLine(eventArgs.Data)}");
             }
         };
         process.ErrorDataReceived += (_, eventArgs) =>
@@ -1097,7 +1200,13 @@ internal sealed class AgentRuntime : IDisposable
                 WriteLogNoThrow($"{name} error: {eventArgs.Data}");
             }
         };
-        process.Exited += (_, _) => WriteLogNoThrow($"{name} stopped.");
+        process.Exited += (_, _) =>
+        {
+            var exitCode = SafeExitCode(process);
+            WriteLogNoThrow(_stopping
+                ? $"{name} stopped by shutdown."
+                : $"{name} exited code={exitCode}.");
+        };
         return process;
     }
 
@@ -1139,6 +1248,125 @@ internal sealed class AgentRuntime : IDisposable
         }
     }
 
+    private void RecoverExpectedWorkers()
+    {
+        WorkerSpec[] specs;
+        lock (_gate)
+        {
+            if (!_desiredRunning || _stopping)
+            {
+                return;
+            }
+
+            _processes.RemoveAll(item =>
+            {
+                if (!item.Process.HasExited)
+                {
+                    return false;
+                }
+
+                item.Process.Dispose();
+                return true;
+            });
+
+            specs = _workerSpecs
+                .Where(spec => !_processes.Any(item =>
+                    item.Name.Equals(spec.Name, StringComparison.OrdinalIgnoreCase)
+                    && !item.Process.HasExited))
+                .ToArray();
+        }
+
+        foreach (var spec in specs)
+        {
+            if (!CanRestart(spec.Name, out var reason))
+            {
+                WriteSupervisorState("warning", reason);
+                continue;
+            }
+
+            WriteLog($"{spec.Name} was not running. Restarting from reliability supervisor.");
+            StartManagedWorker(spec, "supervisor_restart");
+        }
+
+        if (_desiredRunning && !_stopping && _coreLoopTask is null or { IsCompleted: true })
+        {
+            if (CanRestart("PythonCoreLoop", out var reason))
+            {
+                WriteLog("PythonCoreLoop was not running. Restarting from reliability supervisor.");
+                StartCoreLoop();
+            }
+            else
+            {
+                WriteSupervisorState("warning", reason);
+            }
+        }
+    }
+
+    private bool CanRestart(string name, out string reason)
+    {
+        var tracker = _restartTrackers.TryGetValue(name, out var existing)
+            ? existing
+            : _restartTrackers[name] = new RestartTracker();
+        var now = DateTimeOffset.UtcNow;
+        tracker.Restarts.RemoveAll(item => now - item > RestartWindow);
+        if (tracker.Restarts.Count >= MaxRestartsPerWindow)
+        {
+            reason = $"{name} reached restart limit ({MaxRestartsPerWindow} in {RestartWindow.TotalMinutes:0} min).";
+            return false;
+        }
+
+        tracker.Restarts.Add(now);
+        tracker.LastRestartAt = now;
+        reason = $"{name} restart allowed.";
+        return true;
+    }
+
+    private void WriteSupervisorState(string status, string summary)
+    {
+        try
+        {
+            WorkerSpec[] specs;
+            ManagedProcess[] processes;
+            lock (_gate)
+            {
+                specs = _workerSpecs.ToArray();
+                processes = _processes.ToArray();
+            }
+
+            var restartCount = _restartTrackers.Values.Sum(item => item.Restarts.Count);
+            var state = new Dictionary<string, object?>
+            {
+                ["status"] = status,
+                ["engine"] = "ariadgsm_agent_reliability_supervisor",
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+                ["desiredRunning"] = _desiredRunning,
+                ["lastSummary"] = summary,
+                ["restartCount"] = restartCount,
+                ["workers"] = specs.Select(spec =>
+                {
+                    var running = processes.FirstOrDefault(item =>
+                        item.Name.Equals(spec.Name, StringComparison.OrdinalIgnoreCase)
+                        && !item.Process.HasExited);
+                    _restartTrackers.TryGetValue(spec.Name, out var tracker);
+                    return new Dictionary<string, object?>
+                    {
+                        ["name"] = spec.Name,
+                        ["running"] = running is not null,
+                        ["pid"] = running?.Process.Id,
+                        ["restartCount"] = tracker?.Restarts.Count ?? 0,
+                        ["lastRestartAt"] = tracker?.LastRestartAt
+                    };
+                }).ToArray(),
+                ["coreLoopRunning"] = _coreLoopTask is { IsCompleted: false },
+                ["supervisorRunning"] = _supervisorTask is { IsCompleted: false }
+            };
+            WriteAllTextAtomicShared(_agentSupervisorStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch
+        {
+        }
+    }
+
     private void TryStop(ManagedProcess item)
     {
         try
@@ -1165,6 +1393,11 @@ internal sealed class AgentRuntime : IDisposable
         if (name.Equals("PythonCoreLoop", StringComparison.OrdinalIgnoreCase))
         {
             return _coreLoopTask is { IsCompleted: false };
+        }
+
+        if (name.Equals("ReliabilitySupervisor", StringComparison.OrdinalIgnoreCase))
+        {
+            return _supervisorTask is { IsCompleted: false };
         }
 
         lock (_gate)
@@ -1202,6 +1435,7 @@ internal sealed class AgentRuntime : IDisposable
         try
         {
             Directory.CreateDirectory(_runtimeDir);
+            RotateLogIfNeeded();
             AppendAllTextShared(_logFile, line + Environment.NewLine);
         }
         catch
@@ -1216,6 +1450,32 @@ internal sealed class AgentRuntime : IDisposable
         catch
         {
             // UI callbacks are best-effort.
+        }
+    }
+
+    private void RotateLogIfNeeded()
+    {
+        try
+        {
+            if (!File.Exists(_logFile) || new FileInfo(_logFile).Length <= MaxLogBytes)
+            {
+                return;
+            }
+
+            for (var index = MaxLogArchives - 1; index >= 1; index--)
+            {
+                var source = Path.Combine(_runtimeDir, $"windows-app.{index}.log");
+                var target = Path.Combine(_runtimeDir, $"windows-app.{index + 1}.log");
+                if (File.Exists(source))
+                {
+                    File.Move(source, target, overwrite: true);
+                }
+            }
+
+            File.Move(_logFile, Path.Combine(_runtimeDir, "windows-app.1.log"), overwrite: true);
+        }
+        catch
+        {
         }
     }
 
@@ -1242,6 +1502,18 @@ internal sealed class AgentRuntime : IDisposable
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         return reader.ReadToEnd();
+    }
+
+    private static IReadOnlyList<string> ReadTailLinesShared(string path, int maxBytes)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var offset = Math.Max(0, stream.Length - Math.Max(4096, maxBytes));
+        stream.Seek(offset, SeekOrigin.Begin);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var content = reader.ReadToEnd();
+        return content
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
+            .ToArray();
     }
 
     private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken cancellationToken)
@@ -1408,6 +1680,49 @@ internal sealed class AgentRuntime : IDisposable
         {
             return false;
         }
+    }
+
+    private static int SafeExitCode(Process process)
+    {
+        try
+        {
+            return process.ExitCode;
+        }
+        catch
+        {
+            return -999;
+        }
+    }
+
+    private static bool ShouldSuppressProcessOutput(string line)
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0)
+        {
+            return true;
+        }
+
+        if (trimmed is "{" or "}" or "[" or "]")
+        {
+            return true;
+        }
+
+        if (trimmed.StartsWith("\"", StringComparison.Ordinal)
+            && (trimmed.Contains("\":", StringComparison.Ordinal) || trimmed.EndsWith(",", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        return trimmed.Contains("\"eventType\"", StringComparison.Ordinal)
+            || trimmed.Contains("\"messages\"", StringComparison.Ordinal)
+            || trimmed.Contains("\"latestAssessments\"", StringComparison.Ordinal)
+            || trimmed.Contains("\"latestTimelines\"", StringComparison.Ordinal);
+    }
+
+    private static string CompactLogLine(string line)
+    {
+        var compact = string.Join(" ", line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return compact.Length <= 320 ? compact : compact[..320] + "...";
     }
 
     private string ReadCurrentVersion()
@@ -1882,9 +2197,18 @@ internal sealed class AgentRuntime : IDisposable
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int command);
 
-    private sealed record ManagedProcess(string Name, Process Process);
+    private sealed record ManagedProcess(string Name, Process Process, WorkerSpec? Spec);
 
     private sealed record ProcessSpec(string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory);
+
+    private sealed record WorkerSpec(string Name, string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory);
+
+    private sealed class RestartTracker
+    {
+        public List<DateTimeOffset> Restarts { get; } = [];
+
+        public DateTimeOffset? LastRestartAt { get; set; }
+    }
 
     private sealed record ChannelMapping(string ChannelId, string BrowserProcess, string TitleContains);
 

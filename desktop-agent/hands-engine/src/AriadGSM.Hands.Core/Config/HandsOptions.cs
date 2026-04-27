@@ -30,6 +30,8 @@ public sealed class HandsOptions
 
     public int DecisionLimit { get; init; } = 200;
 
+    public int MaxDecisionAgeMinutes { get; init; } = 20;
+
     public int PerceptionLimit { get; init; } = 50;
 
     public int InteractionLimit { get; init; } = 20;

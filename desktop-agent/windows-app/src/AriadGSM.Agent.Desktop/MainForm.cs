@@ -6,6 +6,7 @@ internal sealed class MainForm : Form
 {
     private readonly AgentRuntime _runtime = new();
     private readonly System.Windows.Forms.Timer _timer = new();
+    private readonly Label _versionBadge = new();
     private readonly Label _versionLabel = new();
     private readonly Label _summaryLabel = new();
     private readonly TextBox _problemBox = new();
@@ -119,6 +120,13 @@ internal sealed class MainForm : Form
             AutoSize = true,
             Location = new Point(262, 58)
         };
+        _versionBadge.Text = $"Version {_runtime.CurrentVersion}";
+        _versionBadge.ForeColor = Color.White;
+        _versionBadge.BackColor = Color.FromArgb(24, 120, 242);
+        _versionBadge.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+        _versionBadge.TextAlign = ContentAlignment.MiddleCenter;
+        _versionBadge.Location = new Point(790, 18);
+        _versionBadge.Size = new Size(132, 30);
         _versionLabel.Text = $"{_runtime.VersionSummary} | {AppContext.BaseDirectory}";
         _versionLabel.ForeColor = Color.FromArgb(73, 114, 170);
         _versionLabel.Font = new Font("Segoe UI", 8, FontStyle.Regular);
@@ -133,6 +141,7 @@ internal sealed class MainForm : Form
         };
         header.Controls.Add(title);
         header.Controls.Add(subtitle);
+        header.Controls.Add(_versionBadge);
         header.Controls.Add(_versionLabel);
         header.Controls.Add(headerLine);
 
@@ -381,19 +390,20 @@ internal sealed class MainForm : Form
         var warnings = allItems.Where(item => item.Severity == HealthSeverity.Warning).ToArray();
         var active = _runtime.ActiveProcessSummary();
 
+        var isRunning = _runtime.IsRunning;
         _summaryLabel.Text = errors.Length > 0
             ? $"Estado: requiere atencion ({errors.Length} error/es, {warnings.Length} aviso/s)"
             : warnings.Length > 0
-                ? $"Estado: trabajando con avisos ({warnings.Length})"
-                : $"Estado: listo ({(_runtime.IsRunning ? "motores activos" : "detenido")})";
+                ? $"Estado: {(isRunning ? "trabajando" : "detenido")} con avisos ({warnings.Length})"
+                : $"Estado: listo ({(isRunning ? "motores activos" : "detenido")})";
 
         var problemLines = new List<string>
         {
-            _runtime.IsRunning
+            isRunning
                 ? "Ventana visible: el agente esta trabajando, pero este panel queda como cabina de control."
                 : _manualMode
                     ? "Modo manual: puedes iniciar desde cabina; el pensamiento autonomo queda pausado."
-                    : "Modo autonomo: reviso updates, WhatsApp 1/2/3, dependencias y motores; luego arranco.",
+                    : "Modo autonomo detenido: si no hay procesos, el supervisor no esta vivo y debo mostrarlo aqui.",
             $"Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
             $"Version: {_runtime.VersionSummary}",
             $"Ejecutable: {_runtime.ExecutableDirectory}",
@@ -503,10 +513,20 @@ internal sealed class MainForm : Form
             return;
         }
 
-        _recentLogLines.Enqueue($"{DateTimeOffset.Now:HH:mm:ss} {line}");
+        _recentLogLines.Enqueue(StartsWithTimestamp(line) ? line : $"{DateTimeOffset.Now:HH:mm:ss} {line}");
         while (_recentLogLines.Count > 80)
         {
             _recentLogLines.Dequeue();
         }
+    }
+
+    private static bool StartsWithTimestamp(string line)
+    {
+        return line.Length >= 19
+            && char.IsDigit(line[0])
+            && char.IsDigit(line[1])
+            && char.IsDigit(line[2])
+            && char.IsDigit(line[3])
+            && line[4] == '-';
     }
 }

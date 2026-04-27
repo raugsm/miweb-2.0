@@ -47,6 +47,18 @@
         "oldestLoadedAt": { "type": "string" },
         "dedupeStrategy": { "type": "string" }
       }
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "isReliable": { "type": "boolean" },
+        "identityConfidence": { "type": "number" },
+        "identitySource": { "type": "string" },
+        "rejectionReasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
     }
   }
 }

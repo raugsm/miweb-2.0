@@ -17,6 +17,12 @@ public sealed record ConversationTimeline(
     DateTimeOffset? OldestLoadedAt,
     string DedupeStrategy);
 
+public sealed record ConversationQuality(
+    bool IsReliable,
+    double IdentityConfidence,
+    string IdentitySource,
+    IReadOnlyList<string> RejectionReasons);
+
 public sealed record ConversationEvent(
     string EventType,
     string ConversationEventId,
@@ -26,7 +32,8 @@ public sealed record ConversationEvent(
     string? ConversationTitle,
     string Source,
     IReadOnlyList<ConversationMessage> Messages,
-    ConversationTimeline Timeline)
+    ConversationTimeline Timeline,
+    ConversationQuality Quality)
 {
     public static string ContractName => "conversation_event";
 }

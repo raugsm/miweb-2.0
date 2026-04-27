@@ -12,6 +12,7 @@
   "pollIntervalMs": 250,
   "maxCycles": 0,
   "decisionLimit": 200,
+  "maxDecisionAgeMinutes": 20,
   "perceptionLimit": 50,
   "interactionLimit": 20,
   "channelMappings": [
