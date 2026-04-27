@@ -307,7 +307,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Status Bus", "status-bus-state.json", "StatusBus"),
             StateHealth("Cabin Manager", "cabin-manager-state.json", "CabinManager"),
             StateHealth("Alistamiento cabina", "workspace-setup-state.json", "WorkspaceSetup"),
-            StateHealth("Guardian cabina", "workspace-guardian-state.json", "WorkspaceGuardian"),
+            StateHealth("Autoridad de cabina", "cabin-authority-state.json", "WorkspaceGuardian"),
             CabinReadinessHealth(),
             UpdateHealth(),
             WebPanelHealth(),
@@ -373,7 +373,7 @@ internal sealed partial class AgentRuntime : IDisposable
         using var workspaceSetup = ReadJsonStatus("workspace-setup-state.json");
         using var statusBus = ReadJsonStatus("status-bus-state.json");
         using var cabinManager = ReadJsonStatus("cabin-manager-state.json");
-        using var workspaceGuardian = ReadJsonStatus("workspace-guardian-state.json");
+        using var cabinAuthority = ReadJsonStatus("cabin-authority-state.json");
 
         var whatsappSummary = preflight.Items
             .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
@@ -399,7 +399,7 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Status Bus: {Text(statusBus, "phase")} | {Text(statusBus, "summary")}",
             $"Cabin Manager: {Text(cabinManager, "phase")} | {Text(cabinManager, "summary")}",
             $"Alistamiento: fase={Text(workspaceSetup, "phase")} | {Text(workspaceSetup, "summary")}",
-            $"Guardian cabina: {Text(workspaceGuardian, "status")} | {Text(workspaceGuardian, "summary")}",
+            $"Autoridad de cabina: {Text(cabinAuthority, "status")} | {Text(cabinAuthority, "summary")}",
             $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")}",
             $"Cognitive/Memory: decisiones={NestedNumber(cognitive, "summary", "decisions")} | memoria={NestedNumber(memory, "summary", "memoryMessages")} | aprendizaje={NestedNumber(memory, "summary", "learningEvents")}",
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
@@ -1428,6 +1428,8 @@ internal sealed partial class AgentRuntime : IDisposable
         {
             WriteLog("Autonomous bootstrap: no WhatsApp windows available to arrange.");
         }
+
+        WriteWorkspaceGuardianState(EnsureWorkspaceOwned("arrange_windows"));
     }
 
     public void OpenPanel()

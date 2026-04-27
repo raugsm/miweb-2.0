@@ -12,7 +12,6 @@ public sealed class Win32HandsExecutor : IHandsExecutor
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
     private const int WheelDelta = 120;
-    private const int ShowWindowRestore = 9;
     private const int ShowWindowShow = 5;
     private readonly HandsOptions _options;
     private readonly CabinWindowRegistry _cabinRegistry;
@@ -36,6 +35,11 @@ public sealed class Win32HandsExecutor : IHandsExecutor
             || plan.ActionType.Equals("send_message", StringComparison.OrdinalIgnoreCase))
         {
             return ValueTask.FromResult(new ExecutionResult("failed", "Text and send execution are intentionally not implemented in Hands V1.", 0));
+        }
+
+        if (plan.ActionType.Equals("record_accounting", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValueTask.FromResult(new ExecutionResult("verified", "Accounting record action is routed to Operating/Accounting Core, not direct UI control.", 1));
         }
 
         var channelId = GetTargetString(plan, "channelId");
@@ -104,13 +108,10 @@ public sealed class Win32HandsExecutor : IHandsExecutor
 
         if (IsIconic(handle))
         {
-            ShowWindow(handle, ShowWindowRestore);
-        }
-        else
-        {
-            ShowWindow(handle, ShowWindowShow);
+            return false;
         }
 
+        ShowWindow(handle, ShowWindowShow);
         BringWindowToTop(handle);
         if (SetForegroundWindow(handle))
         {
@@ -179,9 +180,11 @@ public sealed class Win32HandsExecutor : IHandsExecutor
                 .Where(window => IsWhatsAppTitle(window.Title))
                 .OrderByDescending(window => WindowScore(window, cabin))
                 .FirstOrDefault();
-            if (recoverable is not null && TryRecoverWindow(recoverable) is { } recovered)
+            if (recoverable is not null)
             {
-                return new WindowResolution(recovered, string.Empty);
+                return new WindowResolution(
+                    null,
+                    $"Cabin Authority must recover '{channelId ?? "unknown"}'; Hands will not restore or move browser windows directly.");
             }
 
             var processHint = cabin.ProcessId > 0
@@ -203,21 +206,6 @@ public sealed class Win32HandsExecutor : IHandsExecutor
         return fallback is null
             ? new WindowResolution(null, $"No visible WhatsApp browser window was found for channel '{channelId ?? "unknown"}'.")
             : new WindowResolution(fallback, string.Empty);
-    }
-
-    private static BrowserWindow? TryRecoverWindow(BrowserWindow window)
-    {
-        if (window.Handle == IntPtr.Zero)
-        {
-            return null;
-        }
-
-        TryFocusWindow(window.Handle);
-        Thread.Sleep(120);
-        return EnumerateWindows()
-            .Where(item => item.Handle == window.Handle)
-            .Where(item => item.Visible && !item.Minimized && IsWhatsAppTitle(item.Title))
-            .FirstOrDefault();
     }
 
     private static string? GetTargetString(ActionPlan plan, string key)

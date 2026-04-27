@@ -20,6 +20,8 @@ public sealed class HandsOptions
 
     public string CabinReadinessFile { get; init; } = @"desktop-agent\runtime\cabin-readiness.json";
 
+    public string CabinAuthorityStateFile { get; init; } = @"desktop-agent\runtime\cabin-authority-state.json";
+
     public string CursorFile { get; init; } = @"desktop-agent\runtime\hands-cursor.json";
 
     public string InputArbiterStateFile { get; init; } = @"desktop-agent\runtime\input-arbiter-state.json";
@@ -29,6 +31,8 @@ public sealed class HandsOptions
     public bool ExecuteActions { get; init; } = false;
 
     public bool InputArbiterEnabled { get; init; } = true;
+
+    public bool RequireCabinAuthorityForWindowActions { get; init; } = true;
 
     public bool EnableInteractionNavigator { get; init; } = true;
 

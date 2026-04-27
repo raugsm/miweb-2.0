@@ -29,6 +29,7 @@ public sealed class HandsPipeline
     private readonly ActionEventWriter _writer;
     private readonly HandsCursorStore _cursorStore;
     private readonly InputArbiter _inputArbiter;
+    private readonly CabinAuthorityGate _cabinAuthorityGate;
     private readonly HashSet<string> _processedDecisionKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _processedDecisionScopes = new(StringComparer.OrdinalIgnoreCase);
     private bool _cursorLoaded;
@@ -59,6 +60,7 @@ public sealed class HandsPipeline
         _writer = new ActionEventWriter(options.ActionEventsFile);
         _cursorStore = new HandsCursorStore(options.CursorFile);
         _inputArbiter = new InputArbiter(options);
+        _cabinAuthorityGate = new CabinAuthorityGate(options);
     }
 
     public async ValueTask<HandsHealthState> RunOnceAsync(CancellationToken cancellationToken = default)
@@ -454,12 +456,12 @@ public sealed class HandsPipeline
         }
         else
         {
-            var lease = _inputArbiter.Acquire(plan);
-            var planForExecution = EnrichPlanWithInputArbiter(plan, lease);
-            if (!lease.Granted)
+            var authority = _cabinAuthorityGate.Evaluate(plan);
+            var authorityPlan = EnrichPlanWithCabinAuthority(plan, authority);
+            if (!authority.Allowed)
             {
                 _actionsBlocked++;
-                var auditActionId = $"{actionId}-arbiter-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 5}";
+                var auditActionId = $"{actionId}-authority-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 5}";
                 if (existingIds.Contains(auditActionId))
                 {
                     _actionsSkipped++;
@@ -467,38 +469,61 @@ public sealed class HandsPipeline
                 }
 
                 actionEvent = CreateActionEvent(
-                    planForExecution,
+                    authorityPlan,
                     auditActionId,
                     "blocked",
-                    new ActionVerification(false, lease.Reason, 0.96),
+                    new ActionVerification(false, authority.Reason, authority.Confidence),
                     safety.Reason,
-                    executionSummary: "Input Arbiter cedio el mouse al operador.");
+                    executionSummary: "Cabin Authority no autorizo tocar ventanas.");
             }
             else
             {
-                var execution = await _executor.ExecuteAsync(planForExecution, cancellationToken).ConfigureAwait(false);
-                _inputArbiter.Complete(lease, planForExecution, execution);
-                if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+                var lease = _inputArbiter.Acquire(authorityPlan);
+                var planForExecution = EnrichPlanWithInputArbiter(authorityPlan, lease);
+                if (!lease.Granted)
                 {
-                    _actionsExecuted++;
-                }
+                    _actionsBlocked++;
+                    var auditActionId = $"{actionId}-arbiter-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 5}";
+                    if (existingIds.Contains(auditActionId))
+                    {
+                        _actionsSkipped++;
+                        return false;
+                    }
 
-                var verification = _verifier.Verify(planForExecution, execution, perception);
-                var finalStatus = execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase) && verification.Verified
-                    ? "verified"
-                    : execution.Status;
-                if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+                    actionEvent = CreateActionEvent(
+                        planForExecution,
+                        auditActionId,
+                        "blocked",
+                        new ActionVerification(false, lease.Reason, 0.96),
+                        safety.Reason,
+                        executionSummary: "Input Arbiter cedio el mouse al operador.");
+                }
+                else
                 {
-                    _actionsVerified++;
-                }
+                    var execution = await _executor.ExecuteAsync(planForExecution, cancellationToken).ConfigureAwait(false);
+                    _inputArbiter.Complete(lease, planForExecution, execution);
+                    if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _actionsExecuted++;
+                    }
 
-                actionEvent = CreateActionEvent(
-                    planForExecution,
-                    actionId,
-                    finalStatus,
-                    verification,
-                    safety.Reason,
-                    execution.Summary);
+                    var verification = _verifier.Verify(planForExecution, execution, perception);
+                    var finalStatus = execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase) && verification.Verified
+                        ? "verified"
+                        : execution.Status;
+                    if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _actionsVerified++;
+                    }
+
+                    actionEvent = CreateActionEvent(
+                        planForExecution,
+                        actionId,
+                        finalStatus,
+                        verification,
+                        safety.Reason,
+                        execution.Summary);
+                }
             }
         }
 
@@ -537,7 +562,20 @@ public sealed class HandsPipeline
 
         return enrichedPlan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
             && actionEvent.Status.Equals("blocked", StringComparison.OrdinalIgnoreCase)
-            && text.Contains("no verified Interaction target coordinates", StringComparison.OrdinalIgnoreCase);
+            && (text.Contains("no verified Interaction target coordinates", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("Cabin Authority", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static ActionPlan EnrichPlanWithCabinAuthority(ActionPlan plan, CabinAuthorityDecision decision)
+    {
+        var target = new Dictionary<string, object?>(plan.Target, StringComparer.OrdinalIgnoreCase)
+        {
+            ["cabinAuthorityAllowed"] = decision.Allowed,
+            ["cabinAuthorityReason"] = decision.Reason,
+            ["cabinAuthorityConfidence"] = decision.Confidence
+        };
+
+        return plan with { Target = target };
     }
 
     private static ActionPlan EnrichPlanWithInputArbiter(ActionPlan plan, InputLease lease)

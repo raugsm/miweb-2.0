@@ -1,8 +1,8 @@
 {
-  "version": "0.5.28",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.28.zip",
-  "sha256": "5758f31862bb604ca36ee36268bc7b7bac47c8ab84949833c22af4dcd5211d4e",
+  "version": "0.5.29",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.29.zip",
+  "sha256": "333c825f74ba8bebe46465ee968830dfd6e0731e7e67c51dad40ee39143b010c",
   "autoApply": true,
-  "notes": "Stabilizes cabin setup: Edge=wa-1, Chrome=wa-2, Firefox=wa-3 are found as browser WhatsApp Web windows first; missing channels open web.whatsapp.com in the assigned browser only, not the installed WhatsApp/PWA. Setup arranges windows once, keeps the control center visible, hides partial cabin until Alistar WhatsApps is pressed, and shows monotonic 0-100 progress.",
-  "publishedAt": "2026-04-27T19:27:07Z"
+  "notes": "Adds Cabin Authority as the single window-control gate. The background monitor now observes only and never minimizes blocker windows. Hands can click only when Cabin Authority confirms the target WhatsApp channel is visible, ready and unblocked.",
+  "publishedAt": "2026-04-27T19:56:00Z"
 }

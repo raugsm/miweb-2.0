@@ -10,10 +10,10 @@ namespace AriadGSM.Agent.Desktop;
 
 internal sealed partial class AgentRuntime
 {
-    private const int ShowWindowMinimize = 6;
     private static readonly TimeSpan WorkspaceGuardianInterval = TimeSpan.FromMilliseconds(900);
 
     private string WorkspaceGuardianStateFile => Path.Combine(_runtimeDir, "workspace-guardian-state.json");
+    private string CabinAuthorityStateFile => Path.Combine(_runtimeDir, "cabin-authority-state.json");
 
     private void StartWorkspaceGuardianLoop()
     {
@@ -66,6 +66,7 @@ internal sealed partial class AgentRuntime
             return WorkspaceGuardianReport.Attention("No hay mapa de canales para custodiar.");
         }
 
+        var canModifyWindows = CabinAuthorityCanModifyWindows(reason);
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1600, 900);
         var windows = VisibleWindows();
         var channels = new List<WorkspaceGuardianChannel>();
@@ -87,13 +88,26 @@ internal sealed partial class AgentRuntime
                 continue;
             }
 
-            var restored = RestoreAndPlaceWindow(target, expected, ForceForeground(reason));
+            var needsPlacement = WindowNeedsPlacement(target.Bounds, expected);
+            var restored = false;
+            if (canModifyWindows)
+            {
+                restored = RestoreAndPlaceWindow(target, expected, ForceForeground(reason));
+            }
+
             if (restored)
             {
                 actions.Add(new WorkspaceGuardianAction(
                     mapping.ChannelId,
-                    "place_whatsapp",
-                    $"{mapping.ChannelId}: {target.ProcessName} #{target.ProcessId} restaurado en columna {index + 1}."));
+                    "authority_place_whatsapp",
+                    $"{mapping.ChannelId}: Cabin Authority coloco {target.ProcessName} #{target.ProcessId} en columna {index + 1}."));
+            }
+            else if (needsPlacement && !canModifyWindows)
+            {
+                actions.Add(new WorkspaceGuardianAction(
+                    mapping.ChannelId,
+                    "observe_needs_place",
+                    $"{mapping.ChannelId}: necesita alistamiento; el monitor no movera ventanas en segundo plano."));
             }
 
             windows = VisibleWindows();
@@ -104,23 +118,21 @@ internal sealed partial class AgentRuntime
                 blockers.Add(new WorkspaceGuardianBlocker(
                     mapping.ChannelId,
                     "zone_covered",
-                    $"{blocker.ProcessName} #{blocker.ProcessId} '{blocker.Title}' cubria {mapping.ChannelId}."));
-
-                if (TryMinimizeBlocker(blocker))
-                {
-                    actions.Add(new WorkspaceGuardianAction(
-                        mapping.ChannelId,
-                        "minimize_blocker",
-                        $"{blocker.ProcessName} #{blocker.ProcessId} minimizado porque cubria {mapping.ChannelId}."));
-                }
+                    $"{blocker.ProcessName} #{blocker.ProcessId} '{blocker.Title}' cubre {mapping.ChannelId}. No lo minimizo; solo reporto el bloqueo."));
             }
 
-            if (covering.Length > 0)
+            if (covering.Length > 0 && canModifyWindows)
             {
                 Thread.Sleep(80);
                 windows = VisibleWindows();
                 target = FindWindowByHandle(windows, target.Handle) ?? FindWorkspaceTarget(windows, mapping) ?? target;
-                RestoreAndPlaceWindow(target, expected, forceForeground: false);
+                if (RestoreAndPlaceWindow(target, expected, forceForeground: false))
+                {
+                    actions.Add(new WorkspaceGuardianAction(
+                        mapping.ChannelId,
+                        "authority_reassert_whatsapp",
+                        $"{mapping.ChannelId}: Cabin Authority recupero la columna sin cerrar ni minimizar otras ventanas."));
+                }
             }
 
             var remaining = FindWorkspaceBlockers(VisibleWindows(), target, expected, mappings).Count();
@@ -135,16 +147,16 @@ internal sealed partial class AgentRuntime
 
         var ready = channels.Count == mappings.Length && channels.All(item => item.Status.Equals("ready", StringComparison.OrdinalIgnoreCase));
         var summary = ready
-            ? "Cabina protegida: las 3 columnas WhatsApp estan libres."
+            ? "Cabin Authority: las 3 columnas WhatsApp estan visibles y libres."
             : $"Cabina con atencion: {string.Join(", ", channels.Where(item => item.Status != "ready").Select(item => $"{item.ChannelId}={item.Status}"))}.";
         if (actions.Count > 0)
         {
-            WriteLog($"Workspace Guardian: {summary} Acciones={actions.Count}; motivo={reason}.");
+            WriteLog($"Cabin Authority: {summary} Acciones={actions.Count}; motivo={reason}; modify={canModifyWindows}.");
         }
 
         return new WorkspaceGuardianReport(
             ready ? "ok" : "attention",
-            ready ? "clean" : "recovering",
+            ready ? "ready" : canModifyWindows ? "arranging" : "observing",
             summary,
             reason,
             channels,
@@ -207,7 +219,16 @@ internal sealed partial class AgentRuntime
     private static bool ForceForeground(string reason)
     {
         return reason.Equals("bootstrap", StringComparison.OrdinalIgnoreCase)
-            || reason.Equals("prepare", StringComparison.OrdinalIgnoreCase);
+            || reason.Equals("prepare", StringComparison.OrdinalIgnoreCase)
+            || reason.Equals("arrange_windows", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool CabinAuthorityCanModifyWindows(string reason)
+    {
+        return reason.Equals("bootstrap", StringComparison.OrdinalIgnoreCase)
+            || reason.Equals("prepare", StringComparison.OrdinalIgnoreCase)
+            || reason.Equals("manual_setup", StringComparison.OrdinalIgnoreCase)
+            || reason.Equals("arrange_windows", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool RestoreAndPlaceWindow(WindowInfo window, WindowBounds expected, bool forceForeground)
@@ -279,23 +300,11 @@ internal sealed partial class AgentRuntime
             && window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase));
     }
 
-    private bool TryMinimizeBlocker(WindowInfo blocker)
-    {
-        try
-        {
-            return ShowWindow(blocker.Handle, ShowWindowMinimize);
-        }
-        catch (Exception exception)
-        {
-            WriteLog($"{blocker.ProcessName} #{blocker.ProcessId}: guardian could not minimize blocker: {exception.Message}");
-            return false;
-        }
-    }
-
     private void WriteWorkspaceGuardianState(WorkspaceGuardianReport report)
     {
         try
         {
+            var options = new JsonSerializerOptions { WriteIndented = true };
             var state = new Dictionary<string, object?>
             {
                 ["status"] = report.Status,
@@ -327,7 +336,52 @@ internal sealed partial class AgentRuntime
                 }).ToArray()
             };
 
-            WriteAllTextAtomicShared(WorkspaceGuardianStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+            WriteAllTextAtomicShared(WorkspaceGuardianStateFile, JsonSerializer.Serialize(state, options));
+
+            var authority = new Dictionary<string, object?>
+            {
+                ["status"] = report.Status,
+                ["engine"] = "ariadgsm_cabin_authority",
+                ["phase"] = report.Phase,
+                ["summary"] = report.Summary,
+                ["reason"] = report.Reason,
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+                ["exclusiveWindowControl"] = true,
+                ["handsMayFocus"] = report.Channels.Any(channel => channel.Status.Equals("ready", StringComparison.OrdinalIgnoreCase)),
+                ["handsMayRecoverWindows"] = false,
+                ["handsMayArrangeWindows"] = false,
+                ["policy"] = new[]
+                {
+                    "Solo Cabin Authority puede acomodar o restaurar ventanas de navegador.",
+                    "El monitor en bucle solo observa; no minimiza ventanas del operador.",
+                    "Hands puede clicar solo en canales ready, visibles y sin bloqueadores.",
+                    "Si una ventana cubre WhatsApp, se reporta al operador en vez de cerrarla."
+                },
+                ["channels"] = report.Channels.Select(channel => new Dictionary<string, object?>
+                {
+                    ["channelId"] = channel.ChannelId,
+                    ["browserProcess"] = channel.BrowserProcess,
+                    ["status"] = channel.Status,
+                    ["handsMayAct"] = channel.Status.Equals("ready", StringComparison.OrdinalIgnoreCase),
+                    ["expectedBounds"] = SerializeBounds(channel.ExpectedBounds),
+                    ["window"] = SerializeCabinWindow(channel.Window),
+                    ["remainingBlockers"] = channel.RemainingBlockers
+                }).ToArray(),
+                ["blockers"] = report.Blockers.Select(blocker => new Dictionary<string, object?>
+                {
+                    ["channelId"] = blocker.ChannelId,
+                    ["code"] = blocker.Code,
+                    ["detail"] = blocker.Detail
+                }).ToArray(),
+                ["actions"] = report.Actions.Select(action => new Dictionary<string, object?>
+                {
+                    ["channelId"] = action.ChannelId,
+                    ["type"] = action.Type,
+                    ["detail"] = action.Detail
+                }).ToArray()
+            };
+
+            WriteAllTextAtomicShared(CabinAuthorityStateFile, JsonSerializer.Serialize(authority, options));
         }
         catch
         {
