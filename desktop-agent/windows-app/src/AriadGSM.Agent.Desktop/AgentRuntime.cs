@@ -42,6 +42,7 @@ internal sealed class AgentRuntime : IDisposable
     private readonly string _activeVersionFile;
     private readonly string _agentSupervisorStateFile;
     private readonly string _cabinReadinessFile;
+    private readonly string _workspaceSetupStateFile;
     private CancellationTokenSource? _coreLoopCts;
     private Task? _coreLoopTask;
     private CancellationTokenSource? _supervisorCts;
@@ -66,6 +67,7 @@ internal sealed class AgentRuntime : IDisposable
         _activeVersionFile = Path.Combine(_runtimeDir, "active-version.json");
         _agentSupervisorStateFile = Path.Combine(_runtimeDir, "agent-supervisor-state.json");
         _cabinReadinessFile = Path.Combine(_runtimeDir, "cabin-readiness.json");
+        _workspaceSetupStateFile = Path.Combine(_runtimeDir, "workspace-setup-state.json");
     }
 
     public string RepoRoot => _repoRoot;
@@ -274,6 +276,7 @@ internal sealed class AgentRuntime : IDisposable
             StateHealth("Supervisor", "supervisor-state.json", "PythonCoreLoop"),
             StateHealth("Ciclo autonomo", "autonomous-cycle-state.json", "PythonCoreLoop"),
             StateHealth("Agent Supervisor", "agent-supervisor-state.json", "ReliabilitySupervisor"),
+            StateHealth("Alistamiento cabina", "workspace-setup-state.json", "WorkspaceSetup"),
             CabinReadinessHealth(),
             UpdateHealth(),
             WebPanelHealth(),
@@ -333,6 +336,7 @@ internal sealed class AgentRuntime : IDisposable
         using var supervisor = ReadJsonStatus("supervisor-state.json");
         using var autonomousCycle = ReadJsonStatus("autonomous-cycle-state.json");
         using var agentSupervisor = ReadJsonStatus("agent-supervisor-state.json");
+        using var workspaceSetup = ReadJsonStatus("workspace-setup-state.json");
 
         var whatsappSummary = preflight.Items
             .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
@@ -354,6 +358,7 @@ internal sealed class AgentRuntime : IDisposable
             $"Lectura: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
             $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
             $"Orchestrator: fase={Text(orchestrator, "phase")} | {Text(orchestrator, "summary")}",
+            $"Alistamiento: fase={Text(workspaceSetup, "phase")} | {Text(workspaceSetup, "summary")}",
             $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")}",
             $"Cognitive/Memory: decisiones={NestedNumber(cognitive, "summary", "decisions")} | memoria={NestedNumber(memory, "summary", "memoryMessages")} | aprendizaje={NestedNumber(memory, "summary", "learningEvents")}",
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
@@ -689,6 +694,62 @@ internal sealed class AgentRuntime : IDisposable
             ? "Cabin readiness: WhatsApp workspace ready after wait."
             : $"Cabin readiness: still needs attention: {string.Join(", ", stillMissing)}.");
         return finalReport;
+    }
+
+    public async Task<PreflightReport> BootstrapAutonomousWorkspaceAsync(TimeSpan timeout)
+    {
+        WriteWorkspaceSetupState(
+            "preparing",
+            "Ordenando la cabina antes de encender IA.",
+            10,
+            []);
+        WriteLog("Workspace setup: first arrange any visible WhatsApp windows before reading.");
+        ArrangeWhatsAppWorkspace();
+        await Task.Delay(TimeSpan.FromMilliseconds(450)).ConfigureAwait(false);
+
+        WriteWorkspaceSetupState(
+            "preparing",
+            "Abriendo o recuperando WhatsApp 1/2/3.",
+            35,
+            []);
+        var report = await PrepareWhatsAppWorkspaceAsync(timeout).ConfigureAwait(false);
+
+        WriteWorkspaceSetupState(
+            "validating",
+            "Validando que los 3 canales quedaron visibles y alineados.",
+            70,
+            []);
+        ArrangeWhatsAppWorkspace();
+        await Task.Delay(TimeSpan.FromMilliseconds(700)).ConfigureAwait(false);
+
+        var finalReadiness = ReadChannelMappings()
+            .Select(mapping => EvaluateChannelReadiness(mapping, VisibleWindows()))
+            .ToArray();
+        WriteCabinReadinessState(finalReadiness.All(item => item.IsReady) ? "ready" : "attention", finalReadiness);
+
+        var blockers = finalReadiness
+            .Where(item => !item.IsReady)
+            .Select(item => $"{item.ChannelId}: {item.Status} - {item.Detail}")
+            .ToArray();
+
+        if (blockers.Length > 0)
+        {
+            WriteWorkspaceSetupState(
+                "attention",
+                "No encendi ojos ni manos porque la cabina no quedo lista.",
+                100,
+                blockers);
+            WriteLog($"Workspace setup: blocked before IA start: {string.Join(" | ", blockers)}");
+            return Preflight();
+        }
+
+        WriteWorkspaceSetupState(
+            "ready",
+            "Cabina lista: Edge=WhatsApp 1, Chrome=WhatsApp 2, Firefox=WhatsApp 3.",
+            100,
+            []);
+        WriteLog("Workspace setup: cabin ready; engines may start now.");
+        return report;
     }
 
     private bool LaunchWhatsAppWindow(ChannelMapping mapping, string reason)
@@ -1035,6 +1096,35 @@ internal sealed class AgentRuntime : IDisposable
                 }).ToArray()
             };
             WriteAllTextAtomicShared(_cabinReadinessFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch
+        {
+        }
+    }
+
+    private void WriteWorkspaceSetupState(string status, string summary, int progress, IReadOnlyList<string> blockers)
+    {
+        try
+        {
+            var state = new Dictionary<string, object?>
+            {
+                ["status"] = status,
+                ["phase"] = status,
+                ["summary"] = summary,
+                ["progress"] = Math.Clamp(progress, 0, 100),
+                ["updatedAt"] = DateTimeOffset.UtcNow,
+                ["blockers"] = blockers,
+                ["contract"] = "workspace_setup_v1",
+                ["steps"] = new[]
+                {
+                    "map_fixed_browsers",
+                    "open_or_recover_whatsapp",
+                    "arrange_three_columns",
+                    "validate_readiness",
+                    "allow_engines"
+                }
+            };
+            WriteAllTextAtomicShared(_workspaceSetupStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch
         {

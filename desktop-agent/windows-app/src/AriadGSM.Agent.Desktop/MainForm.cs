@@ -701,8 +701,8 @@ internal sealed class MainForm : Form
 
         if (autonomous)
         {
-            AppendLog("Arranque solicitado: preparo WhatsApp 1/2/3 antes de arrancar motores.");
-            report = await _runtime.PrepareWhatsAppWorkspaceAsync(TimeSpan.FromSeconds(35)).ConfigureAwait(true);
+            AppendLog("Arranque solicitado: primero alisto la cabina completa; despues enciendo ojos, memoria y manos.");
+            report = await _runtime.BootstrapAutonomousWorkspaceAsync(TimeSpan.FromSeconds(45)).ConfigureAwait(true);
             RefreshStatus(report);
         }
 
@@ -711,6 +711,14 @@ internal sealed class MainForm : Form
             AppendLog("Arranque bloqueado despues de preparar entorno. Revisa el panel amarillo; puede faltar login QR o navegador.");
             BringControlCenterToFront();
             return;
+        }
+
+        if (autonomous)
+        {
+            AppendLog("Cabina lista. Retiro el panel para no tapar WhatsApp y empiezo lectura/aprendizaje.");
+            WindowState = FormWindowState.Minimized;
+            ShowInTaskbar = true;
+            await Task.Delay(TimeSpan.FromMilliseconds(350)).ConfigureAwait(true);
         }
 
         await _runtime.StartAsync().ConfigureAwait(true);
