@@ -25,14 +25,14 @@ public sealed partial class ActionPlanner
             return [CreatePlan("noop", decision, channelId, conversationId, title, 1, "Decision has no channel or conversation target yet.")];
         }
 
-        var actions = new List<ActionPlan>
-        {
-            CreatePlan("focus_window", decision, channelId, conversationId, title, 3, "Bring the correct WhatsApp channel to the foreground.")
-        };
-
+        var actions = new List<ActionPlan>();
         if (!string.IsNullOrWhiteSpace(conversationId) || !string.IsNullOrWhiteSpace(title))
         {
             actions.Add(CreatePlan("open_chat", decision, channelId, conversationId, title, 3, "Open the target chat before reading the conversation."));
+        }
+        else
+        {
+            actions.Add(CreatePlan("focus_window", decision, channelId, conversationId, title, 3, "Bring the correct WhatsApp channel to the foreground."));
         }
 
         if (NeedsHistorySweep(intent, proposedAction))

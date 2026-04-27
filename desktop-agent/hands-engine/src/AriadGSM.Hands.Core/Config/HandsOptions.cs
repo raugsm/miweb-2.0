@@ -18,6 +18,8 @@ public sealed class HandsOptions
 
     public string OrchestratorCommandsFile { get; init; } = @"desktop-agent\runtime\orchestrator-commands.json";
 
+    public string CabinReadinessFile { get; init; } = @"desktop-agent\runtime\cabin-readiness.json";
+
     public string CursorFile { get; init; } = @"desktop-agent\runtime\hands-cursor.json";
 
     public int AutonomyLevel { get; init; } = 3;

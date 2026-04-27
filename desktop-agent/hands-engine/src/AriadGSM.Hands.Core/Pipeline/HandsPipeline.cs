@@ -72,6 +72,7 @@ public sealed class HandsPipeline
             var interaction = await _interactionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
             var orchestrator = await _orchestratorReader.ReadAsync(cancellationToken).ConfigureAwait(false);
             var existingIds = await _writer.ReadExistingActionIdsAsync(cancellationToken).ConfigureAwait(false);
+            var suspendedChannels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var writtenThisCycle = 0;
             var cursorDirty = false;
 
@@ -106,7 +107,8 @@ public sealed class HandsPipeline
                 foreach (var plan in plans)
                 {
                     var enrichedPlan = EnrichPlanWithInteraction(plan, interaction);
-                    if (orchestrator.IsChannelPaused(TargetString(enrichedPlan, "channelId")))
+                    var channelId = TargetString(enrichedPlan, "channelId");
+                    if (orchestrator.IsChannelPaused(channelId) || suspendedChannels.Contains(channelId ?? string.Empty))
                     {
                         _actionsSkipped++;
                         continue;
@@ -114,7 +116,7 @@ public sealed class HandsPipeline
 
                     touchedDecision = true;
                     var scopedActionId = ScopedActionId(enrichedPlan);
-                    if (await TryWritePlanAsync(enrichedPlan, scopedActionId, perception, existingIds, cancellationToken).ConfigureAwait(false))
+                    if (await TryWritePlanAsync(enrichedPlan, scopedActionId, perception, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
                     {
                         writtenThisCycle++;
                     }
@@ -128,7 +130,7 @@ public sealed class HandsPipeline
                 cursorDirty = true;
             }
 
-            writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, orchestrator, existingIds, cancellationToken).ConfigureAwait(false);
+            writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, orchestrator, suspendedChannels, existingIds, cancellationToken).ConfigureAwait(false);
             if (cursorDirty)
             {
                 await SaveCursorAsync(cancellationToken).ConfigureAwait(false);
@@ -288,6 +290,7 @@ public sealed class HandsPipeline
         InteractionContext interaction,
         PerceptionContext perception,
         OrchestratorCommandContext orchestrator,
+        HashSet<string> suspendedChannels,
         HashSet<string> existingIds,
         CancellationToken cancellationToken)
     {
@@ -306,11 +309,11 @@ public sealed class HandsPipeline
         }
 
         var written = 0;
-        foreach (var target in NavigatorCandidates(interaction, orchestrator))
+        foreach (var target in NavigatorCandidates(interaction, orchestrator, suspendedChannels))
         {
             var plan = CreateNavigatorOpenChatPlan(target, interaction, now);
             var scopedActionId = ScopedActionId(plan);
-            if (await TryWritePlanAsync(plan, scopedActionId, perception, existingIds, cancellationToken).ConfigureAwait(false))
+            if (await TryWritePlanAsync(plan, scopedActionId, perception, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
             {
                 written++;
                 _lastNavigatorClickAt = DateTimeOffset.UtcNow;
@@ -325,12 +328,16 @@ public sealed class HandsPipeline
         return written;
     }
 
-    private static IEnumerable<InteractionTarget> NavigatorCandidates(InteractionContext interaction, OrchestratorCommandContext orchestrator)
+    private static IEnumerable<InteractionTarget> NavigatorCandidates(
+        InteractionContext interaction,
+        OrchestratorCommandContext orchestrator,
+        HashSet<string> suspendedChannels)
     {
         return interaction.Targets
             .Where(target =>
                 target.Actionable
                 && !orchestrator.IsChannelPaused(target.ChannelId)
+                && !suspendedChannels.Contains(target.ChannelId ?? string.Empty)
                 && IsFreshInteractionTarget(interaction, target)
                 && target.TargetType.Equals("chat_row", StringComparison.OrdinalIgnoreCase)
                 && target.ClickX > 0
@@ -419,6 +426,7 @@ public sealed class HandsPipeline
         string actionId,
         PerceptionContext perception,
         HashSet<string> existingIds,
+        HashSet<string> suspendedChannels,
         CancellationToken cancellationToken)
     {
         _actionsPlanned++;
@@ -473,12 +481,36 @@ public sealed class HandsPipeline
             throw new InvalidOperationException(string.Join("; ", errors));
         }
 
+        if (ShouldSuspendChannel(plan, actionEvent))
+        {
+            var channelId = TargetString(plan, "channelId");
+            if (!string.IsNullOrWhiteSpace(channelId))
+            {
+                suspendedChannels.Add(channelId);
+            }
+        }
+
         await _writer.AppendAsync(actionEvent, cancellationToken).ConfigureAwait(false);
         existingIds.Add(actionEvent.ActionId);
         _actionsWritten++;
         _lastActionId = actionEvent.ActionId;
         _lastSummary = $"{actionEvent.ActionType}: {actionEvent.Status}. {actionEvent.Verification.Summary}";
         return true;
+    }
+
+    private static bool ShouldSuspendChannel(ActionPlan enrichedPlan, ActionEvent actionEvent)
+    {
+        var text = $"{actionEvent.Status} {actionEvent.Verification.Summary} {actionEvent.Target.GetValueOrDefault("safetyReason")} {actionEvent.Target.GetValueOrDefault("executionSummary")}";
+        if (actionEvent.Status.Equals("failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return text.Contains("No visible WhatsApp", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("Could not focus", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("Cabin registry", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return enrichedPlan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
+            && actionEvent.Status.Equals("blocked", StringComparison.OrdinalIgnoreCase)
+            && text.Contains("no verified Interaction target coordinates", StringComparison.OrdinalIgnoreCase);
     }
 
     private static long VisitBucket(DateTimeOffset now, int revisitMinutes)

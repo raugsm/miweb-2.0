@@ -10,6 +10,7 @@ TestPlannerInfersChannelFromEvidence();
 TestSafetyBlocksSend();
 await TestPipelineWritesAndDedupes();
 await TestInteractionNavigatorOpensVerifiedRows();
+await TestMissingChatTargetSuspendsDecisionChain();
 TestContractValidator();
 
 Console.WriteLine("AriadGSM Hands tests OK");
@@ -354,6 +355,77 @@ static async Task TestInteractionNavigatorOpensVerifiedRows()
         Assert(target.GetProperty("interactionTargetStatus").GetString() == "ready", "navigator should use verified interaction coordinates");
         Assert(target.GetProperty("clickX").GetInt32() == 590, "navigator should preserve clickX");
         Assert(target.GetProperty("clickY").GetInt32() == 226, "navigator should preserve clickY");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestMissingChatTargetSuspendsDecisionChain()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-suspend-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, JsonSerializer.Serialize(new
+        {
+            eventType = "decision_event",
+            decisionId = "decision-missing-target-1",
+            createdAt = DateTimeOffset.UtcNow,
+            goal = "operate",
+            intent = "price_request",
+            confidence = 0.88,
+            autonomyLevel = 3,
+            proposedAction = "prepare_price_response",
+            requiresHumanConfirmation = true,
+            reasoningSummary = "price",
+            conversationTitle = "Cliente Sin Fila",
+            evidence = new[] { "msg-wa-1-abc" }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(perception, string.Empty);
+        await File.WriteAllTextAsync(interaction, string.Empty);
+
+        var executor = new RecordingExecutor();
+        var options = new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            CursorFile = cursor,
+            AutonomyLevel = 3,
+            ExecuteActions = true,
+            RespectOrchestratorCommands = false,
+            EnableInteractionNavigator = false,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10
+        };
+
+        var pipeline = new HandsPipeline(options, executor);
+        var result = await pipeline.RunOnceAsync();
+        Assert(result.Status == "ok", "missing target should be audited, not crash the pipeline");
+        Assert(executor.Count == 0, "executor must not focus or capture when the chat row is missing");
+
+        var lines = await File.ReadAllLinesAsync(actions);
+        Assert(lines.Length == 1, "missing open_chat target should suspend dependent actions in the same cycle");
+        using var document = JsonDocument.Parse(lines[0]);
+        Assert(document.RootElement.GetProperty("actionType").GetString() == "open_chat", "the audited blocked action should be open_chat");
+        Assert(document.RootElement.GetProperty("status").GetString() == "blocked", "open_chat should be blocked without verified coordinates");
     }
     finally
     {
