@@ -533,6 +533,11 @@ internal sealed class AgentRuntime : IDisposable
                 continue;
             }
 
+            if (FindBrowserWindows(windows, mapping).Any())
+            {
+                WriteLog($"{mapping.ChannelId}: {mapping.BrowserProcess} is visible but not on WhatsApp Web. Opening a clean WhatsApp window.");
+            }
+
             var browser = ResolveBrowser(mapping.BrowserProcess);
             if (browser is null)
             {
@@ -548,10 +553,14 @@ internal sealed class AgentRuntime : IDisposable
                     WorkingDirectory = _repoRoot,
                     UseShellExecute = false
                 };
-                startInfo.ArgumentList.Add("https://web.whatsapp.com/");
+                foreach (var argument in BuildBrowserLaunchArguments(mapping.BrowserProcess))
+                {
+                    startInfo.ArgumentList.Add(argument);
+                }
+
                 Process.Start(startInfo);
                 opened++;
-                WriteLog($"{mapping.ChannelId}: opening WhatsApp in {mapping.BrowserProcess}.");
+                WriteLog($"{mapping.ChannelId}: opening WhatsApp in {mapping.BrowserProcess} with {browser}.");
             }
             catch (Exception exception)
             {
@@ -760,12 +769,20 @@ internal sealed class AgentRuntime : IDisposable
             var matches = FindMatchingWindows(windows, mapping).ToArray();
             if (matches.Length == 0)
             {
+                var browserWindows = FindBrowserWindows(windows, mapping).ToArray();
+                var browser = ResolveBrowser(mapping.BrowserProcess);
+                var status = browserWindows.Length > 0 ? "NO_WHATSAPP" : "FALTA";
+                var detail = browserWindows.Length > 0
+                    ? $"Veo {mapping.BrowserProcess}, pero no esta en WhatsApp Web. Ventana actual: {browserWindows[0].Title}"
+                    : browser is null
+                        ? $"No encuentro ejecutable de {mapping.BrowserProcess}. Revisa instalacion o variable ARIADGSM_BROWSER_{NormalizeProcessName(mapping.BrowserProcess).ToUpperInvariant()}."
+                        : $"No veo WhatsApp visible en {mapping.BrowserProcess}. Preparar WhatsApps abrira {browser}.";
                 items.Add(new HealthItem(
                     $"WhatsApp {mapping.ChannelId}",
-                    "FALTA",
+                    status,
                     HealthSeverity.Warning,
                     DateTimeOffset.Now,
-                    $"No veo WhatsApp visible en {mapping.BrowserProcess}. Pulsa Preparar WhatsApps o abre web.whatsapp.com en ese navegador."));
+                    detail));
                 continue;
             }
 
@@ -1650,7 +1667,9 @@ internal sealed class AgentRuntime : IDisposable
 
     private string? ResolveBrowser(string processName)
     {
-        var exe = NormalizeProcessName(processName) switch
+        var normalized = NormalizeProcessName(processName);
+        var envName = $"ARIADGSM_BROWSER_{normalized.ToUpperInvariant()}";
+        var exe = normalized switch
         {
             "msedge" => "msedge.exe",
             "chrome" => "chrome.exe",
@@ -1659,10 +1678,47 @@ internal sealed class AgentRuntime : IDisposable
             var value => $"{value}.exe"
         };
 
-        return ResolveExecutable(null, exe);
+        return ResolveExecutable(envName, exe, KnownBrowserPaths(normalized));
     }
 
-    private static string? ResolveExecutable(string? envName, string executableName)
+    private static IReadOnlyList<string> BuildBrowserLaunchArguments(string processName)
+    {
+        var normalized = NormalizeProcessName(processName);
+        const string url = "https://web.whatsapp.com/";
+        return normalized switch
+        {
+            "msedge" or "chrome" => ["--new-window", url],
+            "firefox" => ["-new-window", url],
+            _ => [url]
+        };
+    }
+
+    private static IReadOnlyList<string> KnownBrowserPaths(string normalizedProcessName)
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
+        return normalizedProcessName switch
+        {
+            "msedge" => [
+                Path.Combine(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
+                Path.Combine(programFiles, "Microsoft", "Edge", "Application", "msedge.exe")
+            ],
+            "chrome" => [
+                Path.Combine(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
+                Path.Combine(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+                Path.Combine(localAppData, "Google", "Chrome", "Application", "chrome.exe")
+            ],
+            "firefox" => [
+                Path.Combine(programFiles, "Mozilla Firefox", "firefox.exe"),
+                Path.Combine(programFilesX86, "Mozilla Firefox", "firefox.exe")
+            ],
+            _ => []
+        };
+    }
+
+    private static string? ResolveExecutable(string? envName, string executableName, IReadOnlyList<string>? extraCandidates = null)
     {
         if (!string.IsNullOrWhiteSpace(envName))
         {
@@ -1678,6 +1734,14 @@ internal sealed class AgentRuntime : IDisposable
         foreach (var path in paths)
         {
             var candidate = Path.Combine(path.Trim(), executableName);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        foreach (var candidate in extraCandidates ?? [])
+        {
             if (File.Exists(candidate))
             {
                 return candidate;
@@ -1920,6 +1984,14 @@ internal sealed class AgentRuntime : IDisposable
         return windows.Where(window =>
             NormalizeProcessName(window.ProcessName).Equals(process, StringComparison.OrdinalIgnoreCase)
             && window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static IEnumerable<WindowInfo> FindBrowserWindows(IReadOnlyList<WindowInfo> windows, ChannelMapping mapping)
+    {
+        var process = NormalizeProcessName(mapping.BrowserProcess);
+        return windows.Where(window =>
+            NormalizeProcessName(window.ProcessName).Equals(process, StringComparison.OrdinalIgnoreCase)
+            && !window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase));
     }
 
     private static IReadOnlyList<WindowInfo> VisibleWindows()
