@@ -3,6 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -23,6 +24,8 @@ internal sealed class MainForm : Form
     private readonly Label _startupStepLabel = new();
     private readonly ProgressBar _startupProgress = new();
     private readonly Button _loginButton = new();
+    private readonly CheckBox _rememberCredentialsBox = new();
+    private readonly CheckBox _showPasswordBox = new();
     private readonly Label _versionBadge = new();
     private readonly Label _versionLabel = new();
     private readonly Label _summaryLabel = new();
@@ -43,6 +46,7 @@ internal sealed class MainForm : Form
     private bool _authenticated;
     private string _operatorName = string.Empty;
     private string _lastProblemSignature = string.Empty;
+    private string RememberedLoginFile => Path.Combine(_runtime.RuntimeDir, "desktop-login.json");
 
     public MainForm(string[] args)
     {
@@ -60,10 +64,18 @@ internal sealed class MainForm : Form
         AppendLog("AriadGSM Agent Desktop listo. Arranque seguro: login primero, motores detenidos.");
         AppendLog("La app no inicia ojos, manos ni IA hasta que entres y presiones Iniciar IA.");
         SetLoginProgress(0, "Ingresa con tu usuario de ariadgsm.com para habilitar la cabina.");
+        LoadRememberedLogin();
         _dashboardPanel.Visible = false;
         _loginPanel.Visible = true;
         _loginPanel.BringToFront();
-        _usernameBox.Focus();
+        if (_rememberCredentialsBox.Checked && !string.IsNullOrWhiteSpace(_passwordBox.Text))
+        {
+            _loginButton.Focus();
+        }
+        else
+        {
+            _usernameBox.Focus();
+        }
 
         await Task.CompletedTask.ConfigureAwait(false);
     }
@@ -78,6 +90,12 @@ internal sealed class MainForm : Form
     private void BuildUi()
     {
         Text = "AriadGSM Agent Desktop";
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "assets", "ariadgsm-agent.ico");
+        if (File.Exists(iconPath))
+        {
+            Icon = new Icon(iconPath);
+        }
+
         Width = 980;
         Height = 800;
         MinimumSize = new Size(880, 620);
@@ -264,23 +282,24 @@ internal sealed class MainForm : Form
     private void BuildLoginUi()
     {
         _loginPanel.Dock = DockStyle.Fill;
-        _loginPanel.BackColor = Color.FromArgb(247, 251, 255);
-        _loginPanel.Padding = new Padding(24);
+        _loginPanel.BackColor = Color.FromArgb(8, 18, 35);
+        _loginPanel.Padding = new Padding(28);
 
         var shell = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 1
+            RowCount = 1,
+            BackColor = Color.FromArgb(13, 31, 58)
         };
-        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44));
-        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56));
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
         _loginPanel.Controls.Add(shell);
 
         var brandPanel = new Panel
         {
             Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(12, 79, 170),
+            BackColor = Color.FromArgb(9, 35, 76),
             Padding = new Padding(32)
         };
         shell.Controls.Add(brandPanel, 0, 0);
@@ -293,72 +312,83 @@ internal sealed class MainForm : Form
                 ImageLocation = logoPath,
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = Color.White,
-                Location = new Point(32, 36),
-                Size = new Size(270, 92)
+                Location = new Point(34, 36),
+                Size = new Size(238, 72)
             };
             brandPanel.Controls.Add(logo);
         }
 
         var brandTitle = new Label
         {
-            Text = "Cabina local segura",
+            Text = "AriadGSM\nOperating Core",
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 25, FontStyle.Bold),
-            Location = new Point(32, 170),
-            Size = new Size(360, 48)
+            Location = new Point(34, 155),
+            Size = new Size(350, 102)
         };
         var brandCopy = new Label
         {
-            Text = "Login, actualizaciones y arranque manual antes de encender ojos, memoria y manos.",
-            ForeColor = Color.FromArgb(218, 235, 255),
+            Text = "Acceso protegido, actualizacion visible y arranque manual antes de encender ojos, memoria y manos.",
+            ForeColor = Color.FromArgb(188, 216, 250),
             Font = new Font("Segoe UI", 12, FontStyle.Regular),
-            Location = new Point(34, 228),
-            Size = new Size(340, 72)
+            Location = new Point(36, 278),
+            Size = new Size(330, 82)
+        };
+        var statusStrip = new Label
+        {
+            Text = "NUBE SEGURA  |  IA DETENIDA  |  UPDATE READY",
+            ForeColor = Color.FromArgb(98, 183, 255),
+            Font = new Font("Segoe UI", 8, FontStyle.Bold),
+            Location = new Point(36, 390),
+            Size = new Size(340, 24)
         };
         var versionCopy = new Label
         {
             Text = _runtime.VersionSummary,
-            ForeColor = Color.FromArgb(190, 222, 255),
+            ForeColor = Color.FromArgb(128, 171, 225),
             Font = new Font("Segoe UI", 9, FontStyle.Regular),
-            Location = new Point(34, 330),
-            Size = new Size(340, 44)
+            Location = new Point(36, 438),
+            Size = new Size(340, 48)
         };
         brandPanel.Controls.Add(brandTitle);
         brandPanel.Controls.Add(brandCopy);
+        brandPanel.Controls.Add(statusStrip);
         brandPanel.Controls.Add(versionCopy);
 
         var formPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            BackColor = Color.White,
-            Padding = new Padding(54, 64, 54, 44),
-            RowCount = 11,
+            BackColor = Color.FromArgb(246, 250, 255),
+            Padding = new Padding(58, 62, 58, 48),
+            RowCount = 13,
             ColumnCount = 1
         };
-        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
+        formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         formPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         shell.Controls.Add(formPanel, 1, 0);
 
         var title = new Label
         {
-            Text = "Entrar a AriadGSM",
+            Text = "Iniciar sesion",
             Dock = DockStyle.Fill,
             ForeColor = Color.FromArgb(12, 79, 170),
-            Font = new Font("Segoe UI", 22, FontStyle.Bold),
+            Font = new Font("Segoe UI", 24, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft
         };
         var subtitle = new Label
         {
-            Text = "La IA queda apagada hasta que el operador autorice el inicio.",
+            Text = "AriadGSM Agent queda apagado hasta tu autorizacion.",
             Dock = DockStyle.Fill,
             ForeColor = Color.FromArgb(58, 82, 112),
             Font = new Font("Segoe UI", 10, FontStyle.Regular),
@@ -371,6 +401,8 @@ internal sealed class MainForm : Form
         _usernameBox.Dock = DockStyle.Fill;
         _usernameBox.BorderStyle = BorderStyle.FixedSingle;
         _usernameBox.Font = new Font("Segoe UI", 12);
+        _usernameBox.BackColor = Color.White;
+        _usernameBox.ForeColor = Color.FromArgb(16, 32, 55);
         _usernameBox.PlaceholderText = "owner, admin o usuario del panel";
         formPanel.Controls.Add(_usernameBox, 0, 3);
 
@@ -378,9 +410,30 @@ internal sealed class MainForm : Form
         _passwordBox.Dock = DockStyle.Fill;
         _passwordBox.BorderStyle = BorderStyle.FixedSingle;
         _passwordBox.Font = new Font("Segoe UI", 12);
+        _passwordBox.BackColor = Color.White;
+        _passwordBox.ForeColor = Color.FromArgb(16, 32, 55);
         _passwordBox.UseSystemPasswordChar = true;
         _passwordBox.PlaceholderText = "Contrasena de ariadgsm.com";
         formPanel.Controls.Add(_passwordBox, 0, 5);
+
+        var options = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            BackColor = Color.FromArgb(246, 250, 255),
+            Padding = new Padding(0, 4, 0, 0)
+        };
+        _rememberCredentialsBox.Text = "Recordar usuario y contrasena en esta PC";
+        _rememberCredentialsBox.AutoSize = true;
+        _rememberCredentialsBox.ForeColor = Color.FromArgb(45, 69, 102);
+        _rememberCredentialsBox.Margin = new Padding(0, 0, 16, 0);
+        _showPasswordBox.Text = "Ver";
+        _showPasswordBox.AutoSize = true;
+        _showPasswordBox.ForeColor = Color.FromArgb(45, 69, 102);
+        options.Controls.Add(_rememberCredentialsBox);
+        options.Controls.Add(_showPasswordBox);
+        formPanel.Controls.Add(options, 0, 6);
 
         _loginButton.Text = "Entrar y revisar actualizaciones";
         _loginButton.Dock = DockStyle.Fill;
@@ -389,25 +442,25 @@ internal sealed class MainForm : Form
         _loginButton.ForeColor = Color.White;
         _loginButton.Font = new Font("Segoe UI", 11, FontStyle.Bold);
         _loginButton.FlatAppearance.BorderSize = 0;
-        formPanel.Controls.Add(_loginButton, 0, 7);
+        formPanel.Controls.Add(_loginButton, 0, 8);
 
         _startupStepLabel.Dock = DockStyle.Fill;
         _startupStepLabel.TextAlign = ContentAlignment.MiddleLeft;
         _startupStepLabel.ForeColor = Color.FromArgb(58, 82, 112);
         _startupStepLabel.Font = new Font("Segoe UI", 9);
-        formPanel.Controls.Add(_startupStepLabel, 0, 8);
+        formPanel.Controls.Add(_startupStepLabel, 0, 9);
 
         _startupProgress.Dock = DockStyle.Fill;
         _startupProgress.Minimum = 0;
         _startupProgress.Maximum = 100;
         _startupProgress.Style = ProgressBarStyle.Continuous;
-        formPanel.Controls.Add(_startupProgress, 0, 9);
+        formPanel.Controls.Add(_startupProgress, 0, 10);
 
         _loginStatusLabel.Dock = DockStyle.Fill;
         _loginStatusLabel.ForeColor = Color.FromArgb(82, 97, 120);
         _loginStatusLabel.Font = new Font("Segoe UI", 9);
         _loginStatusLabel.Text = "Sesion requerida para habilitar actualizaciones, cabina e inicio manual.";
-        formPanel.Controls.Add(_loginStatusLabel, 0, 10);
+        formPanel.Controls.Add(_loginStatusLabel, 0, 11);
     }
 
     private static Label FieldLabel(string text)
@@ -426,6 +479,15 @@ internal sealed class MainForm : Form
     {
         _runtime.LogReceived += AppendLog;
         _loginButton.Click += async (_, _) => await LoginAndPrimeAsync().ConfigureAwait(true);
+        _showPasswordBox.CheckedChanged += (_, _) => _passwordBox.UseSystemPasswordChar = !_showPasswordBox.Checked;
+        _usernameBox.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;
+                _passwordBox.Focus();
+            }
+        };
         _passwordBox.KeyDown += async (_, e) =>
         {
             if (e.KeyCode == Keys.Enter)
@@ -583,6 +645,15 @@ internal sealed class MainForm : Form
             _authenticated = true;
             _operatorName = string.IsNullOrWhiteSpace(login.DisplayName) ? login.Username : login.DisplayName;
             WriteSessionState("authenticated", login.Username, login.DisplayName, login.Role, "Login correcto; revisando actualizaciones.");
+            if (_rememberCredentialsBox.Checked)
+            {
+                SaveRememberedLogin(_usernameBox.Text.Trim(), _passwordBox.Text);
+            }
+            else
+            {
+                ClearRememberedLogin();
+            }
+
             AppendLog($"Sesion iniciada: {_operatorName} ({login.Role}).");
 
             SetLoginProgress(48, "Login correcto. Revisando actualizaciones...");
@@ -695,6 +766,89 @@ internal sealed class MainForm : Form
         }
 
         return null;
+    }
+
+    private void LoadRememberedLogin()
+    {
+        if (!File.Exists(RememberedLoginFile))
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(RememberedLoginFile));
+            var root = document.RootElement;
+            var username = JsonString(root, "username") ?? string.Empty;
+            var protectedPassword = JsonString(root, "protectedPassword") ?? string.Empty;
+            var password = string.IsNullOrWhiteSpace(protectedPassword)
+                ? string.Empty
+                : UnprotectSecret(protectedPassword);
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            {
+                return;
+            }
+
+            _usernameBox.Text = username;
+            _passwordBox.Text = password;
+            _rememberCredentialsBox.Checked = true;
+            SetLoginProgress(0, "Credenciales recordadas en esta PC. Puedes entrar o cambiarlas.");
+        }
+        catch
+        {
+            ClearRememberedLogin();
+            SetLoginProgress(0, "No pude leer credenciales guardadas; inicia sesion de nuevo.");
+        }
+    }
+
+    private void SaveRememberedLogin(string username, string password)
+    {
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+        {
+            return;
+        }
+
+        var state = new
+        {
+            username,
+            protectedPassword = ProtectSecret(password),
+            protectedBy = "Windows DPAPI CurrentUser",
+            updatedAt = DateTimeOffset.UtcNow
+        };
+        File.WriteAllText(RememberedLoginFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private void ClearRememberedLogin()
+    {
+        try
+        {
+            if (File.Exists(RememberedLoginFile))
+            {
+                File.Delete(RememberedLoginFile);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static string ProtectSecret(string value)
+    {
+        var payload = Encoding.UTF8.GetBytes(value);
+        var protectedBytes = ProtectedData.Protect(payload, OptionalEntropy(), DataProtectionScope.CurrentUser);
+        return Convert.ToBase64String(protectedBytes);
+    }
+
+    private static string UnprotectSecret(string value)
+    {
+        var protectedBytes = Convert.FromBase64String(value);
+        var payload = ProtectedData.Unprotect(protectedBytes, OptionalEntropy(), DataProtectionScope.CurrentUser);
+        return Encoding.UTF8.GetString(payload);
+    }
+
+    private static byte[] OptionalEntropy()
+    {
+        return Encoding.UTF8.GetBytes("AriadGSM.Agent.Desktop.Login.v1");
     }
 
     private async Task RunButtonAsync(Button button, Func<Task> action)

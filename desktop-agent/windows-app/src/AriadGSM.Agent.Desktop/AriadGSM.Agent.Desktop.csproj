@@ -9,10 +9,13 @@
     <AssemblyName>AriadGSM Agent</AssemblyName>
     <RootNamespace>AriadGSM.Agent.Desktop</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon />
+    <ApplicationIcon>assets\ariadgsm-agent.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="assets\ariadgsm-logo.jpg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="assets\ariadgsm-agent.ico">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

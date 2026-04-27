@@ -7,5 +7,6 @@
     <Nullable>enable</Nullable>
     <AssemblyName>AriadGSM Launcher</AssemblyName>
     <RootNamespace>AriadGSM.Agent.Launcher</RootNamespace>
+    <ApplicationIcon>..\AriadGSM.Agent.Desktop\assets\ariadgsm-agent.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>

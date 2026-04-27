@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -10,6 +11,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        SetCurrentProcessExplicitAppUserModelID("AriadGSM.Agent");
+
         if (args.Any(arg => arg.Equals("--self-test", StringComparison.OrdinalIgnoreCase)))
         {
             return RunSelfTest();
@@ -30,6 +33,9 @@ internal static class Program
         Application.Run(new MainForm(args));
         return 0;
     }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 
     private static int RunSelfTest()
     {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
@@ -16,6 +17,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        SetCurrentProcessExplicitAppUserModelID("AriadGSM.Agent");
+
         try
         {
             if (args.Any(arg => arg.Equals("--self-test", StringComparison.OrdinalIgnoreCase)))
@@ -97,6 +100,9 @@ internal static class Program
             return 2;
         }
     }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 
     private static ProcessStartInfo WithArguments(this ProcessStartInfo startInfo, IEnumerable<string> args)
     {
