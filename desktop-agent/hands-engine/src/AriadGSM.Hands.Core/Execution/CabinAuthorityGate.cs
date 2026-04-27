@@ -37,6 +37,18 @@ public sealed class CabinAuthorityGate
         {
             using var document = JsonDocument.Parse(File.ReadAllText(_options.CabinAuthorityStateFile));
             var root = document.RootElement;
+            var updatedAt = ReadDate(root, "updatedAt");
+            if (updatedAt is null)
+            {
+                return CabinAuthorityDecision.Block("Cabin Authority state has no timestamp; Hands will not trust it.");
+            }
+
+            var ageMs = (DateTimeOffset.UtcNow - updatedAt.Value.ToUniversalTime()).TotalMilliseconds;
+            if (ageMs > Math.Max(500, _options.CabinAuthorityMaxAgeMs))
+            {
+                return CabinAuthorityDecision.Block($"Cabin Authority state is stale ({ageMs:0}ms old); Hands will wait for a fresh cabin check.");
+            }
+
             if (TryReadBool(root, "handsMayFocus") is false)
             {
                 return CabinAuthorityDecision.Block("Cabin Authority says Hands may not focus windows right now.");
@@ -163,6 +175,22 @@ public sealed class CabinAuthorityGate
             JsonValueKind.String when bool.TryParse(property.GetString(), out var value) => value,
             _ => null
         };
+    }
+
+    private static DateTimeOffset? ReadDate(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        if (property.ValueKind == JsonValueKind.String
+            && DateTimeOffset.TryParse(property.GetString(), out var value))
+        {
+            return value;
+        }
+
+        return null;
     }
 }
 

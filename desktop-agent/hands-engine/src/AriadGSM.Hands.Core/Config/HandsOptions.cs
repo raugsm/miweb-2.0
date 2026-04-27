@@ -14,6 +14,8 @@ public sealed class HandsOptions
 
     public string ActionEventsFile { get; init; } = @"desktop-agent\runtime\action-events.jsonl";
 
+    public string ActionQueueStateFile { get; init; } = @"desktop-agent\runtime\action-queue-state.json";
+
     public string StateFile { get; init; } = @"desktop-agent\runtime\hands-state.json";
 
     public string OrchestratorCommandsFile { get; init; } = @"desktop-agent\runtime\orchestrator-commands.json";
@@ -33,6 +35,8 @@ public sealed class HandsOptions
     public bool InputArbiterEnabled { get; init; } = true;
 
     public bool RequireCabinAuthorityForWindowActions { get; init; } = true;
+
+    public int CabinAuthorityMaxAgeMs { get; init; } = 2500;
 
     public bool EnableInteractionNavigator { get; init; } = true;
 

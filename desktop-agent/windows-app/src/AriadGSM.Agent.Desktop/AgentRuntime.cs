@@ -300,6 +300,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Operating", "operating-state.json", "PythonCoreLoop"),
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
+            StateHealth("Action Queue", "action-queue-state.json", "Hands"),
             StateHealth("Input Arbiter", "input-arbiter-state.json", "Hands"),
             StateHealth("Supervisor", "supervisor-state.json", "PythonCoreLoop"),
             StateHealth("Ciclo autonomo", "autonomous-cycle-state.json", "PythonCoreLoop"),
@@ -2605,6 +2606,18 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         if (trimmed is "{" or "}" or "[" or "]")
+        {
+            return true;
+        }
+
+        if ((trimmed.StartsWith("\"", StringComparison.Ordinal) && trimmed.EndsWith("\"", StringComparison.Ordinal))
+            || (trimmed.StartsWith("\"", StringComparison.Ordinal) && trimmed.EndsWith("\",", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        if (trimmed.StartsWith("\"", StringComparison.Ordinal)
+            && trimmed.Count(character => character == '"') <= 4)
         {
             return true;
         }

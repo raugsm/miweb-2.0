@@ -761,6 +761,36 @@ public sealed class HandsPipeline
             WriteIndented = true
         });
         await WriteTextAtomicAsync(_options.StateFile, json, cancellationToken).ConfigureAwait(false);
+        var queueState = new Dictionary<string, object?>
+        {
+            ["status"] = state.Status,
+            ["engine"] = "ariadgsm_action_queue",
+            ["updatedAt"] = state.UpdatedAt,
+            ["executionMode"] = _options.ExecuteActions ? "execute" : "plan",
+            ["decisionsRead"] = state.DecisionsRead,
+            ["actionsPlanned"] = state.ActionsPlanned,
+            ["actionsWritten"] = state.ActionsWritten,
+            ["actionsBlocked"] = state.ActionsBlocked,
+            ["actionsExecuted"] = state.ActionsExecuted,
+            ["actionsVerified"] = state.ActionsVerified,
+            ["actionsSkipped"] = state.ActionsSkipped,
+            ["lastActionId"] = state.LastActionId,
+            ["lastSummary"] = state.LastSummary,
+            ["contract"] = new[]
+            {
+                "decision -> plan",
+                "plan -> safety",
+                "safety -> cabin_authority",
+                "cabin_authority -> input_arbiter",
+                "input_arbiter -> execute",
+                "execute -> verify",
+                "verify -> audit_event"
+            }
+        };
+        await WriteTextAtomicAsync(
+            _options.ActionQueueStateFile,
+            JsonSerializer.Serialize(queueState, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true }),
+            cancellationToken).ConfigureAwait(false);
         return state;
     }
 

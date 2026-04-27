@@ -1,8 +1,8 @@
 {
   "version": "0.6.0",
   "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.6.0.zip",
-  "sha256": "8cfdc0f437f7034198c06a5939bbb377b48d6acd790a2ac4b23307f0e17ece34",
+  "sha256": "77df55183b0554c5a8e4f63599f83930a66cebc15be5475ab1c8ea585fe10e82",
   "autoApply": true,
-  "notes": "Version 0.6.0 introduces the Control Plane architecture: larger Control Center, 0.6 diagnostic timeline, architecture contract, clearer cabin setup space, Control Plane health, and reduced noisy technical rows so the operator can see what the IA is doing without reading raw JSON.",
-  "publishedAt": "2026-04-27T20:25:00Z"
+  "notes": "Version 0.6.0 finalizes the Control Plane foundation: live unified state, close-to-minimize while engines keep running, stale Cabin Authority blocking for Hands, Action Queue health, cleaner worker logs, and stronger cockpit diagnostics.",
+  "publishedAt": "2026-04-27T20:45:00Z"
 }

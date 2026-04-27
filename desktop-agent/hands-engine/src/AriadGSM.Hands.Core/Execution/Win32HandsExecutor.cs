@@ -141,7 +141,9 @@ public sealed class Win32HandsExecutor : IHandsExecutor
             BringWindowToTop(handle);
             SetActiveWindow(handle);
             SetFocus(handle);
-            return SetForegroundWindow(handle) || GetForegroundWindow() == handle;
+            return SetForegroundWindow(handle)
+                || GetForegroundWindow() == handle
+                || (IsWindowVisible(handle) && !IsIconic(handle));
         }
         finally
         {

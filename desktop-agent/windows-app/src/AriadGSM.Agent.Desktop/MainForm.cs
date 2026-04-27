@@ -101,6 +101,15 @@ internal sealed class MainForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        if (e.CloseReason == CloseReason.UserClosing && _runtime.IsRunning)
+        {
+            e.Cancel = true;
+            WindowState = FormWindowState.Minimized;
+            ShowInTaskbar = true;
+            AppendLog("Control Center minimizado: la IA sigue trabajando. Usa Pausar IA para detener motores.");
+            return;
+        }
+
         _timer.Stop();
         _runtime.Stop("app_closing");
         _runtime.Dispose();
@@ -1141,6 +1150,7 @@ internal sealed class MainForm : Form
 
         if (shouldRefreshHeavy)
         {
+            _runtime.RefreshControlPlaneSnapshot();
             preflight ??= _runtime.Preflight();
             _cachedPreflight = preflight;
             _cachedHealth = _runtime.Health();
@@ -1559,6 +1569,7 @@ internal sealed class MainForm : Form
             "Status Bus" => $"Estado actual: {item.Detail}",
             "Life Controller" => $"Vida de la IA: {item.Detail}",
             "Input Arbiter" => $"Mouse/teclado: {item.Detail}",
+            "Action Queue" => $"Cola de acciones: {item.Detail}",
             "Autoridad de cabina" => $"Cabina: {item.Detail}",
             "Ciclo autonomo" => $"Ciclo autonomo: {StateText("autonomous-cycle-state.json", new[] { "summary" }, item.Detail)}",
             "Hands" => $"Manos: {item.Detail}",
@@ -1700,6 +1711,7 @@ internal sealed class MainForm : Form
             "Cabin Manager",
             "Cabina WhatsApp",
             "Life Controller",
+            "Action Queue",
             "Input Arbiter",
             "Autoridad de cabina",
             "Vision",
