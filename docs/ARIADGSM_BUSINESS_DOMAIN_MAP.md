@@ -239,7 +239,15 @@ Aprendizaje    = conocimiento aprobado o pendiente de aprobar.
 
 Responsabilidad:
 
-Leer senales del mundo sin decidir el negocio.
+Leer senales del mundo, interpretarlas como percepcion inteligente y entregarlas al Business Brain sin decidir el negocio completo.
+
+Este dominio no debe ser un lector bruto. Debe comportarse como los ojos de la IA:
+
+```text
+Veo algo -> identifico fuente -> estimo confianza -> detecto cambio -> separo ruido -> propongo que significa -> pido verificacion si falta evidencia.
+```
+
+La percepcion no cierra ventas, no confirma pagos y no ejecuta procesos. Pero si debe pensar sobre lo que esta viendo.
 
 Fuentes:
 
@@ -258,6 +266,16 @@ No debe hacer:
 - Responder clientes.
 - Registrar contabilidad final.
 - Aprender como verdad sin validacion.
+
+Razonamiento perceptivo:
+
+- Esto parece mensaje de cliente, proveedor, grupo, interfaz o ruido?
+- El texto viene de DOM, accesibilidad, OCR o inferencia visual?
+- La ventana corresponde al canal correcto?
+- Hubo cambio nuevo o es una lectura repetida?
+- El chat esta cubierto, minimizado o visible?
+- La confianza alcanza para pasar al Business Brain?
+- Debo pedir una segunda fuente antes de creerlo?
 
 Entidades:
 
@@ -288,6 +306,8 @@ Prueba de aceptacion:
 - Detecta wa-1, wa-2 y wa-3 sin cerrar ventanas.
 - Marca ruido como ruido.
 - Diferencia texto de cliente vs texto de interfaz cuando la fuente lo permite.
+- Explica por que confia o no confia en una lectura.
+- Si hay duda, genera una hipotesis y pide verificacion en vez de inventar.
 
 ## 7. Dominio: Customer
 
@@ -518,6 +538,8 @@ Responsabilidad:
 
 Convertir conversaciones, comprobantes y pagos en contabilidad verificable.
 
+Este dominio no debe ser una lista de reglas contables. Debe ser un Accounting Brain: razona con evidencia, contexto, historial, moneda, cliente, caso y riesgo. Las reglas existen solo como limites de seguridad para impedir cierres falsos.
+
 Subdominios:
 
 ```text
@@ -572,6 +594,24 @@ REJECTED
 VOIDED
 ```
 
+Razonamiento contable de IA:
+
+- Este texto habla de pago, deuda, reembolso, gasto, compra de creditos o solo mencion casual?
+- El monto pertenece al cliente actual, a otro WhatsApp, a un grupo de pagos o a un proveedor?
+- Ya existe un pago parecido que pueda ser duplicado?
+- La moneda esta clara o debe inferirse por pais/contexto?
+- El pago corresponde a un caso abierto o necesita crear/asociar caso?
+- Hay evidencia suficiente para confirmar o solo para crear borrador?
+- Esto cambia caja, deuda, utilidad, gasto o saldo a favor?
+- Que pregunta debe hacer la IA si falta informacion?
+- Que explicacion debe mostrar a Bryams antes de pedir aprobacion?
+
+Decisiones inteligentes:
+
+```text
+Detectar -> asociar -> deduplicar -> clasificar -> estimar confianza -> pedir evidencia -> crear borrador -> recomendar cierre -> esperar aprobacion si el riesgo lo exige.
+```
+
 Reglas:
 
 - Un monto detectado no es pago confirmado.
@@ -580,11 +620,15 @@ Reglas:
 - Grupos de pagos no son cliente final por defecto.
 - Toda contabilidad final debe tener evidencia.
 
+Estas reglas no reemplazan a la IA. Son guardrails para que el razonamiento contable no convierta una lectura dudosa en dinero confirmado.
+
 Prueba de aceptacion:
 
 - Detecta "Yape 55 soles" como borrador, no como cierre final.
 - Liga pago a caso cuando hay evidencia suficiente.
 - Muestra caja diaria: entradas, salidas, deudas, reembolsos, utilidad estimada.
+- Explica por que un pago queda en borrador, confirmado o rechazado.
+- Detecta posible duplicado y lo deja en revision.
 
 ## 12. Dominio: Market Intelligence
 
@@ -1081,4 +1125,3 @@ IA de negocio + dominios claros + memoria + herramientas subordinadas + riesgo +
 ```
 
 AriadGSM debe avanzar como una IA que aprende y opera el negocio completo. La capa de accion existe, pero solo como cuerpo. El cerebro es el Business Brain y su mapa de dominios.
-
