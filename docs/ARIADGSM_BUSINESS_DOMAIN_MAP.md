@@ -90,7 +90,7 @@ OWASP LLM Top 10 identifica riesgos como prompt injection, data poisoning, exces
 
 Impacto en AriadGSM:
 
-- Un cliente o proveedor no debe poder darle instrucciones al cerebro para saltarse reglas.
+- Un cliente o proveedor no debe poder darle instrucciones al cerebro para saltarse guardrails internos.
 - La IA no debe tener permisos ilimitados.
 - El aprendizaje desde chats debe ser validado antes de convertirse en conocimiento.
 
@@ -131,7 +131,7 @@ Referencia:
 
 Alternativas evaluadas:
 
-### Alternativa A: bot grande con reglas
+### Alternativa A: bot grande con instrucciones fijas
 
 ```text
 Si ve precio -> responder.
@@ -151,17 +151,18 @@ Rechazada como arquitectura final, aunque puede servir para prototipo.
 
 Motivo: mezcla contabilidad, ventas, herramientas, memoria, mercado y seguridad en un solo lugar. Dificil de auditar y corregir.
 
-### Alternativa C: Business Brain gerente con dominios especialistas
+### Alternativa C: Business Brain gerente con capacidades mentales especializadas
 
-El cerebro central entiende el objetivo y coordina dominios especializados.
+El cerebro central entiende el objetivo y coordina capacidades mentales especializadas. Cada dominio representa una forma de pensar sobre el negocio, no una lista cerrada de instrucciones.
 
 Seleccionada.
 
-Motivo: coincide con patrones de agentes, DDD y riesgo. Permite que la IA sea una sola operadora para Bryams, pero internamente tenga areas claras.
+Motivo: coincide con patrones de agentes, DDD y riesgo. Permite que la IA sea una sola operadora para Bryams, pero internamente tenga areas claras de razonamiento.
 
 ```text
 Business Brain
   -> Customer Domain
+  -> Channel Routing Domain
   -> Case Domain
   -> Service Domain
   -> Pricing Domain
@@ -181,6 +182,7 @@ flowchart TB
   Brain["AriadGSM Business Brain"]
   Intake["Intake & Perception"]
   Customer["Customer Domain"]
+  Routing["Channel Routing"]
   Case["Case Domain"]
   Service["Service Catalog"]
   Pricing["Pricing Domain"]
@@ -196,6 +198,7 @@ flowchart TB
 
   Intake --> Brain
   Brain --> Customer
+  Brain --> Routing
   Brain --> Case
   Brain --> Service
   Brain --> Pricing
@@ -209,11 +212,23 @@ flowchart TB
   Brain --> Learning
   Learning --> Brain
   Customer --> Cloud
+  Routing --> Case
   Case --> Cloud
   Accounting --> Cloud
   Market --> Cloud
   Audit --> Cloud
 ```
+
+Criterio de lenguaje:
+
+```text
+Dominio = capacidad mental especializada del Business Brain.
+Guardrail = limite de seguridad, evidencia o permiso.
+Entidad = memoria estructurada que ayuda a pensar.
+Accion = ejecucion fisica/digital subordinada al cerebro.
+```
+
+Si una seccion empieza a parecer una lista de pasos fijos, debe reescribirse como preguntas de razonamiento, hipotesis, evidencias y explicaciones.
 
 ## 5. Lenguaje comun
 
@@ -237,7 +252,7 @@ Aprendizaje    = conocimiento aprobado o pendiente de aprobar.
 
 ## 6. Dominio: Intake & Perception
 
-Responsabilidad:
+Capacidad mental:
 
 Leer senales del mundo, interpretarlas como percepcion inteligente y entregarlas al Business Brain sin decidir el negocio completo.
 
@@ -260,12 +275,12 @@ Fuentes:
 - OCR como respaldo.
 - Archivos, comprobantes o imagenes permitidas.
 
-No debe hacer:
+Limites de seguridad:
 
-- Cerrar navegadores.
-- Responder clientes.
-- Registrar contabilidad final.
-- Aprender como verdad sin validacion.
+- No cerrar navegadores.
+- No responder clientes.
+- No registrar contabilidad final.
+- No aprender como verdad sin validacion.
 
 Razonamiento perceptivo:
 
@@ -301,7 +316,7 @@ evidence_level
 timestamp
 ```
 
-Prueba de aceptacion:
+Prueba de aceptacion cognitiva:
 
 - Detecta wa-1, wa-2 y wa-3 sin cerrar ventanas.
 - Marca ruido como ruido.
@@ -311,7 +326,7 @@ Prueba de aceptacion:
 
 ## 7. Dominio: Customer
 
-Responsabilidad:
+Capacidad mental:
 
 Entender quien es cada cliente y como debe tratarse.
 
@@ -332,7 +347,7 @@ Datos:
 - prioridad
 - estilo de respuesta
 
-Decisiones:
+Preguntas de razonamiento:
 
 - Es cliente, proveedor, grupo, tecnico interno o ruido?
 - Es recurrente?
@@ -352,21 +367,94 @@ CustomerPreference
 CustomerRiskFlag
 ```
 
-Reglas:
+Guardrails:
 
 - Un numero/chat no siempre equivale a un cliente.
 - Un cliente puede aparecer en varios WhatsApp.
 - Un nombre de grupo no debe mezclarse con cliente final.
 
-Prueba de aceptacion:
+Prueba de aceptacion cognitiva:
 
 - Une conversaciones del mismo cliente cuando hay evidencia.
 - No une clientes solo por nombre parecido.
 - Muestra por que cree que dos identidades son la misma.
 
-## 8. Dominio: Case Manager
+## 8. Dominio: Channel Routing
 
-Responsabilidad:
+Capacidad mental:
+
+Entender cuando un cliente, pago, servicio o caso debe quedarse en el WhatsApp donde entro, moverse a otro WhatsApp o fusionarse con una conversacion previa.
+
+Este dominio existe porque AriadGSM no opera tres negocios separados. Opera un solo negocio distribuido en tres canales.
+
+No debe pensar:
+
+```text
+Si dice Xiaomi -> mandar a wa-3.
+```
+
+Debe razonar:
+
+```text
+Este cliente entro por wa-1, pide Xiaomi, pero ya tiene historial/pago/contexto aqui.
+Hipotesis A: lo atiendo en el mismo canal para no perder venta.
+Hipotesis B: lo derivo a wa-3 porque ahi esta el flujo Xiaomi.
+Hipotesis C: busco si ya existe caso en wa-3 y fusiono contexto.
+Decido segun historial, urgencia, pago, servicio, riesgo y carga de canales.
+```
+
+Preguntas de razonamiento:
+
+- El servicio pertenece mejor a otro WhatsApp o puede atenderse aqui?
+- El cliente ya tiene caso abierto en otro canal?
+- Hay pago, deuda o comprobante en el canal actual?
+- Derivar ayuda o puede romper contexto y perder la venta?
+- El canal destino esta listo y visible?
+- El cliente entiende que debe continuar en otro WhatsApp?
+- Debo preparar respuesta de derivacion o pedir permiso a Bryams?
+- Debo fusionar caso, crear caso nuevo o solo marcar relacion entre canales?
+
+Entidades:
+
+```text
+ChannelRouteDecision
+CrossChannelIdentity
+CrossChannelCaseLink
+RouteReason
+RouteEvidence
+RouteStatus
+```
+
+Estados:
+
+```text
+SAME_CHANNEL
+ROUTE_RECOMMENDED
+ROUTE_PENDING_HUMAN
+ROUTED_PENDING_CLIENT
+ROUTED_CONFIRMED
+CROSS_CHANNEL_PAYMENT
+CROSS_CHANNEL_CASE_MERGED
+ROUTE_FAILED
+```
+
+Guardrails:
+
+- No derivar si eso puede perder un pago sin registrar.
+- No duplicar caso si ya existe uno activo.
+- No asumir que todo servicio de una marca debe moverse siempre.
+- No mezclar grupos de pagos con cliente final.
+- No enviar al cliente a otro canal sin conservar contexto del caso.
+
+Prueba de aceptacion cognitiva:
+
+- Si un cliente pide Xiaomi en wa-1, la IA explica si atiende ahi, deriva a wa-3 o pide confirmacion.
+- Si el pago esta en wa-1 y el trabajo en wa-3, crea relacion cruzada sin duplicar contabilidad.
+- Si ya habia caso en otro WhatsApp, propone fusionarlo y muestra evidencia.
+
+## 9. Dominio: Case Manager
+
+Capacidad mental:
 
 Convertir mensajes sueltos en trabajos reales.
 
@@ -411,7 +499,7 @@ CaseAssignment
 CaseOutcome
 ```
 
-Decisiones:
+Preguntas de razonamiento:
 
 - Crear caso nuevo o actualizar uno existente?
 - Que informacion falta?
@@ -419,17 +507,19 @@ Decisiones:
 - Que proxima accion corresponde?
 - Hay bloqueo por pago, herramienta, cliente o proveedor?
 
-Prueba de aceptacion:
+Prueba de aceptacion cognitiva:
 
 - Un chat con "precio + modelo + pago" termina en un caso completo.
 - Un pago sin servicio queda como borrador pendiente de asociacion.
 - Un caso no se cierra sin resultado y contabilidad.
 
-## 9. Dominio: Service Catalog
+## 10. Dominio: Service Catalog
 
-Responsabilidad:
+Capacidad mental:
 
 Mantener la lista viva de servicios AriadGSM.
+
+El Service Catalog no es una tabla fija. Es la memoria conceptual de lo que AriadGSM vende, como se diferencia cada servicio y que informacion necesita el cerebro antes de cotizar o actuar.
 
 Servicios iniciales:
 
@@ -457,7 +547,7 @@ Bootloader / BROM / Root
 IMEI / servidor
 ```
 
-Cada servicio debe tener:
+Cada servicio se razona con:
 
 - nombre comercial
 - variantes
@@ -472,17 +562,28 @@ Cada servicio debe tener:
 - evidencia requerida
 - permisos de autonomia
 
-Prueba de aceptacion:
+Preguntas de razonamiento:
+
+- Esto es un servicio conocido, una variante o algo nuevo?
+- Que datos son indispensables antes de cotizar?
+- Que herramientas/proveedores podrian resolverlo?
+- Que riesgos historicos tiene?
+- La solicitud coincide con un procedimiento aprendido o requiere investigacion?
+- Este servicio se puede atender en el canal actual o conviene derivar?
+
+Prueba de aceptacion cognitiva:
 
 - La IA no cotiza un servicio si faltan datos obligatorios.
 - La IA distingue servicio parecido pero no igual.
 - Un nuevo servicio puede agregarse sin tocar el codigo central.
 
-## 10. Dominio: Pricing
+## 11. Dominio: Pricing
 
-Responsabilidad:
+Capacidad mental:
 
 Calcular precios con razon comercial.
+
+Pricing no debe ser formula fija. Debe ser razonamiento comercial: costo, margen, demanda, pais, riesgo, historial, proveedor, urgencia y estrategia.
 
 Variables:
 
@@ -511,7 +612,7 @@ PriceHistory
 PriceDecision
 ```
 
-Decisiones:
+Preguntas de razonamiento:
 
 - Cotizar ahora o pedir datos?
 - Precio recomendado?
@@ -520,25 +621,27 @@ Decisiones:
 - Moneda correcta?
 - Se necesita permiso humano?
 
-Reglas:
+Guardrails:
 
 - No prometer precio si el servicio depende de proveedor inestable.
 - No usar ofertas de grupo sin validar proveedor.
 - Cotizacion debe quedar ligada a caso.
 
-Prueba de aceptacion:
+Estos guardrails no calculan el precio. Solo evitan que la IA venda mal, prometa de mas o use una oferta no confiable.
+
+Prueba de aceptacion cognitiva:
 
 - Para un servicio Xiaomi con costo detectado, genera precio recomendado y razon.
 - Si falta modelo, pide modelo antes de cotizar.
 - Si la oferta es dudosa, la manda a revision.
 
-## 11. Dominio: Accounting
+## 12. Dominio: Accounting
 
-Responsabilidad:
+Capacidad mental:
 
 Convertir conversaciones, comprobantes y pagos en contabilidad verificable.
 
-Este dominio no debe ser una lista de reglas contables. Debe ser un Accounting Brain: razona con evidencia, contexto, historial, moneda, cliente, caso y riesgo. Las reglas existen solo como limites de seguridad para impedir cierres falsos.
+Este dominio no debe ser una lista de instrucciones contables. Debe ser un Accounting Brain: razona con evidencia, contexto, historial, moneda, cliente, caso y riesgo. Los guardrails existen solo como limites de seguridad para impedir cierres falsos.
 
 Subdominios:
 
@@ -612,7 +715,7 @@ Decisiones inteligentes:
 Detectar -> asociar -> deduplicar -> clasificar -> estimar confianza -> pedir evidencia -> crear borrador -> recomendar cierre -> esperar aprobacion si el riesgo lo exige.
 ```
 
-Reglas:
+Guardrails:
 
 - Un monto detectado no es pago confirmado.
 - Un comprobante sin caso no cierra contabilidad.
@@ -620,9 +723,9 @@ Reglas:
 - Grupos de pagos no son cliente final por defecto.
 - Toda contabilidad final debe tener evidencia.
 
-Estas reglas no reemplazan a la IA. Son guardrails para que el razonamiento contable no convierta una lectura dudosa en dinero confirmado.
+Estos guardrails no reemplazan a la IA. Son limites para que el razonamiento contable no convierta una lectura dudosa en dinero confirmado.
 
-Prueba de aceptacion:
+Prueba de aceptacion cognitiva:
 
 - Detecta "Yape 55 soles" como borrador, no como cierre final.
 - Liga pago a caso cuando hay evidencia suficiente.
@@ -630,11 +733,13 @@ Prueba de aceptacion:
 - Explica por que un pago queda en borrador, confirmado o rechazado.
 - Detecta posible duplicado y lo deja en revision.
 
-## 12. Dominio: Market Intelligence
+## 13. Dominio: Market Intelligence
 
-Responsabilidad:
+Capacidad mental:
 
 Entender mercado, proveedores, demanda y oportunidades.
+
+Market Intelligence debe funcionar como olfato comercial. No solo guarda ofertas: compara senales, detecta cambios, estima confiabilidad y le da contexto al Pricing Brain y al Process Brain.
 
 Fuentes:
 
@@ -658,7 +763,7 @@ ProviderReliability
 PriceMovement
 ```
 
-Decisiones:
+Preguntas de razonamiento:
 
 - Que proveedor conviene?
 - Que servicio esta ON/OFF?
@@ -666,18 +771,23 @@ Decisiones:
 - Que demanda se repite?
 - Que oferta es confiable?
 - Que oferta debe ignorarse?
+- Esta oferta es costo real, publicidad, rumor o mensaje viejo?
+- Esta senal cambia una cotizacion actual?
+- Hay tendencia por pais, marca o herramienta?
 
-Prueba de aceptacion:
+Prueba de aceptacion cognitiva:
 
 - Detecta una oferta como senal de mercado, no como solicitud de cliente.
 - Actualiza costo sugerido sin cambiar precio final automaticamente.
 - Muestra proveedores confiables por servicio.
 
-## 13. Dominio: Procedure Knowledge
+## 14. Dominio: Procedure Knowledge
 
-Responsabilidad:
+Capacidad mental:
 
 Guardar como se resuelven trabajos y como se recupera de fallos.
+
+Procedure Knowledge no es una receta rigida. Es memoria de estrategias: que funciono, bajo que condiciones, que fallo, que alternativa existe y cuando pedir permiso.
 
 Fuentes:
 
@@ -701,24 +811,34 @@ HumanNote
 SuccessEvidence
 ```
 
-Reglas:
+Guardrails:
 
 - Un procedimiento aprendido de chat/video queda como borrador hasta validar.
 - Cada procedimiento debe tener condiciones de uso.
 - Cada paso debe tener evidencia o fuente.
 - Si cambia una herramienta, se actualiza Tool Registry, no el cerebro entero.
 
-Prueba de aceptacion:
+Preguntas de razonamiento:
+
+- Este caso se parece a procedimientos anteriores?
+- Que condiciones deben cumplirse para usar este procedimiento?
+- Que paso puede fallar y como se verifica?
+- Hay alternativa si falla USB, herramienta, proveedor o driver?
+- El procedimiento fue probado o solo aprendido como candidato?
+
+Prueba de aceptacion cognitiva:
 
 - La IA puede decir: "para este caso he visto 2 procedimientos posibles".
 - Si USB Redirector falla, propone recuperacion o alternativa documentada.
 - No ejecuta procedimiento riesgoso sin permiso.
 
-## 14. Dominio: Tool & License Inventory
+## 15. Dominio: Tool & License Inventory
 
-Responsabilidad:
+Capacidad mental:
 
 Controlar herramientas, cuentas, licencias, creditos y accesos disponibles.
+
+Este dominio no decide por marca de herramienta. Razona sobre capacidades disponibles: que puede hacer cada herramienta, si esta lista, que riesgo tiene, que costo implica y como comprobar resultado.
 
 Entidades:
 
@@ -748,21 +868,31 @@ Datos por herramienta:
 - errores conocidos
 - alternativas
 
-Regla:
+Guardrail:
 
 La IA no debe "saber de memoria" que herramienta usar. Debe consultar capacidades registradas y memoria de casos.
 
-Prueba de aceptacion:
+Preguntas de razonamiento:
+
+- Que herramienta tiene capacidad real para este servicio?
+- Tiene licencia, creditos, cuenta o servidor disponible?
+- Cual funciono antes para casos parecidos?
+- Cual es mas riesgosa o costosa?
+- Como se verifica que la herramienta hizo el trabajo?
+
+Prueba de aceptacion cognitiva:
 
 - Muestra que herramientas sirven para un servicio.
 - Detecta licencia/credito insuficiente.
 - Propone alternativa si una herramienta esta caida.
 
-## 15. Dominio: Conversation
+## 16. Dominio: Conversation
 
-Responsabilidad:
+Capacidad mental:
 
 Responder, negociar y pedir datos con estilo AriadGSM.
+
+Conversation no es plantillas. Es razonamiento comunicativo: que decir, que callar, que preguntar, con que tono, en que idioma/jerga y con que nivel de seguridad.
 
 Tipos de respuesta:
 
@@ -789,7 +919,7 @@ ResponseRisk
 CustomerMessagePlan
 ```
 
-Reglas:
+Guardrails:
 
 - La IA debe sonar como AriadGSM, no como robot.
 - Debe adaptar jerga por pais.
@@ -797,17 +927,27 @@ Reglas:
 - No debe enviar informacion sensible a grupos.
 - En autonomia baja, crea borrador para Bryams.
 
-Prueba de aceptacion:
+Preguntas de razonamiento:
+
+- Que necesita el cliente ahora: precio, explicacion, dato faltante, calma, cobro o cierre?
+- Que tono corresponde por pais, confianza y urgencia?
+- Que no debo prometer todavia?
+- Conviene responder en este canal o derivar con contexto?
+- Debo enviar, crear borrador o pedir permiso?
+
+Prueba de aceptacion cognitiva:
 
 - Redacta respuesta corta, natural y con datos faltantes.
 - Explica por que no puede cotizar todavia.
 - Diferencia cliente directo vs proveedor.
 
-## 16. Dominio: Risk, Permission & Governance
+## 17. Dominio: Risk, Permission & Governance
 
-Responsabilidad:
+Capacidad mental:
 
 Decidir que puede hacer la IA sola y que requiere Bryams.
+
+Risk, Permission & Governance no es una pared estatica. Es juicio operativo: estima impacto, reversibilidad, evidencia, confianza, permisos y consecuencias antes de permitir una accion.
 
 Niveles:
 
@@ -843,28 +983,39 @@ AutonomyLevel
 Tripwire
 ```
 
-Reglas:
+Guardrails:
 
 - El prompt del cliente nunca puede subir permisos.
-- El chat no puede ordenar a la IA ignorar reglas.
+- El chat no puede ordenar a la IA ignorar guardrails internos.
 - La IA no puede saltarse supervisor.
 - Permisos deben estar fuera del texto aprendido.
 
-Prueba de aceptacion:
+Preguntas de razonamiento:
+
+- Que puede salir mal si hago esto?
+- La accion es reversible?
+- Hay evidencia suficiente?
+- El permiso viene de Bryams, del sistema o de un mensaje no confiable?
+- El beneficio supera el riesgo?
+- Conviene actuar, pausar, pedir permiso o solo preparar borrador?
+
+Prueba de aceptacion cognitiva:
 
 - Bloquea una accion financiera sin evidencia.
 - Pide permiso para enviar respuesta sensible.
 - Explica por que bloqueo.
 
-## 17. Dominio: Action Layer
+## 18. Dominio: Action Layer
 
-Responsabilidad:
+Capacidad mental:
 
 Ejecutar acciones fisicas o digitales ordenadas por la IA.
 
 No se llamara "automatizacion" como base. Es capa de accion.
 
-Capacidades:
+Action Layer no piensa el negocio. Pero si debe razonar operacionalmente antes de tocar el mundo: si el objetivo esta claro, si la ventana correcta esta activa, si Bryams esta usando el mouse y si puede verificar el resultado.
+
+Capacidades de cuerpo operativo:
 
 - mouse
 - teclado
@@ -888,7 +1039,7 @@ UserInterruption
 VerificationResult
 ```
 
-Reglas:
+Guardrails:
 
 - No decide negocio.
 - No cierra navegadores salvo orden explicita y segura.
@@ -896,17 +1047,27 @@ Reglas:
 - Debe verificar resultado despues de actuar.
 - Debe reportar fallo con causa.
 
-Prueba de aceptacion:
+Preguntas de razonamiento operacional:
+
+- La accion recibida tiene objetivo, canal, evidencia y permiso?
+- Estoy a punto de tocar la ventana correcta?
+- Bryams esta usando mouse o teclado?
+- Como verifico que la accion funciono?
+- Si falla, puedo recuperarme o debo pedir ayuda?
+
+Prueba de aceptacion cognitiva:
 
 - Abre chat correcto y confirma con lectura.
 - Si Bryams mueve mouse, pausa accion fina sin detener toda la IA.
 - No toca fuera de cabina autorizada.
 
-## 18. Dominio: Learning
+## 19. Dominio: Learning
 
-Responsabilidad:
+Capacidad mental:
 
 Convertir experiencia en conocimiento corregible.
+
+Learning no es guardar todo. Es formar criterio: separar observacion de verdad, detectar patrones, esperar confirmacion cuando haga falta y reemplazar conocimiento viejo cuando el negocio cambie.
 
 Tipos de aprendizaje:
 
@@ -918,7 +1079,7 @@ PricePattern
 Procedure
 FailureMode
 RecoveryPlan
-AccountingRule
+AccountingPolicy
 ConversationStyle
 RiskRule
 ```
@@ -934,26 +1095,34 @@ REJECTED
 SUPERSEDED
 ```
 
-Reglas:
+Guardrails:
 
 - Aprender no es guardar todo.
 - Un dato de OCR dudoso no se vuelve verdad.
 - Correccion humana tiene prioridad.
 - Aprendizaje debe decir fuente, confianza y vigencia.
 
-Prueba de aceptacion:
+Preguntas de razonamiento:
+
+- Esto es un hecho, una hipotesis, una excepcion o ruido?
+- La fuente es confiable?
+- Este aprendizaje aplica siempre o solo bajo condiciones?
+- Bryams corrigio algo parecido antes?
+- Debe quedar aprobado, pendiente o rechazado?
+
+Prueba de aceptacion cognitiva:
 
 - Muestra "aprendi esto" y permite corregir.
 - Si Bryams corrige, no repite el mismo error.
 - Un aprendizaje viejo puede ser reemplazado.
 
-## 19. Dominio: Cloud / ariadgsm.com
+## 20. Dominio: Cloud / ariadgsm.com
 
-Responsabilidad:
+Capacidad mental:
 
 Ser panel de control, respaldo, reportes y sincronizacion.
 
-Debe mostrar:
+Debe representar el negocio en lenguaje humano:
 
 - clientes
 - casos
@@ -968,22 +1137,32 @@ Debe mostrar:
 - salud de cabinas
 - reportes
 
-Reglas:
+Guardrails:
 
 - La decision rapida debe poder ocurrir localmente.
 - La nube consolida y respalda.
 - La nube no debe ser cuello de botella para lectura en vivo.
 
-Prueba de aceptacion:
+Preguntas de razonamiento:
+
+- Que informacion necesita Bryams para decidir rapido?
+- Que debe quedar local y que debe subir a la nube?
+- Hay riesgo de duplicar casos/pagos al sincronizar?
+- Que resumen diario/semanal ayuda al negocio?
+- Que aprendizaje merece revision humana?
+
+Prueba de aceptacion cognitiva:
 
 - Si la nube esta lenta, la PC sigue leyendo y guarda cola.
 - Cuando vuelve conexion, sincroniza sin duplicar pagos/casos.
 
-## 20. Dominio: Audit & Observability
+## 21. Dominio: Audit & Observability
 
-Responsabilidad:
+Capacidad mental:
 
 Saber que paso, por que paso y como corregirlo.
+
+Audit & Observability es memoria explicativa. No es log por log: debe reconstruir la historia de una decision para mejorar la IA y para que Bryams confie en lo que hizo.
 
 Entidades:
 
@@ -997,7 +1176,7 @@ EvalResult
 OperatorTimeline
 ```
 
-Debe registrar:
+Debe reconstruir:
 
 - que vio
 - fuente
@@ -1010,29 +1189,37 @@ Debe registrar:
 - que aprendio
 - que fallo
 
-Prueba de aceptacion:
+Preguntas de razonamiento:
+
+- Cual fue la causa probable del fallo?
+- Fue error de percepcion, decision, permiso, accion, herramienta, nube o humano?
+- Que evidencia sustenta esa conclusion?
+- Que prueba detectaria este fallo antes de publicar otra version?
+
+Prueba de aceptacion cognitiva:
 
 - Si se cierra Edge/Chrome, el reporte dice quien lo ordeno o que proceso lo provoco.
-- Si una decision fue mala, se puede rastrear a fuente y regla.
+- Si una decision fue mala, se puede rastrear a fuente, politica o guardrail.
 - Las pruebas detectan regresiones antes de publicar version.
 
-## 21. Flujo maestro
+## 22. Flujo maestro
 
 ```text
 1. Perception detecta mensaje/oferta/pago/error.
 2. Business Brain identifica actor e intencion.
 3. Customer Domain confirma identidad.
-4. Case Manager crea o actualiza caso.
-5. Service Catalog identifica servicio y datos faltantes.
-6. Pricing/Market/Accounting/Procedure aportan contexto.
-7. Risk Domain decide nivel permitido.
-8. Conversation Domain prepara respuesta o Action Layer ejecuta accion.
-9. Verification confirma resultado.
-10. Learning guarda aprendizaje candidato.
-11. Cloud sincroniza y reporta.
+4. Channel Routing razona si atiende, deriva o fusiona contexto entre WhatsApps.
+5. Case Manager crea o actualiza caso.
+6. Service Catalog identifica servicio y datos faltantes.
+7. Pricing/Market/Accounting/Procedure aportan contexto.
+8. Risk Domain estima permiso y riesgo.
+9. Conversation Domain prepara respuesta o Action Layer ejecuta accion autorizada.
+10. Verification confirma resultado.
+11. Learning guarda aprendizaje candidato.
+12. Cloud sincroniza y reporta.
 ```
 
-## 22. Orden recomendado de construccion
+## 23. Orden recomendado de construccion
 
 No empezar por mouse ni por UI.
 
@@ -1041,19 +1228,20 @@ Orden serio:
 ```text
 1. Domain Map validado.
 2. Case Manager.
-3. Accounting Core evidence-first.
-4. Customer/Provider Identity.
-5. Service Catalog + Tool Inventory.
-6. Pricing + Market Intelligence.
-7. Conversation Brain.
-8. Risk/Permission Matrix.
-9. Action Layer con verificacion.
-10. Learning Review.
-11. ariadgsm.com business cockpit.
-12. Evals y observabilidad por version.
+3. Channel Routing Brain.
+4. Accounting Core evidence-first.
+5. Customer/Provider Identity.
+6. Service Catalog + Tool Inventory.
+7. Pricing + Market Intelligence.
+8. Conversation Brain.
+9. Risk/Permission Matrix.
+10. Action Layer con verificacion.
+11. Learning Review.
+12. ariadgsm.com business cockpit.
+13. Evals y observabilidad por version.
 ```
 
-## 23. Que no se debe hacer
+## 24. Que no se debe hacer
 
 No hacer:
 
@@ -1061,13 +1249,13 @@ No hacer:
 - Agregar filtros infinitos.
 - Convertir la IA en una macro.
 - Mezclar contabilidad con lectura OCR sin evidencia.
-- Permitir que un mensaje de cliente cambie reglas internas.
+- Permitir que un mensaje de cliente cambie guardrails internos.
 - Ejecutar herramientas tecnicas sin verificacion.
 - Guardar todo como aprendizaje real.
 - Depender de la nube para cada decision en vivo.
 - Construir UI tecnica que Bryams no pueda entender.
 
-## 24. Prueba maestra de dominio
+## 25. Prueba maestra de dominio
 
 Un sistema AriadGSM correcto debe poder responder:
 
@@ -1090,13 +1278,14 @@ Como lo pruebo?
 
 Si no puede responder eso, todavia no es IA operativa de negocio.
 
-## 25. Primera version objetivo
+## 26. Primera version objetivo
 
 Version objetivo recomendada: `0.7.0-domain-core`
 
 Alcance:
 
 - Case Manager basico.
+- Channel Routing basico para derivar/fusionar entre WhatsApps sin perder contexto.
 - Accounting drafts con evidencia.
 - Customer/Provider classification.
 - Service Catalog inicial.
@@ -1110,7 +1299,7 @@ Fuera de alcance para esa version:
 - Ejecucion tecnica completa sin permiso.
 - Contabilidad final sin revision.
 
-## 26. Conclusion
+## 27. Conclusion
 
 La estructura robusta no es:
 
