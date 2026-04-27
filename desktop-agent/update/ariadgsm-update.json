@@ -1,8 +1,8 @@
 {
-  "version": "0.5.22",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.22.zip",
-  "sha256": "0be6f66da910b4e6fa3bae624564d47a0444a13bf0cfeb75e41d480b7385ed0c",
+  "version": "0.5.23",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.23.zip",
+  "sha256": "a9680cf1498b706202d50ada83eb79fe9ff65f9bcc056ff7a039d90463dba6bf",
   "autoApply": true,
-  "notes": "Encender IA now runs a formal workspace setup gate before reading: arrange visible WhatsApps, recover/open WhatsApp 1/2/3, validate fixed Edge/Chrome/Firefox channels, keep the app visible on setup failures, and minimize the panel only after the cabin is ready so Vision can read cleanly.",
-  "publishedAt": "2026-04-27T16:58:37Z"
+  "notes": "Adds a Workspace Guardian that continuously owns the three WhatsApp columns while the IA runs, clears blocking windows, restores fixed Edge/Chrome/Firefox WhatsApp windows, exposes guardian status in the desktop activity panel, and lets Hands recover a registered browser handle before failing.",
+  "publishedAt": "2026-04-27T17:11:37Z"
 }
