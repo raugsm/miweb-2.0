@@ -24,6 +24,8 @@ internal sealed class AgentRuntime : IDisposable
     private const long MaxLogBytes = 16L * 1024 * 1024;
     private const int MaxLogArchives = 5;
     private const int MaxRestartsPerWindow = 4;
+    private const uint SetWindowPosShowWindow = 0x0040;
+    private static readonly IntPtr HwndTop = IntPtr.Zero;
     private static readonly TimeSpan ToolResolveTtl = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan RunningStateStaleAfter = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan SupervisorInterval = TimeSpan.FromSeconds(3);
@@ -614,7 +616,10 @@ internal sealed class AgentRuntime : IDisposable
             if (readiness.All(item => item.IsReady))
             {
                 ArrangeWhatsAppWorkspace();
-                WriteCabinReadinessState("ready", readiness);
+                var arrangedReadiness = ReadChannelMappings()
+                    .Select(mapping => EvaluateChannelReadiness(mapping, VisibleWindows()))
+                    .ToArray();
+                WriteCabinReadinessState("ready", arrangedReadiness);
                 WriteLog("Cabin readiness: all WhatsApp channels are visible and arranged.");
                 return Preflight();
             }
@@ -748,7 +753,8 @@ internal sealed class AgentRuntime : IDisposable
                     blocker.RequiresHuman,
                     false,
                     blocker.Detail,
-                    SampleLines(lines, window.Title));
+                    SampleLines(lines, window.Title),
+                    window);
             }
 
             if (LooksLikeWhatsAppReady(lines, window.Title))
@@ -760,7 +766,8 @@ internal sealed class AgentRuntime : IDisposable
                     false,
                     false,
                     $"{window.ProcessName} #{window.ProcessId}: WhatsApp Web visible y utilizable.",
-                    SampleLines(lines, window.Title));
+                    SampleLines(lines, window.Title),
+                    window);
             }
 
             return new ChannelReadiness(
@@ -770,7 +777,8 @@ internal sealed class AgentRuntime : IDisposable
                 false,
                 false,
                 $"{window.ProcessName} #{window.ProcessId}: ventana WhatsApp visible, esperando que termine de cargar o muestre login.",
-                SampleLines(lines, window.Title));
+                SampleLines(lines, window.Title),
+                window);
         }
 
         var browserWindows = FindBrowserWindows(windows, mapping).ToArray();
@@ -787,7 +795,8 @@ internal sealed class AgentRuntime : IDisposable
                     blocker.RequiresHuman,
                     false,
                     blocker.Detail,
-                    SampleLines(lines, window.Title));
+                    SampleLines(lines, window.Title),
+                    window);
             }
 
             return new ChannelReadiness(
@@ -797,7 +806,8 @@ internal sealed class AgentRuntime : IDisposable
                 false,
                 true,
                 $"{mapping.BrowserProcess} esta abierto, pero no veo web.whatsapp.com. Abrire una sola ventana WhatsApp y luego esperare.",
-                [$"{window.ProcessName} #{window.ProcessId}: {window.Title}"]);
+                [$"{window.ProcessName} #{window.ProcessId}: {window.Title}"],
+                window);
         }
 
         var browser = ResolveBrowser(mapping.BrowserProcess);
@@ -990,6 +1000,7 @@ internal sealed class AgentRuntime : IDisposable
             var summary = string.Join(" | ", readiness.Select(item => $"{item.ChannelId}:{item.Status}"));
             var state = new Dictionary<string, object?>
             {
+                ["identityVersion"] = "cabin-window-identity-v1",
                 ["status"] = status,
                 ["summary"] = summary,
                 ["updatedAt"] = DateTimeOffset.UtcNow,
@@ -1004,7 +1015,8 @@ internal sealed class AgentRuntime : IDisposable
                     ["requiresHuman"] = item.RequiresHuman,
                     ["canLaunch"] = item.CanLaunch,
                     ["detail"] = item.Detail,
-                    ["evidence"] = item.Evidence
+                    ["evidence"] = item.Evidence,
+                    ["window"] = SerializeCabinWindow(item.Window)
                 }).ToArray()
             };
             WriteAllTextAtomicShared(_cabinReadinessFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
@@ -1122,7 +1134,9 @@ internal sealed class AgentRuntime : IDisposable
             try
             {
                 ShowWindow(window.Handle, ShowWindowRestore);
-                MoveWindow(window.Handle, left, area.Top, width, area.Height, repaint: true);
+                _ = SetWindowPos(window.Handle, HwndTop, left, area.Top, width, area.Height, SetWindowPosShowWindow);
+                _ = BringWindowToTop(window.Handle);
+                _ = SetForegroundWindow(window.Handle);
                 arranged++;
                 WriteLog($"{mapping.ChannelId}: arranged {window.ProcessName} #{window.ProcessId} at column {index + 1}.");
             }
@@ -2164,18 +2178,25 @@ internal sealed class AgentRuntime : IDisposable
     {
         var normalized = NormalizeProcessName(mapping.BrowserProcess);
         const string url = "https://web.whatsapp.com/";
-        var arguments = normalized switch
-        {
-            "msedge" or "chrome" => new List<string> { "--new-window" },
-            "firefox" => new List<string> { "-new-window" },
-            _ => []
-        };
+        var arguments = new List<string>();
 
         if ((normalized.Equals("msedge", StringComparison.OrdinalIgnoreCase)
                 || normalized.Equals("chrome", StringComparison.OrdinalIgnoreCase))
             && !string.IsNullOrWhiteSpace(mapping.ProfileDirectory))
         {
             arguments.Add($"--profile-directory={mapping.ProfileDirectory}");
+        }
+
+        if (normalized.Equals("msedge", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("chrome", StringComparison.OrdinalIgnoreCase))
+        {
+            arguments.Add($"--app={url}");
+            return arguments;
+        }
+
+        if (normalized.Equals("firefox", StringComparison.OrdinalIgnoreCase))
+        {
+            arguments.Add("-new-window");
         }
 
         arguments.Add(url);
@@ -2473,7 +2494,8 @@ internal sealed class AgentRuntime : IDisposable
         var process = NormalizeProcessName(mapping.BrowserProcess);
         return windows.Where(window =>
             NormalizeProcessName(window.ProcessName).Equals(process, StringComparison.OrdinalIgnoreCase)
-            && window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase));
+            && window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(window => window.ZOrder);
     }
 
     private static IEnumerable<WindowInfo> FindBrowserWindows(IReadOnlyList<WindowInfo> windows, ChannelMapping mapping)
@@ -2481,12 +2503,14 @@ internal sealed class AgentRuntime : IDisposable
         var process = NormalizeProcessName(mapping.BrowserProcess);
         return windows.Where(window =>
             NormalizeProcessName(window.ProcessName).Equals(process, StringComparison.OrdinalIgnoreCase)
-            && !window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase));
+            && !window.Title.Contains(mapping.TitleContains, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(window => window.ZOrder);
     }
 
     private static IReadOnlyList<WindowInfo> VisibleWindows()
     {
         var windows = new List<WindowInfo>();
+        var zOrder = 0;
         EnumWindows((handle, _) =>
         {
             if (!IsWindowVisible(handle))
@@ -2503,19 +2527,45 @@ internal sealed class AgentRuntime : IDisposable
             }
 
             var threadId = GetWindowThreadProcessId(handle, out var processId);
+            var bounds = GetWindowRect(handle, out var rect)
+                ? new WindowBounds(rect.Left, rect.Top, Math.Max(0, rect.Right - rect.Left), Math.Max(0, rect.Bottom - rect.Top))
+                : new WindowBounds(0, 0, 0, 0);
             try
             {
                 using var process = Process.GetProcessById((int)processId);
-                windows.Add(new WindowInfo(handle, (int)processId, process.ProcessName, title));
+                windows.Add(new WindowInfo(handle, (int)processId, process.ProcessName, title, bounds, zOrder++));
             }
             catch
             {
-                windows.Add(new WindowInfo(handle, (int)processId, "unknown", title));
+                windows.Add(new WindowInfo(handle, (int)processId, "unknown", title, bounds, zOrder++));
             }
 
             return true;
         }, IntPtr.Zero);
         return windows;
+    }
+
+    private static Dictionary<string, object?>? SerializeCabinWindow(WindowInfo? window)
+    {
+        if (window is null)
+        {
+            return null;
+        }
+
+        return new Dictionary<string, object?>
+        {
+            ["processId"] = window.ProcessId,
+            ["processName"] = window.ProcessName,
+            ["title"] = window.Title,
+            ["zOrder"] = window.ZOrder,
+            ["bounds"] = new Dictionary<string, object?>
+            {
+                ["left"] = window.Bounds.Left,
+                ["top"] = window.Bounds.Top,
+                ["width"] = window.Bounds.Width,
+                ["height"] = window.Bounds.Height
+            }
+        };
     }
 
     private static string NormalizeProcessName(string value)
@@ -2791,6 +2841,27 @@ internal sealed class AgentRuntime : IDisposable
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int command);
 
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect lpRect);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
     private sealed record ManagedProcess(string Name, Process Process, WorkerSpec? Spec);
 
     private sealed record ProcessSpec(string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory);
@@ -2804,7 +2875,8 @@ internal sealed class AgentRuntime : IDisposable
         bool RequiresHuman,
         bool CanLaunch,
         string Detail,
-        IReadOnlyList<string> Evidence)
+        IReadOnlyList<string> Evidence,
+        WindowInfo? Window = null)
     {
         public string ChannelId => Mapping.ChannelId;
     }
@@ -2820,7 +2892,9 @@ internal sealed class AgentRuntime : IDisposable
 
     private sealed record ChannelMapping(string ChannelId, string BrowserProcess, string TitleContains, string ProfileDirectory);
 
-    private sealed record WindowInfo(IntPtr Handle, int ProcessId, string ProcessName, string Title);
+    private sealed record WindowInfo(IntPtr Handle, int ProcessId, string ProcessName, string Title, WindowBounds Bounds, int ZOrder);
+
+    private sealed record WindowBounds(int Left, int Top, int Width, int Height);
 }
 
 internal enum HealthSeverity

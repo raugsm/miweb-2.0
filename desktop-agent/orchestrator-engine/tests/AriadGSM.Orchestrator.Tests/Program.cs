@@ -21,7 +21,22 @@ static async Task TestOrchestratorPausesMissingChannel()
             updatedAt = DateTimeOffset.UtcNow,
             channels = new object[]
             {
-                new { channelId = "wa-1", browser = "msedge", status = "READY", isReady = true, requiresHuman = false, detail = "edge ready" },
+                new
+                {
+                    channelId = "wa-1",
+                    browser = "msedge",
+                    status = "READY",
+                    isReady = true,
+                    requiresHuman = false,
+                    detail = "edge ready",
+                    window = new
+                    {
+                        processId = 10,
+                        processName = "msedge",
+                        title = "(34) WhatsApp Business - Perfil 1: Microsoft Edge",
+                        bounds = new { left = 0, top = 0, width = 1146, height = 1392 }
+                    }
+                },
                 new { channelId = "wa-2", browser = "chrome", status = "READY", isReady = true, requiresHuman = false, detail = "chrome ready" },
                 new { channelId = "wa-3", browser = "firefox", status = "READY", isReady = true, requiresHuman = false, detail = "firefox ready" }
             }
@@ -87,7 +102,9 @@ static async Task TestOrchestratorPausesMissingChannel()
         var state = await new OrchestratorPipeline(options).RunOnceAsync();
         Assert(state.Status == "attention", "orchestrator should degrade when one channel is missing");
         Assert(state.Channels.Single(item => item.ChannelId == "wa-1").ActionsAllowed == false, "wa-1 should be paused");
+        Assert(state.Channels.Single(item => item.ChannelId == "wa-1").Window is not null, "wa-1 should keep cabin identity for diagnostics");
         Assert(state.Channels.Single(item => item.ChannelId == "wa-2").ActionsAllowed, "wa-2 should remain allowed");
+        Assert(state.Blockers.Any(item => item.Code == "channel_hidden_or_covered" && item.ChannelId == "wa-1"), "cabin identity should turn missing vision into hidden/covered diagnosis");
         Assert(state.Blockers.Any(item => item.Code == "channel_missing_from_perception" && item.ChannelId == "wa-1"), "missing perception blocker expected");
         Assert(File.Exists(commandsFile), "commands file should be written");
         using var commands = JsonDocument.Parse(await File.ReadAllTextAsync(commandsFile));

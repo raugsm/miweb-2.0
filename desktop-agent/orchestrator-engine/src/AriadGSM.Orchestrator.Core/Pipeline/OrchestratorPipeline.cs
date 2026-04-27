@@ -56,17 +56,19 @@ public sealed class OrchestratorPipeline
                 var cabinChannel = cabin.Channels.TryGetValue(mapping.ChannelId, out var foundCabin)
                     ? foundCabin
                     : CabinChannelSnapshot.Missing(mapping.ChannelId, mapping.BrowserProcess);
-                var window = FindWhatsAppWindow(mapping, vision.Windows);
+                var visionWindow = FindWhatsAppWindow(mapping, vision.Windows);
+                var cabinWindow = cabinChannel.Window;
+                var window = visionWindow ?? cabinWindow;
                 var browserWindows = vision.Windows
                     .Where(item => item.ProcessName.Equals(mapping.BrowserProcess, StringComparison.OrdinalIgnoreCase))
                     .ToArray();
                 var perceptionSeen = perception.ChannelIds.Contains(mapping.ChannelId);
                 var failedActions = actionFailures.TryGetValue(mapping.ChannelId, out var failures) ? failures : 0;
-                var codexOverlap = window is not null && codexWindows.Any(item => OverlapRatio(item.Bounds, window.Bounds) > 0.25);
+                var codexOverlap = visionWindow is not null && codexWindows.Any(item => OverlapRatio(item.Bounds, visionWindow.Bounds) > 0.25);
 
                 var actionsAllowed = cabinChannel.IsReady
                     && !cabinChannel.RequiresHuman
-                    && window is not null
+                    && visionWindow is not null
                     && perceptionSeen;
                 var status = actionsAllowed ? "OK" : "ATTENTION";
                 var details = new List<string>();
@@ -91,18 +93,34 @@ public sealed class OrchestratorPipeline
                     details.Add("Requiere accion humana.");
                 }
 
-                if (window is null)
+                if (visionWindow is null)
                 {
-                    details.Add("Vision no ve una ventana usable de WhatsApp para este navegador.");
-                    blockers.Add(new OrchestratorBlocker(
-                        "channel_missing_from_vision",
-                        "warning",
-                        mapping.ChannelId,
-                        $"{mapping.BrowserProcess} no aparece como WhatsApp visible ahora mismo."));
-                    recommendations.Add(new OrchestratorRecommendation(
-                        "restore_browser_whatsapp",
-                        mapping.ChannelId,
-                        $"Abrir o restaurar web.whatsapp.com en {mapping.BrowserProcess}."));
+                    if (cabinWindow is not null)
+                    {
+                        details.Add("Cabina recuerda la ventana de WhatsApp, pero Vision no la ve ahora mismo.");
+                        blockers.Add(new OrchestratorBlocker(
+                            "channel_hidden_or_covered",
+                            "warning",
+                            mapping.ChannelId,
+                            $"{mapping.BrowserProcess} estaba identificado como {cabinWindow.Title}, pero no esta visible para lectura; puede estar cubierto, minimizado o con la pestana cambiada."));
+                        recommendations.Add(new OrchestratorRecommendation(
+                            "restore_cabin_window",
+                            mapping.ChannelId,
+                            "Restaurar la ventana registrada por cabina antes de permitir manos."));
+                    }
+                    else
+                    {
+                        details.Add("Vision no ve una ventana usable de WhatsApp para este navegador.");
+                        blockers.Add(new OrchestratorBlocker(
+                            "channel_missing_from_vision",
+                            "warning",
+                            mapping.ChannelId,
+                            $"{mapping.BrowserProcess} no aparece como WhatsApp visible ahora mismo."));
+                        recommendations.Add(new OrchestratorRecommendation(
+                            "restore_browser_whatsapp",
+                            mapping.ChannelId,
+                            $"Abrir o restaurar web.whatsapp.com en {mapping.BrowserProcess}."));
+                    }
 
                     var wrongWindow = browserWindows.FirstOrDefault(item => !LooksLikeWhatsApp(item.Title));
                     if (wrongWindow is not null)
@@ -163,7 +181,7 @@ public sealed class OrchestratorPipeline
                     mapping.BrowserProcess,
                     status,
                     cabinChannel.IsReady,
-                    window is not null,
+                    visionWindow is not null,
                     perceptionSeen,
                     actionsAllowed,
                     string.Join(" ", details),
@@ -359,11 +377,41 @@ public sealed class OrchestratorPipeline
                     RuntimeJson.String(item, "status"),
                     RuntimeJson.Bool(item, false, "isReady"),
                     RuntimeJson.Bool(item, false, "requiresHuman"),
-                    RuntimeJson.String(item, "detail"));
+                    RuntimeJson.String(item, "detail"),
+                    ReadCabinWindow(item));
             }
         }
 
         return new CabinSnapshot(ready, requiresHuman, channels);
+    }
+
+    private static OrchestratorWindowSnapshot? ReadCabinWindow(JsonElement channel)
+    {
+        if (!channel.TryGetProperty("window", out var window)
+            || window.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        OrchestratorBounds bounds = new(0, 0, 0, 0);
+        if (window.TryGetProperty("bounds", out var boundsElement) && boundsElement.ValueKind == JsonValueKind.Object)
+        {
+            bounds = new OrchestratorBounds(
+                RuntimeJson.Int(boundsElement, 0, "left"),
+                RuntimeJson.Int(boundsElement, 0, "top"),
+                RuntimeJson.Int(boundsElement, 0, "width"),
+                RuntimeJson.Int(boundsElement, 0, "height"));
+        }
+
+        var processId = RuntimeJson.Int(window, 0, "processId");
+        var processName = RuntimeJson.String(window, "processName");
+        var title = RuntimeJson.String(window, "title");
+        if (processId <= 0 || string.IsNullOrWhiteSpace(processName) || string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
+
+        return new OrchestratorWindowSnapshot(processId, processName, title, bounds);
     }
 
     private static VisionSnapshot ReadVision(JsonDocument? document)
@@ -584,11 +632,12 @@ public sealed class OrchestratorPipeline
         string Status,
         bool IsReady,
         bool RequiresHuman,
-        string Detail)
+        string Detail,
+        OrchestratorWindowSnapshot? Window)
     {
         public static CabinChannelSnapshot Missing(string channelId, string browser)
         {
-            return new CabinChannelSnapshot(channelId, browser, "MISSING", false, false, "No hay diagnostico de cabina para este canal.");
+            return new CabinChannelSnapshot(channelId, browser, "MISSING", false, false, "No hay diagnostico de cabina para este canal.", null);
         }
     }
 
