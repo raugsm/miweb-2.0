@@ -20,6 +20,8 @@ public sealed class HandsOptions
 
     public bool ExecuteActions { get; init; } = false;
 
+    public bool EnableInteractionNavigator { get; init; } = true;
+
     public bool AllowTextInput { get; init; } = false;
 
     public bool AllowSendMessage { get; init; } = false;
@@ -35,6 +37,12 @@ public sealed class HandsOptions
     public int PerceptionLimit { get; init; } = 50;
 
     public int InteractionLimit { get; init; } = 20;
+
+    public int NavigatorMaxChatsPerCycle { get; init; } = 1;
+
+    public int NavigatorRevisitMinutes { get; init; } = 30;
+
+    public int NavigatorMinimumSecondsBetweenClicks { get; init; } = 2;
 
     public IReadOnlyList<HandsChannelMapping> ChannelMappings { get; init; } =
     [

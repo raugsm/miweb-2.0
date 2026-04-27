@@ -36,6 +36,7 @@ public sealed class HandsPipeline
     private string _lastActionId = string.Empty;
     private string _lastSummary = string.Empty;
     private string _lastError = string.Empty;
+    private DateTimeOffset _lastNavigatorClickAt = DateTimeOffset.MinValue;
 
     public HandsPipeline(HandsOptions options, IHandsExecutor? executor = null)
     {
@@ -56,12 +57,6 @@ public sealed class HandsPipeline
         {
             var decisions = await _decisionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
             _decisionsRead = decisions.Count;
-
-            if (decisions.Count == 0)
-            {
-                _idleCycles++;
-                return await WriteStateAsync(CreateState("idle", "No decision events available.", string.Empty), cancellationToken).ConfigureAwait(false);
-            }
 
             var perception = await _perceptionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
             var interaction = await _interactionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
@@ -88,71 +83,22 @@ public sealed class HandsPipeline
                 {
                     var enrichedPlan = EnrichPlanWithInteraction(plan, interaction);
                     var scopedActionId = ScopedActionId(enrichedPlan);
-                    _actionsPlanned++;
-                    if (existingIds.Contains(scopedActionId))
+                    if (await TryWritePlanAsync(enrichedPlan, scopedActionId, perception, existingIds, cancellationToken).ConfigureAwait(false))
                     {
-                        _actionsSkipped++;
-                        continue;
+                        writtenThisCycle++;
                     }
-
-                    var safety = _safety.Evaluate(enrichedPlan);
-                    ActionEvent actionEvent;
-                    if (safety.Blocked)
-                    {
-                        _actionsBlocked++;
-                        actionEvent = CreateActionEvent(
-                            enrichedPlan,
-                            scopedActionId,
-                            "blocked",
-                            new ActionVerification(false, safety.Reason, 0),
-                            safety.Reason,
-                            executionSummary: string.Empty);
-                    }
-                    else
-                    {
-                        var execution = await _executor.ExecuteAsync(enrichedPlan, cancellationToken).ConfigureAwait(false);
-                        if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
-                        {
-                            _actionsExecuted++;
-                        }
-
-                        var verification = _verifier.Verify(enrichedPlan, execution, perception);
-                        var finalStatus = execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase) && verification.Verified
-                            ? "verified"
-                            : execution.Status;
-                        if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
-                        {
-                            _actionsVerified++;
-                        }
-
-                        actionEvent = CreateActionEvent(
-                            enrichedPlan,
-                            scopedActionId,
-                            finalStatus,
-                            verification,
-                            safety.Reason,
-                            execution.Summary);
-                    }
-
-                    var errors = ActionContractValidator.Validate(actionEvent);
-                    if (errors.Count > 0)
-                    {
-                        throw new InvalidOperationException(string.Join("; ", errors));
-                    }
-
-                    await _writer.AppendAsync(actionEvent, cancellationToken).ConfigureAwait(false);
-                    existingIds.Add(actionEvent.ActionId);
-                    writtenThisCycle++;
-                    _actionsWritten++;
-                    _lastActionId = actionEvent.ActionId;
-                    _lastSummary = $"{actionEvent.ActionType}: {actionEvent.Status}. {actionEvent.Verification.Summary}";
                 }
             }
+
+            writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, existingIds, cancellationToken).ConfigureAwait(false);
 
             if (writtenThisCycle == 0)
             {
                 _idleCycles++;
-                return await WriteStateAsync(CreateState("idle", "No new actions; all known action ids were already emitted.", string.Empty), cancellationToken).ConfigureAwait(false);
+                var idleReason = decisions.Count == 0
+                    ? "No decision events available and no new navigator target ready."
+                    : "No new actions; all known action ids were already emitted.";
+                return await WriteStateAsync(CreateState("idle", idleReason, string.Empty), cancellationToken).ConfigureAwait(false);
             }
 
             return await WriteStateAsync(CreateState("ok", _lastSummary, string.Empty), cancellationToken).ConfigureAwait(false);
@@ -256,6 +202,211 @@ public sealed class HandsPipeline
         target["interactionCategory"] = row.Category;
 
         return plan with { Target = target };
+    }
+
+    private async ValueTask<int> RunInteractionNavigatorAsync(
+        InteractionContext interaction,
+        PerceptionContext perception,
+        HashSet<string> existingIds,
+        CancellationToken cancellationToken)
+    {
+        if (!_options.EnableInteractionNavigator
+            || _options.NavigatorMaxChatsPerCycle <= 0
+            || interaction.Targets.Count == 0)
+        {
+            return 0;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var minimumGap = TimeSpan.FromSeconds(Math.Max(1, _options.NavigatorMinimumSecondsBetweenClicks));
+        if (_lastNavigatorClickAt != DateTimeOffset.MinValue && now - _lastNavigatorClickAt < minimumGap)
+        {
+            return 0;
+        }
+
+        var written = 0;
+        foreach (var target in NavigatorCandidates(interaction))
+        {
+            var plan = CreateNavigatorOpenChatPlan(target, interaction, now);
+            var scopedActionId = ScopedActionId(plan);
+            if (await TryWritePlanAsync(plan, scopedActionId, perception, existingIds, cancellationToken).ConfigureAwait(false))
+            {
+                written++;
+                _lastNavigatorClickAt = DateTimeOffset.UtcNow;
+            }
+
+            if (written >= _options.NavigatorMaxChatsPerCycle)
+            {
+                break;
+            }
+        }
+
+        return written;
+    }
+
+    private static IEnumerable<InteractionTarget> NavigatorCandidates(InteractionContext interaction)
+    {
+        return interaction.Targets
+            .Where(target =>
+                target.Actionable
+                && target.TargetType.Equals("chat_row", StringComparison.OrdinalIgnoreCase)
+                && target.ClickX > 0
+                && target.ClickY > 0
+                && target.Width > 0
+                && target.Height > 0
+                && !string.IsNullOrWhiteSpace(target.ChannelId)
+                && !string.IsNullOrWhiteSpace(target.Title))
+            .OrderByDescending(target => target.UnreadCount)
+            .ThenByDescending(target => target.Confidence)
+            .ThenBy(target => ChannelOrder(target.ChannelId))
+            .ThenBy(target => target.Top);
+    }
+
+    private ActionPlan CreateNavigatorOpenChatPlan(InteractionTarget target, InteractionContext interaction, DateTimeOffset now)
+    {
+        var visitBucket = VisitBucket(now, _options.NavigatorRevisitMinutes);
+        var decisionId = $"navigator-{StableHash($"{interaction.SourceInteractionEventId}|{target.TargetId}|{visitBucket}")[..20]}";
+        var decision = new DecisionEvent
+        {
+            EventType = "decision_event",
+            DecisionId = decisionId,
+            CreatedAt = now,
+            Goal = "learn_visible_whatsapp_chats",
+            Intent = "learning_navigation",
+            Confidence = target.Confidence,
+            AutonomyLevel = _options.AutonomyLevel,
+            ProposedAction = "open_visible_chat_for_learning",
+            RequiresHumanConfirmation = false,
+            ReasoningSummary = "Hands navigator selected a verified Interaction chat row.",
+            Evidence = [target.SourcePerceptionEventId],
+            ChannelId = target.ChannelId,
+            ConversationTitle = target.Title
+        };
+        var targetData = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["sourceDecisionId"] = decisionId,
+            ["channelId"] = target.ChannelId,
+            ["conversationId"] = string.Empty,
+            ["conversationTitle"] = target.Title,
+            ["intent"] = decision.Intent,
+            ["proposedAction"] = decision.ProposedAction,
+            ["decisionConfidence"] = decision.Confidence,
+            ["requiresHumanConfirmation"] = false,
+            ["plannerReason"] = "Open a verified visible WhatsApp chat row so Perception can learn the conversation.",
+            ["interactionEventId"] = interaction.SourceInteractionEventId,
+            ["interactionTargetStatus"] = "ready",
+            ["interactionTargetId"] = target.TargetId,
+            ["interactionSourcePerceptionEventId"] = target.SourcePerceptionEventId,
+            ["chatRowTitle"] = target.Title,
+            ["chatRowPreview"] = target.Preview,
+            ["chatRowUnreadCount"] = target.UnreadCount,
+            ["clickX"] = target.ClickX,
+            ["clickY"] = target.ClickY,
+            ["chatRowBounds"] = new Dictionary<string, object?>
+            {
+                ["left"] = target.Left,
+                ["top"] = target.Top,
+                ["width"] = target.Width,
+                ["height"] = target.Height
+            },
+            ["chatRowConfidence"] = target.Confidence,
+            ["interactionCategory"] = target.Category,
+            ["navigatorVisitBucket"] = visitBucket
+        };
+
+        var actionId = $"hands-nav-{StableHash($"{target.TargetId}|{visitBucket}")[..24]}";
+        return new ActionPlan(
+            actionId,
+            "open_chat",
+            targetData,
+            3,
+            false,
+            "Navigator opens a verified visible chat row for learning.",
+            decision);
+    }
+
+    private async ValueTask<bool> TryWritePlanAsync(
+        ActionPlan plan,
+        string actionId,
+        PerceptionContext perception,
+        HashSet<string> existingIds,
+        CancellationToken cancellationToken)
+    {
+        _actionsPlanned++;
+        if (existingIds.Contains(actionId))
+        {
+            _actionsSkipped++;
+            return false;
+        }
+
+        var safety = _safety.Evaluate(plan);
+        ActionEvent actionEvent;
+        if (safety.Blocked)
+        {
+            _actionsBlocked++;
+            actionEvent = CreateActionEvent(
+                plan,
+                actionId,
+                "blocked",
+                new ActionVerification(false, safety.Reason, 0),
+                safety.Reason,
+                executionSummary: string.Empty);
+        }
+        else
+        {
+            var execution = await _executor.ExecuteAsync(plan, cancellationToken).ConfigureAwait(false);
+            if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+            {
+                _actionsExecuted++;
+            }
+
+            var verification = _verifier.Verify(plan, execution, perception);
+            var finalStatus = execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase) && verification.Verified
+                ? "verified"
+                : execution.Status;
+            if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+            {
+                _actionsVerified++;
+            }
+
+            actionEvent = CreateActionEvent(
+                plan,
+                actionId,
+                finalStatus,
+                verification,
+                safety.Reason,
+                execution.Summary);
+        }
+
+        var errors = ActionContractValidator.Validate(actionEvent);
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(string.Join("; ", errors));
+        }
+
+        await _writer.AppendAsync(actionEvent, cancellationToken).ConfigureAwait(false);
+        existingIds.Add(actionEvent.ActionId);
+        _actionsWritten++;
+        _lastActionId = actionEvent.ActionId;
+        _lastSummary = $"{actionEvent.ActionType}: {actionEvent.Status}. {actionEvent.Verification.Summary}";
+        return true;
+    }
+
+    private static long VisitBucket(DateTimeOffset now, int revisitMinutes)
+    {
+        var bucketSize = TimeSpan.FromMinutes(Math.Max(1, revisitMinutes)).Ticks;
+        return now.UtcTicks / bucketSize;
+    }
+
+    private static int ChannelOrder(string channelId)
+    {
+        return channelId.ToLowerInvariant() switch
+        {
+            "wa-1" => 1,
+            "wa-2" => 2,
+            "wa-3" => 3,
+            _ => 99
+        };
     }
 
     private static string? TargetString(ActionPlan plan, string key)

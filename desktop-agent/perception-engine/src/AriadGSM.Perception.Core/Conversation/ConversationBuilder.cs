@@ -64,6 +64,12 @@ public sealed class ConversationBuilder
             reasons.Add("window_title_only");
         }
 
+        if (!identity.Source.Equals("header_chat_row_match", StringComparison.OrdinalIgnoreCase)
+            || identity.MatchedChatRow is null)
+        {
+            reasons.Add("identity_not_matched_to_visible_chat_row");
+        }
+
         if (LooksLikeBrowserUiOrGenericTitle(normalizedTitle))
         {
             reasons.Add("browser_or_generic_title");

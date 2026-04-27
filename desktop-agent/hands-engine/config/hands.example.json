@@ -7,6 +7,7 @@
   "stateFile": "desktop-agent\\runtime\\hands-state.json",
   "autonomyLevel": 3,
   "executeActions": true,
+  "enableInteractionNavigator": true,
   "allowTextInput": false,
   "allowSendMessage": false,
   "pollIntervalMs": 250,
@@ -15,6 +16,9 @@
   "maxDecisionAgeMinutes": 20,
   "perceptionLimit": 50,
   "interactionLimit": 20,
+  "navigatorMaxChatsPerCycle": 1,
+  "navigatorRevisitMinutes": 30,
+  "navigatorMinimumSecondsBetweenClicks": 2,
   "channelMappings": [
     {
       "channelId": "wa-1",

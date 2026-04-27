@@ -12,6 +12,8 @@ public sealed class Win32HandsExecutor : IHandsExecutor
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
     private const int WheelDelta = 120;
+    private const int ShowWindowRestore = 9;
+    private const int ShowWindowShow = 5;
     private readonly HandsOptions _options;
 
     public Win32HandsExecutor(HandsOptions options)
@@ -44,17 +46,24 @@ public sealed class Win32HandsExecutor : IHandsExecutor
                 0));
         }
 
-        if (!SetForegroundWindow(window.Handle))
+        var clickX = 0;
+        var clickY = 0;
+        var hasClickCoordinates = plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
+            && TryGetTargetInt(plan, "clickX", out clickX)
+            && TryGetTargetInt(plan, "clickY", out clickY);
+        var focused = TryFocusWindow(window.Handle);
+        if (!focused && !hasClickCoordinates)
         {
             return ValueTask.FromResult(new ExecutionResult("failed", $"Could not focus window '{window.Title}'.", 0.2));
         }
 
-        if (plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
-            && TryGetTargetInt(plan, "clickX", out var clickX)
-            && TryGetTargetInt(plan, "clickY", out var clickY))
+        if (hasClickCoordinates)
         {
+            Thread.Sleep(80);
             SetCursorPos(clickX, clickY);
+            Thread.Sleep(40);
             mouse_event(MouseEventLeftDown, 0, 0, 0, UIntPtr.Zero);
+            Thread.Sleep(35);
             mouse_event(MouseEventLeftUp, 0, 0, 0, UIntPtr.Zero);
         }
 
@@ -69,7 +78,9 @@ public sealed class Win32HandsExecutor : IHandsExecutor
         var summary = plan.ActionType switch
         {
             "focus_window" => $"Focused WhatsApp window '{window.Title}'.",
-            "open_chat" when TryGetTargetInt(plan, "clickX", out var x) && TryGetTargetInt(plan, "clickY", out var y) => $"Focused '{window.Title}' and clicked chat row at {x},{y}.",
+            "open_chat" when hasClickCoordinates => focused
+                ? $"Focused '{window.Title}' and clicked chat row at {clickX},{clickY}."
+                : $"Clicked verified chat row at {clickX},{clickY}; Windows did not grant foreground focus first.",
             "open_chat" => $"Focused WhatsApp window '{window.Title}', but no chat-row coordinates were available.",
             "capture_conversation" => $"Focused WhatsApp window '{window.Title}' so Perception can refresh the conversation.",
             "scroll_history" => $"Focused WhatsApp window '{window.Title}' and scrolled upward.",
@@ -78,6 +89,67 @@ public sealed class Win32HandsExecutor : IHandsExecutor
         };
 
         return ValueTask.FromResult(new ExecutionResult("executed", summary, 0.72));
+    }
+
+    private static bool TryFocusWindow(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (IsIconic(handle))
+        {
+            ShowWindow(handle, ShowWindowRestore);
+        }
+        else
+        {
+            ShowWindow(handle, ShowWindowShow);
+        }
+
+        BringWindowToTop(handle);
+        if (SetForegroundWindow(handle))
+        {
+            return true;
+        }
+
+        var currentThread = GetCurrentThreadId();
+        var targetThread = GetWindowThreadProcessId(handle, out _);
+        var foregroundWindow = GetForegroundWindow();
+        var foregroundThread = foregroundWindow == IntPtr.Zero
+            ? 0
+            : GetWindowThreadProcessId(foregroundWindow, out _);
+        var attachedTarget = false;
+        var attachedForeground = false;
+        try
+        {
+            if (targetThread != 0 && targetThread != currentThread)
+            {
+                attachedTarget = AttachThreadInput(currentThread, targetThread, true);
+            }
+
+            if (foregroundThread != 0 && foregroundThread != currentThread)
+            {
+                attachedForeground = AttachThreadInput(currentThread, foregroundThread, true);
+            }
+
+            BringWindowToTop(handle);
+            SetActiveWindow(handle);
+            SetFocus(handle);
+            return SetForegroundWindow(handle) || GetForegroundWindow() == handle;
+        }
+        finally
+        {
+            if (attachedForeground)
+            {
+                AttachThreadInput(currentThread, foregroundThread, false);
+            }
+
+            if (attachedTarget)
+            {
+                AttachThreadInput(currentThread, targetThread, false);
+            }
+        }
     }
 
     private BrowserWindow? FindWhatsAppWindow(string? channelId)
@@ -180,6 +252,30 @@ public sealed class Win32HandsExecutor : IHandsExecutor
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr handle, int command);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetActiveWindow(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint currentThreadId, uint targetThreadId, bool attach);
 
     [DllImport("user32.dll")]
     private static extern bool SetCursorPos(int x, int y);

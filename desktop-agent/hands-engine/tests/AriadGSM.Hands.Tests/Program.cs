@@ -9,6 +9,7 @@ using AriadGSM.Hands.Safety;
 TestPlannerInfersChannelFromEvidence();
 TestSafetyBlocksSend();
 await TestPipelineWritesAndDedupes();
+await TestInteractionNavigatorOpensVerifiedRows();
 TestContractValidator();
 
 Console.WriteLine("AriadGSM Hands tests OK");
@@ -186,6 +187,7 @@ static async Task TestPipelineWritesAndDedupes()
             StateFile = state,
             AutonomyLevel = 3,
             ExecuteActions = false,
+            EnableInteractionNavigator = false,
             DecisionLimit = 10,
             PerceptionLimit = 10,
             InteractionLimit = 10
@@ -233,6 +235,7 @@ static async Task TestPipelineWritesAndDedupes()
             StateFile = state,
             AutonomyLevel = 3,
             ExecuteActions = true,
+            EnableInteractionNavigator = false,
             DecisionLimit = 10,
             PerceptionLimit = 10,
             InteractionLimit = 10
@@ -245,6 +248,104 @@ static async Task TestPipelineWritesAndDedupes()
         var executeLines = await File.ReadAllLinesAsync(actions);
         Assert(executeLines.Any(line => line.Contains("\"executionMode\":\"execute\"", StringComparison.Ordinal)),
             "execute events should be audited with executionMode=execute");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestInteractionNavigatorOpensVerifiedRows()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-navigator-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, string.Empty);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(perception, string.Empty);
+        await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
+        {
+            eventType = "interaction_event",
+            interactionEventId = "interaction-nav-1",
+            createdAt = DateTimeOffset.UtcNow,
+            source = "ariadgsm_interaction_engine",
+            latestPerceptionEventId = "perception-nav-1",
+            perceptionEventsRead = 1,
+            targets = new object[]
+            {
+                new
+                {
+                    targetId = "interaction-target-nav-client",
+                    targetType = "chat_row",
+                    channelId = "wa-2",
+                    sourcePerceptionEventId = "perception-nav-1",
+                    observedAt = DateTimeOffset.UtcNow,
+                    title = "Cliente Navegable",
+                    preview = "Necesito precio",
+                    unreadCount = 2,
+                    left = 500,
+                    top = 190,
+                    width = 330,
+                    height = 72,
+                    clickX = 590,
+                    clickY = 226,
+                    confidence = 0.96,
+                    actionable = true,
+                    category = "customer_chat_candidate",
+                    rejectionReasons = Array.Empty<string>()
+                }
+            },
+            summary = new
+            {
+                targetsObserved = 1,
+                targetsAccepted = 1,
+                targetsRejected = 0,
+                actionableTargets = 1,
+                bestTargetTitle = "Cliente Navegable",
+                lastRejectionReason = ""
+            }
+        }) + Environment.NewLine);
+
+        var options = new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            AutonomyLevel = 3,
+            ExecuteActions = false,
+            EnableInteractionNavigator = true,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10,
+            NavigatorMinimumSecondsBetweenClicks = 1
+        };
+
+        var pipeline = new HandsPipeline(options);
+        var stateResult = await pipeline.RunOnceAsync();
+        Assert(stateResult.Status == "ok", "navigator should write an action without waiting for cognitive decisions");
+
+        var line = (await File.ReadAllLinesAsync(actions)).Single();
+        using var document = JsonDocument.Parse(line);
+        var rootElement = document.RootElement;
+        Assert(rootElement.GetProperty("actionType").GetString() == "open_chat", "navigator should emit open_chat");
+        var target = rootElement.GetProperty("target");
+        Assert(target.GetProperty("sourceDecisionId").GetString()!.StartsWith("navigator-", StringComparison.Ordinal), "navigator action should be auditable");
+        Assert(target.GetProperty("interactionTargetStatus").GetString() == "ready", "navigator should use verified interaction coordinates");
+        Assert(target.GetProperty("clickX").GetInt32() == 590, "navigator should preserve clickX");
+        Assert(target.GetProperty("clickY").GetInt32() == 226, "navigator should preserve clickY");
     }
     finally
     {
