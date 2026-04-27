@@ -19,6 +19,7 @@ CONTRACT_FILES: dict[str, str] = {
     "accounting_event": "accounting-event.schema.json",
     "learning_event": "learning-event.schema.json",
     "autonomous_cycle_event": "autonomous-cycle-event.schema.json",
+    "domain_event": "domain-event-envelope.schema.json",
 }
 
 
@@ -33,21 +34,115 @@ def load_schema(contract_name: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def load_domain_event_registry() -> dict[str, Any]:
+    path = CONTRACT_DIR / "domain-event-registry.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _type_matches(value: Any, expected: str) -> bool:
+    if expected == "object":
+        return isinstance(value, dict)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "null":
+        return value is None
+    return True
+
+
+def validate_json_schema_instance(value: Any, schema: dict[str, Any], path: str = "$") -> list[str]:
+    errors: list[str] = []
+    expected_type = schema.get("type")
+    if isinstance(expected_type, list):
+        if not any(_type_matches(value, item) for item in expected_type):
+            errors.append(f"{path}: expected one of {expected_type}")
+            return errors
+    elif isinstance(expected_type, str) and not _type_matches(value, expected_type):
+        errors.append(f"{path}: expected {expected_type}")
+        return errors
+
+    if "const" in schema and value != schema["const"]:
+        errors.append(f"{path}: must be {schema['const']}")
+    enum = schema.get("enum")
+    if isinstance(enum, list) and value not in enum:
+        errors.append(f"{path}: must be one of {enum}")
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"]:
+            errors.append(f"{path}: must be >= {schema['minimum']}")
+        if "maximum" in schema and value > schema["maximum"]:
+            errors.append(f"{path}: must be <= {schema['maximum']}")
+
+    if isinstance(value, str):
+        if "minLength" in schema and len(value) < int(schema["minLength"]):
+            errors.append(f"{path}: length must be >= {schema['minLength']}")
+        if "maxLength" in schema and len(value) > int(schema["maxLength"]):
+            errors.append(f"{path}: length must be <= {schema['maxLength']}")
+
+    if isinstance(value, list):
+        if "minItems" in schema and len(value) < int(schema["minItems"]):
+            errors.append(f"{path}: item count must be >= {schema['minItems']}")
+        if "maxItems" in schema and len(value) > int(schema["maxItems"]):
+            errors.append(f"{path}: item count must be <= {schema['maxItems']}")
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, item in enumerate(value):
+                errors.extend(validate_json_schema_instance(item, item_schema, f"{path}[{index}]"))
+
+    if isinstance(value, dict):
+        required = schema.get("required") or []
+        for field in required:
+            if field not in value:
+                errors.append(f"{path}: missing required field: {field}")
+        properties = schema.get("properties") or {}
+        additional = schema.get("additionalProperties", True)
+        if additional is False:
+            for field in value:
+                if field not in properties:
+                    errors.append(f"{path}: unexpected field: {field}")
+        for field, property_schema in properties.items():
+            if field in value and isinstance(property_schema, dict):
+                errors.extend(validate_json_schema_instance(value[field], property_schema, f"{path}.{field}"))
+
+    return errors
+
+
 def validate_contract(event: dict[str, Any], contract_name: str) -> list[str]:
     schema = load_schema(contract_name)
-    errors: list[str] = []
     if not isinstance(event, dict):
         return ["event must be an object"]
-    for field in schema.get("required") or []:
-        if field not in event:
-            errors.append(f"missing required field: {field}")
-    event_type_schema = (schema.get("properties") or {}).get("eventType") or {}
-    expected_const = event_type_schema.get("const")
-    if expected_const and event.get("eventType") != expected_const:
-        errors.append(f"eventType must be {expected_const}")
-    expected_enum = event_type_schema.get("enum")
-    if expected_enum and event.get("eventType") not in expected_enum:
-        errors.append(f"eventType must be one of {expected_enum}")
+    errors = validate_json_schema_instance(event, schema)
+    if contract_name == "domain_event":
+        registry = load_domain_event_registry()
+        event_type = event.get("eventType")
+        entry = (registry.get("eventTypes") or {}).get(event_type)
+        if entry is None:
+            errors.append(f"$.eventType: unknown domain event type: {event_type}")
+        else:
+            allowed_domains = entry.get("allowedSourceDomains") or []
+            if allowed_domains and event.get("sourceDomain") not in allowed_domains:
+                errors.append(
+                    "$.sourceDomain: "
+                    f"{event.get('sourceDomain')} cannot emit {event_type}; allowed={allowed_domains}"
+                )
+        risk = event.get("risk") if isinstance(event.get("risk"), dict) else {}
+        if risk.get("riskLevel") == "critical" and not event.get("requiresHumanReview"):
+            errors.append("$.requiresHumanReview: critical events require human review")
+        if event_type == "PaymentConfirmed":
+            levels = [
+                evidence.get("evidenceLevel")
+                for evidence in event.get("evidence", [])
+                if isinstance(evidence, dict)
+            ]
+            if "A" not in levels:
+                errors.append("$.evidence: PaymentConfirmed requires level A evidence")
     return errors
 
 
@@ -175,6 +270,55 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
                 "metrics": {"channelsReady": 3},
             }
         ],
+    },
+    "domain_event": {
+        "eventId": "evt-sample-1",
+        "eventType": "ConversationObserved",
+        "schemaVersion": "0.7.0",
+        "createdAt": utc_now(),
+        "sourceDomain": "TimelineEngine",
+        "sourceSystem": "ariadgsm-local-agent",
+        "actor": {"type": "system", "id": "ariadgsm-timeline-engine"},
+        "subject": {"type": "conversation", "id": "wa-1-cliente-prueba"},
+        "correlationId": "case-wa-1-cliente-prueba",
+        "causationId": "conversation-sample-1",
+        "idempotencyKey": "ConversationObserved:wa-1-cliente-prueba:conversation-sample-1",
+        "traceId": "trace-sample-1",
+        "channelId": "wa-1",
+        "conversationId": "wa-1-cliente-prueba",
+        "caseId": "case-wa-1-cliente-prueba",
+        "customerId": "customer_pending",
+        "confidence": 0.9,
+        "evidence": [
+            {
+                "evidenceId": "ev-sample-1",
+                "source": "conversation_event",
+                "evidenceLevel": "B",
+                "observedAt": utc_now(),
+                "summary": "Timeline conversation sample.",
+                "rawReference": "local://conversation-sample-1",
+                "confidence": 0.9,
+                "redactionState": "safe_summary",
+                "limitations": [],
+            }
+        ],
+        "privacy": {
+            "classification": "internal",
+            "cloudAllowed": True,
+            "redactionRequired": False,
+            "retentionPolicy": "case_lifetime",
+            "contains": [],
+            "reason": "Business conversation summary only.",
+        },
+        "risk": {
+            "riskLevel": "low",
+            "riskReasons": [],
+            "autonomyLevel": 1,
+            "allowedActions": ["reason"],
+            "blockedActions": [],
+        },
+        "requiresHumanReview": False,
+        "data": {"messageCount": 1},
     },
 }
 

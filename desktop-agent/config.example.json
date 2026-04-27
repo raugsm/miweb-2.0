@@ -42,6 +42,22 @@
     "db": "./desktop-agent/runtime/memory-core.sqlite",
     "limit": 500
   },
+  "domainEventCore": {
+    "visionEventsFile": "./desktop-agent/runtime/vision-events.jsonl",
+    "perceptionEventsFile": "./desktop-agent/runtime/perception-events.jsonl",
+    "conversationEventsFile": "./desktop-agent/runtime/timeline-events.jsonl",
+    "rawConversationEventsFile": "./desktop-agent/runtime/conversation-events.jsonl",
+    "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
+    "cognitiveDecisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
+    "accountingEventsFile": "./desktop-agent/runtime/accounting-events.jsonl",
+    "learningEventsFile": "./desktop-agent/runtime/learning-events.jsonl",
+    "actionEventsFile": "./desktop-agent/runtime/action-events.jsonl",
+    "autonomousCycleEventsFile": "./desktop-agent/runtime/autonomous-cycle-events.jsonl",
+    "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/domain-events-state.json",
+    "db": "./desktop-agent/runtime/domain-events.sqlite",
+    "limit": 500
+  },
   "handsEngine": {
     "cognitiveDecisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
     "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",

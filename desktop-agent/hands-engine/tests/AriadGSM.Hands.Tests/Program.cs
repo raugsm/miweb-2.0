@@ -240,6 +240,7 @@ static async Task TestPipelineWritesAndDedupes()
             CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = true,
+            RequireCabinAuthorityForWindowActions = false,
             InputArbiterEnabled = false,
             RespectOrchestratorCommands = false,
             EnableInteractionNavigator = false,

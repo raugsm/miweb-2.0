@@ -1,7 +1,7 @@
 # AriadGSM Domain Event Contracts
 
 Fecha: 2026-04-27
-Estado: diseno base para `0.7.0-domain-core`
+Estado: implementado como base ejecutable para `0.7.0-domain-core`
 
 Este documento define el idioma interno que usara AriadGSM IA para que sus
 capacidades mentales no se comuniquen con texto suelto, capturas ambiguas o
@@ -1066,26 +1066,43 @@ Subir captura cruda a nube por defecto
 
 ## 14. Proxima implementacion tecnica
 
-Orden recomendado:
+Estado de implementacion:
 
-1. Crear `desktop-agent/contracts/domain-event-envelope.schema.json`.
-2. Crear `desktop-agent/contracts/domain-event-registry.json`.
-3. Crear adaptadores:
+1. `desktop-agent/contracts/domain-event-envelope.schema.json`: creado.
+2. `desktop-agent/contracts/domain-event-registry.json`: creado.
+3. `desktop-agent/ariadgsm_agent/domain_events.py`: creado.
+4. Adaptadores creados:
    - `vision_event` -> `ObservationCreated`
-   - `conversation_event` -> `ConversationObserved`
-   - `accounting_event` -> `PaymentDrafted` / `DebtDetected`
-   - `decision_event` -> `DecisionExplained`
-   - `action_event` -> `ActionRequested` / `ActionVerified`
-4. Crear validador local de eventos.
-5. Crear almacenamiento local append-only para eventos de dominio.
-6. Crear dashboard simple:
-   - que vio
-   - que entendio
-   - que decidio
-   - que hizo
-   - que aprendio
-   - que necesita de Bryams
-7. Crear eval fixtures con casos reales anonimizados.
+   - `perception_event` -> `ObservationCreated`, `ChatRowDetected`, `MessageObjectDetected`
+   - `conversation_event` -> `ConversationObserved`, `CustomerCandidateIdentified`, `GroupDetected`, `LowLearningValueDetected`, senales de servicio/precio/pago/deuda
+   - `accounting_event` -> `PaymentDrafted`, `DebtDetected`, `RefundCandidate`, `QuoteRecorded`
+   - `decision_event` -> `DecisionExplained`, `CaseUpdated`, `HumanApprovalRequired`
+   - `action_event` -> `ActionRequested`, `ActionExecuted`, `ActionVerified`, `ActionFailed`, `ActionBlocked`
+   - `learning_event` -> `LearningCandidateCreated`
+   - `autonomous_cycle_event` -> `CycleStarted`, `CycleCheckpointCreated`, `CycleBlocked`
+5. Validador local de envelope y registry: creado en `ariadgsm_agent/contracts.py`.
+6. Almacenamiento append-only:
+   - `desktop-agent/runtime/domain-events.jsonl`
+   - `desktop-agent/runtime/domain-events.sqlite`
+7. Reporte legible:
+   - `desktop-agent/runtime/domain-events-state.json`
+   - seccion `humanReport` con lo que vio, entendio, necesita y bloqueo por privacidad.
+8. Integracion con app Windows:
+   - la secuencia Python ahora ejecuta `ariadgsm_agent.domain_events`
+   - salud muestra `Domain Events`
+9. Pruebas:
+   - `desktop-agent/tests/domain_events_contracts.py`
+   - `desktop-agent/tests/architecture_contracts.py`
+
+Pendiente de una capa futura:
+
+```text
+Que Memory Core consuma directamente eventos de dominio como fuente primaria.
+```
+
+Hoy los eventos de dominio ya existen, se validan, se guardan y se reportan. La
+memoria todavia conserva compatibilidad con eventos de motor para no romper el
+sistema actual.
 
 ---
 
@@ -1102,4 +1119,3 @@ La meta de esta capa:
 Que AriadGSM IA deje de actuar por parches y empiece a pensar sobre una historia
 de negocio verificable.
 ```
-

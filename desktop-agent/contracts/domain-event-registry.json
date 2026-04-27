@@ -1,0 +1,449 @@
+{
+  "schemaVersion": "0.7.0",
+  "eventTypes": {
+    "ObservationCreated": {
+      "category": "observation",
+      "allowedSourceDomains": ["VisionEngine", "PerceptionEngine", "ExternalSystemAdapter", "DesktopAgentCore"],
+      "defaultRiskLevel": "low",
+      "description": "Visible or structured observation created from local eyes."
+    },
+    "ObservationRejected": {
+      "category": "observation",
+      "allowedSourceDomains": ["PerceptionEngine", "TimelineEngine", "ExternalSystemAdapter"],
+      "defaultRiskLevel": "low",
+      "description": "Observation rejected as browser UI, noise, stale data or insufficient evidence."
+    },
+    "VisibleConversationObserved": {
+      "category": "conversation",
+      "allowedSourceDomains": ["TimelineEngine", "PerceptionEngine", "ExternalSystemAdapter"],
+      "defaultRiskLevel": "low",
+      "description": "Visible WhatsApp conversation was observed as a business object."
+    },
+    "ConversationObserved": {
+      "category": "conversation",
+      "allowedSourceDomains": ["TimelineEngine", "PerceptionEngine", "ExternalSystemAdapter"],
+      "defaultRiskLevel": "low",
+      "description": "Conversation timeline was observed and can feed reasoning."
+    },
+    "ChatRowDetected": {
+      "category": "observation",
+      "allowedSourceDomains": ["PerceptionEngine", "ExternalSystemAdapter"],
+      "defaultRiskLevel": "low",
+      "description": "A visible chat row was detected."
+    },
+    "MessageObjectDetected": {
+      "category": "observation",
+      "allowedSourceDomains": ["PerceptionEngine", "ExternalSystemAdapter"],
+      "defaultRiskLevel": "low",
+      "description": "A visible message object was detected."
+    },
+    "WindowStateObserved": {
+      "category": "observation",
+      "allowedSourceDomains": ["VisionEngine", "PerceptionEngine"],
+      "defaultRiskLevel": "low",
+      "description": "Window state was observed."
+    },
+    "GroupDetected": {
+      "category": "identity",
+      "allowedSourceDomains": ["TimelineEngine", "PerceptionEngine", "BusinessBrain"],
+      "defaultRiskLevel": "low",
+      "description": "A group or low-learning-value channel was detected."
+    },
+    "LowLearningValueDetected": {
+      "category": "learning",
+      "allowedSourceDomains": ["BusinessBrain", "TimelineEngine", "CognitiveCore"],
+      "defaultRiskLevel": "low",
+      "description": "Conversation is useful for audit but weak as direct learning material."
+    },
+    "CustomerCandidateIdentified": {
+      "category": "identity",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore", "TimelineEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "A possible customer identity was found but is not final."
+    },
+    "CustomerIdentified": {
+      "category": "identity",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore", "HumanCollaboration"],
+      "defaultRiskLevel": "medium",
+      "description": "A customer identity was confirmed with strong evidence."
+    },
+    "ProviderCandidateIdentified": {
+      "category": "identity",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore"],
+      "defaultRiskLevel": "medium",
+      "description": "A possible provider identity was found."
+    },
+    "ChannelRouteProposed": {
+      "category": "routing",
+      "allowedSourceDomains": ["ChannelRoutingBrain", "BusinessBrain", "CognitiveCore"],
+      "defaultRiskLevel": "high",
+      "description": "The IA proposes moving or continuing a case through another channel."
+    },
+    "ChannelRouteApproved": {
+      "category": "routing",
+      "allowedSourceDomains": ["HumanCollaboration", "BusinessBrain"],
+      "defaultRiskLevel": "high",
+      "description": "A channel route was approved."
+    },
+    "ChannelRouteRejected": {
+      "category": "routing",
+      "allowedSourceDomains": ["HumanCollaboration", "BusinessBrain"],
+      "defaultRiskLevel": "low",
+      "description": "A channel route was rejected."
+    },
+    "CaseOpened": {
+      "category": "case",
+      "allowedSourceDomains": ["OperatingCore", "BusinessBrain"],
+      "defaultRiskLevel": "medium",
+      "description": "A business case was opened."
+    },
+    "CaseUpdated": {
+      "category": "case",
+      "allowedSourceDomains": ["OperatingCore", "BusinessBrain"],
+      "defaultRiskLevel": "medium",
+      "description": "A business case changed state."
+    },
+    "CaseMerged": {
+      "category": "case",
+      "allowedSourceDomains": ["BusinessBrain", "HumanCollaboration"],
+      "defaultRiskLevel": "high",
+      "description": "Two case histories were merged."
+    },
+    "CaseClosed": {
+      "category": "case",
+      "allowedSourceDomains": ["OperatingCore", "BusinessBrain", "HumanCollaboration"],
+      "defaultRiskLevel": "high",
+      "description": "A case was closed."
+    },
+    "CaseNeedsHumanContext": {
+      "category": "case",
+      "allowedSourceDomains": ["OperatingCore", "BusinessBrain", "CognitiveCore", "TimelineEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "The IA needs human context to continue a case."
+    },
+    "ServiceDetected": {
+      "category": "service",
+      "allowedSourceDomains": ["CognitiveCore", "BusinessBrain", "TimelineEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "A GSM service or device context was detected."
+    },
+    "DeviceDetected": {
+      "category": "service",
+      "allowedSourceDomains": ["CognitiveCore", "BusinessBrain", "TimelineEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "A device/model/platform was detected."
+    },
+    "ProcedureCandidateCreated": {
+      "category": "service",
+      "allowedSourceDomains": ["CognitiveCore", "BusinessBrain"],
+      "defaultRiskLevel": "high",
+      "description": "A possible procedure was created as a candidate."
+    },
+    "ProcedureRiskAssessed": {
+      "category": "service",
+      "allowedSourceDomains": ["CognitiveCore", "BusinessBrain", "Supervisor"],
+      "defaultRiskLevel": "high",
+      "description": "A procedure candidate was assessed for risk."
+    },
+    "ToolCapabilityObserved": {
+      "category": "tool",
+      "allowedSourceDomains": ["HandsEngine", "ExternalSystemAdapter", "BusinessBrain"],
+      "defaultRiskLevel": "medium",
+      "description": "A tool capability or state was observed."
+    },
+    "ToolActionRequested": {
+      "category": "tool",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore", "HandsEngine"],
+      "defaultRiskLevel": "high",
+      "description": "A tool action was requested."
+    },
+    "ToolActionVerified": {
+      "category": "tool",
+      "allowedSourceDomains": ["HandsEngine", "Supervisor"],
+      "defaultRiskLevel": "medium",
+      "description": "A tool action was verified."
+    },
+    "QuoteRequested": {
+      "category": "pricing",
+      "allowedSourceDomains": ["CognitiveCore", "BusinessBrain", "TimelineEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "A customer asked for price."
+    },
+    "MarketSignalDetected": {
+      "category": "pricing",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore", "TimelineEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "A market demand, offer or provider signal was found."
+    },
+    "QuoteProposed": {
+      "category": "pricing",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore", "OperatingCore"],
+      "defaultRiskLevel": "high",
+      "description": "The IA proposes a price."
+    },
+    "QuoteRecorded": {
+      "category": "pricing",
+      "allowedSourceDomains": ["AccountingBrain", "OperatingCore"],
+      "defaultRiskLevel": "medium",
+      "description": "A quote was recorded as accounting/business evidence."
+    },
+    "QuoteApproved": {
+      "category": "pricing",
+      "allowedSourceDomains": ["HumanCollaboration", "BusinessBrain"],
+      "defaultRiskLevel": "high",
+      "description": "A quote was approved."
+    },
+    "QuoteRejected": {
+      "category": "pricing",
+      "allowedSourceDomains": ["HumanCollaboration", "BusinessBrain"],
+      "defaultRiskLevel": "low",
+      "description": "A quote was rejected."
+    },
+    "OfferDetected": {
+      "category": "pricing",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore"],
+      "defaultRiskLevel": "medium",
+      "description": "An offer was detected."
+    },
+    "DemandPatternDetected": {
+      "category": "pricing",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore", "MemoryCore"],
+      "defaultRiskLevel": "medium",
+      "description": "A demand pattern was detected."
+    },
+    "PaymentDrafted": {
+      "category": "accounting",
+      "allowedSourceDomains": ["AccountingBrain", "OperatingCore", "BusinessBrain", "CognitiveCore", "TimelineEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "A possible payment was drafted and still needs evidence review."
+    },
+    "PaymentEvidenceAttached": {
+      "category": "accounting",
+      "allowedSourceDomains": ["AccountingBrain", "BusinessBrain", "HumanCollaboration"],
+      "defaultRiskLevel": "high",
+      "description": "Payment evidence was attached to a payment draft."
+    },
+    "PaymentConfirmed": {
+      "category": "accounting",
+      "allowedSourceDomains": ["AccountingBrain", "HumanCollaboration"],
+      "defaultRiskLevel": "critical",
+      "description": "A payment was confirmed with strong evidence."
+    },
+    "DebtDetected": {
+      "category": "accounting",
+      "allowedSourceDomains": ["AccountingBrain", "OperatingCore", "BusinessBrain", "CognitiveCore", "TimelineEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "A possible debt or balance issue was detected."
+    },
+    "DebtUpdated": {
+      "category": "accounting",
+      "allowedSourceDomains": ["AccountingBrain", "HumanCollaboration"],
+      "defaultRiskLevel": "high",
+      "description": "A debt state was updated."
+    },
+    "RefundCandidate": {
+      "category": "accounting",
+      "allowedSourceDomains": ["AccountingBrain", "OperatingCore", "BusinessBrain"],
+      "defaultRiskLevel": "high",
+      "description": "A possible refund was detected."
+    },
+    "AccountingCorrectionReceived": {
+      "category": "accounting",
+      "allowedSourceDomains": ["HumanCollaboration", "AccountingBrain"],
+      "defaultRiskLevel": "high",
+      "description": "A human correction was received for accounting."
+    },
+    "DecisionRequested": {
+      "category": "decision",
+      "allowedSourceDomains": ["BusinessBrain", "AutonomousCycle"],
+      "defaultRiskLevel": "medium",
+      "description": "A decision was requested."
+    },
+    "DecisionExplained": {
+      "category": "decision",
+      "allowedSourceDomains": ["CognitiveCore", "OperatingCore", "BusinessBrain"],
+      "defaultRiskLevel": "medium",
+      "description": "A decision was explained with evidence and confidence."
+    },
+    "DecisionDeferred": {
+      "category": "decision",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore", "Supervisor"],
+      "defaultRiskLevel": "low",
+      "description": "A decision was deferred."
+    },
+    "HumanApprovalRequired": {
+      "category": "human",
+      "allowedSourceDomains": ["BusinessBrain", "CognitiveCore", "OperatingCore", "Supervisor", "AccountingBrain", "HandsEngine"],
+      "defaultRiskLevel": "high",
+      "description": "The IA needs Bryams before continuing."
+    },
+    "DecisionRejectedByGuardrail": {
+      "category": "decision",
+      "allowedSourceDomains": ["Supervisor", "BusinessBrain"],
+      "defaultRiskLevel": "high",
+      "description": "A decision was rejected by guardrails."
+    },
+    "ActionPlanCreated": {
+      "category": "action",
+      "allowedSourceDomains": ["HandsEngine", "BusinessBrain", "CognitiveCore"],
+      "defaultRiskLevel": "medium",
+      "description": "An action plan was created before moving hands."
+    },
+    "ActionRequested": {
+      "category": "action",
+      "allowedSourceDomains": ["HandsEngine", "BusinessBrain", "CognitiveCore"],
+      "defaultRiskLevel": "medium",
+      "description": "A local action was requested."
+    },
+    "ActionBlocked": {
+      "category": "action",
+      "allowedSourceDomains": ["HandsEngine", "Supervisor"],
+      "defaultRiskLevel": "low",
+      "description": "A local action was blocked safely."
+    },
+    "ActionExecuted": {
+      "category": "action",
+      "allowedSourceDomains": ["HandsEngine"],
+      "defaultRiskLevel": "medium",
+      "description": "A local action was executed."
+    },
+    "ActionVerified": {
+      "category": "action",
+      "allowedSourceDomains": ["HandsEngine", "Supervisor"],
+      "defaultRiskLevel": "low",
+      "description": "A local action was verified after execution."
+    },
+    "ActionFailed": {
+      "category": "action",
+      "allowedSourceDomains": ["HandsEngine", "Supervisor"],
+      "defaultRiskLevel": "medium",
+      "description": "A local action failed with a reason."
+    },
+    "LearningCandidateCreated": {
+      "category": "learning",
+      "allowedSourceDomains": ["CognitiveCore", "MemoryCore", "BusinessBrain"],
+      "defaultRiskLevel": "medium",
+      "description": "A possible learning was created but is not stable memory yet."
+    },
+    "LearningAccepted": {
+      "category": "learning",
+      "allowedSourceDomains": ["MemoryCore", "HumanCollaboration"],
+      "defaultRiskLevel": "medium",
+      "description": "A learning candidate was accepted into memory."
+    },
+    "LearningRejected": {
+      "category": "learning",
+      "allowedSourceDomains": ["MemoryCore", "HumanCollaboration"],
+      "defaultRiskLevel": "low",
+      "description": "A learning candidate was rejected."
+    },
+    "MemoryFactCreated": {
+      "category": "memory",
+      "allowedSourceDomains": ["MemoryCore"],
+      "defaultRiskLevel": "medium",
+      "description": "A memory fact was created."
+    },
+    "MemoryFactUpdated": {
+      "category": "memory",
+      "allowedSourceDomains": ["MemoryCore"],
+      "defaultRiskLevel": "medium",
+      "description": "A memory fact was updated."
+    },
+    "MemoryConflictDetected": {
+      "category": "memory",
+      "allowedSourceDomains": ["MemoryCore", "BusinessBrain"],
+      "defaultRiskLevel": "high",
+      "description": "Memory has conflicting facts."
+    },
+    "HumanCorrectionReceived": {
+      "category": "human",
+      "allowedSourceDomains": ["HumanCollaboration", "MemoryCore"],
+      "defaultRiskLevel": "medium",
+      "description": "A human correction was received."
+    },
+    "EvalCaseCreated": {
+      "category": "evaluation",
+      "allowedSourceDomains": ["EvaluationDomain"],
+      "defaultRiskLevel": "low",
+      "description": "A case was added to evaluation."
+    },
+    "EvalResultRecorded": {
+      "category": "evaluation",
+      "allowedSourceDomains": ["EvaluationDomain"],
+      "defaultRiskLevel": "low",
+      "description": "An evaluation result was recorded."
+    },
+    "RegressionDetected": {
+      "category": "evaluation",
+      "allowedSourceDomains": ["EvaluationDomain"],
+      "defaultRiskLevel": "high",
+      "description": "A version regressed against evaluation."
+    },
+    "ModelBehaviorChanged": {
+      "category": "evaluation",
+      "allowedSourceDomains": ["EvaluationDomain"],
+      "defaultRiskLevel": "medium",
+      "description": "Model behavior changed across versions."
+    },
+    "ReleaseGateBlocked": {
+      "category": "evaluation",
+      "allowedSourceDomains": ["EvaluationDomain", "Supervisor"],
+      "defaultRiskLevel": "high",
+      "description": "Release was blocked by evaluation or safety."
+    },
+    "PrivacyReviewRequired": {
+      "category": "privacy",
+      "allowedSourceDomains": ["PrivacyAndDataGovernance", "BusinessBrain", "Supervisor"],
+      "defaultRiskLevel": "high",
+      "description": "A privacy review is required."
+    },
+    "SensitiveDataDetected": {
+      "category": "privacy",
+      "allowedSourceDomains": ["PrivacyAndDataGovernance", "BusinessBrain", "PerceptionEngine"],
+      "defaultRiskLevel": "high",
+      "description": "Sensitive data was detected."
+    },
+    "RedactionApplied": {
+      "category": "privacy",
+      "allowedSourceDomains": ["PrivacyAndDataGovernance"],
+      "defaultRiskLevel": "low",
+      "description": "Sensitive data was redacted."
+    },
+    "CloudSyncBlocked": {
+      "category": "privacy",
+      "allowedSourceDomains": ["PrivacyAndDataGovernance", "Supervisor"],
+      "defaultRiskLevel": "medium",
+      "description": "Cloud sync was blocked for privacy."
+    },
+    "RetentionExpired": {
+      "category": "privacy",
+      "allowedSourceDomains": ["PrivacyAndDataGovernance"],
+      "defaultRiskLevel": "low",
+      "description": "Retention policy expired."
+    },
+    "CycleStarted": {
+      "category": "cycle",
+      "allowedSourceDomains": ["AutonomousCycle"],
+      "defaultRiskLevel": "low",
+      "description": "Autonomous cycle started."
+    },
+    "CycleCheckpointCreated": {
+      "category": "cycle",
+      "allowedSourceDomains": ["AutonomousCycle"],
+      "defaultRiskLevel": "low",
+      "description": "Autonomous cycle checkpoint was created."
+    },
+    "CycleBlocked": {
+      "category": "cycle",
+      "allowedSourceDomains": ["AutonomousCycle", "Supervisor"],
+      "defaultRiskLevel": "high",
+      "description": "Autonomous cycle is blocked."
+    },
+    "CycleRecovered": {
+      "category": "cycle",
+      "allowedSourceDomains": ["AutonomousCycle"],
+      "defaultRiskLevel": "medium",
+      "description": "Autonomous cycle recovered."
+    }
+  }
+}

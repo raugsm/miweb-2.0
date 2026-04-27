@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/domain-event-envelope.schema.json",
+  "title": "AriadGSM Domain Event Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "createdAt",
+    "sourceDomain",
+    "sourceSystem",
+    "actor",
+    "subject",
+    "correlationId",
+    "causationId",
+    "idempotencyKey",
+    "traceId",
+    "channelId",
+    "conversationId",
+    "caseId",
+    "customerId",
+    "confidence",
+    "evidence",
+    "privacy",
+    "risk",
+    "requiresHumanReview",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "eventType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schemaVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sourceDomain": {
+      "type": "string",
+      "enum": [
+        "VisionEngine",
+        "PerceptionEngine",
+        "TimelineEngine",
+        "MemoryCore",
+        "OperatingCore",
+        "AccountingBrain",
+        "CognitiveCore",
+        "BusinessBrain",
+        "HandsEngine",
+        "Supervisor",
+        "AutonomousCycle",
+        "ChannelRoutingBrain",
+        "HumanCollaboration",
+        "PrivacyAndDataGovernance",
+        "EvaluationDomain",
+        "ExternalSystemAdapter",
+        "DesktopAgentCore"
+      ]
+    },
+    "sourceSystem": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ai", "human", "system", "tool"]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "correlationId": {
+      "type": "string"
+    },
+    "causationId": {
+      "type": "string"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "traceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "channelId": {
+      "type": ["string", "null"]
+    },
+    "conversationId": {
+      "type": ["string", "null"]
+    },
+    "caseId": {
+      "type": ["string", "null"]
+    },
+    "customerId": {
+      "type": ["string", "null"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidenceId",
+          "source",
+          "evidenceLevel",
+          "observedAt",
+          "summary",
+          "rawReference",
+          "confidence",
+          "redactionState",
+          "limitations"
+        ],
+        "properties": {
+          "evidenceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceLevel": {
+            "type": "string",
+            "enum": ["A", "B", "C", "D", "E", "F"]
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rawReference": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "redactionState": {
+            "type": "string",
+            "enum": ["raw_local_only", "safe_summary", "redacted", "blocked"]
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "cloudAllowed",
+        "redactionRequired",
+        "retentionPolicy",
+        "contains",
+        "reason"
+      ],
+      "properties": {
+        "classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "sensitive",
+            "secret",
+            "pii",
+            "payment",
+            "device_identifier",
+            "credential"
+          ]
+        },
+        "cloudAllowed": {
+          "type": "boolean"
+        },
+        "redactionRequired": {
+          "type": "boolean"
+        },
+        "retentionPolicy": {
+          "type": "string"
+        },
+        "contains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "riskLevel",
+        "riskReasons",
+        "autonomyLevel",
+        "allowedActions",
+        "blockedActions"
+      ],
+      "properties": {
+        "riskLevel": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "riskReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "autonomyLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "allowedActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockedActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "requiresHumanReview": {
+      "type": "boolean"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

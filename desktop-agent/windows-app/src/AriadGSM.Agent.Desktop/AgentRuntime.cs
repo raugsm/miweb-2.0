@@ -249,6 +249,7 @@ internal sealed partial class AgentRuntime : IDisposable
             ReadJsonStatus("hands-state.json"),
             ReadJsonStatus("supervisor-state.json"),
             ReadJsonStatus("autonomous-cycle-state.json"),
+            ReadJsonStatus("domain-events-state.json"),
             ActiveProcessSummary());
     }
 
@@ -299,6 +300,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Cognitive", "cognitive-state.json", "PythonCoreLoop"),
             StateHealth("Operating", "operating-state.json", "PythonCoreLoop"),
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
+            StateHealth("Domain Events", "domain-events-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
             StateHealth("Action Queue", "action-queue-state.json", "Hands"),
             StateHealth("Input Arbiter", "input-arbiter-state.json", "Hands"),
@@ -1913,7 +1915,8 @@ internal sealed partial class AgentRuntime : IDisposable
             ("Operating", "ariadgsm_agent.operating", new[] { "--autonomy-level", "3", "--json" }),
             ("Memory", "ariadgsm_agent.memory", new[] { "--json" }),
             ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" }),
-            ("AutonomousCycle", "ariadgsm_agent.autonomous_cycle", new[] { "--json" })
+            ("AutonomousCycle", "ariadgsm_agent.autonomous_cycle", new[] { "--json" }),
+            ("DomainEvents", "ariadgsm_agent.domain_events", new[] { "--json" })
         };
 
         foreach (var (name, module, args) in modules)
@@ -3312,4 +3315,5 @@ internal sealed record AgentSnapshot(
     JsonDocument? Hands,
     JsonDocument? Supervisor,
     JsonDocument? AutonomousCycle,
+    JsonDocument? DomainEvents,
     IReadOnlyList<string> Processes);
