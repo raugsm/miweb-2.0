@@ -59,6 +59,63 @@ public sealed class ActionEventWriter
         return ids;
     }
 
+    public async ValueTask<HashSet<string>> ReadProcessedDecisionKeysAsync(string executionMode, CancellationToken cancellationToken = default)
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(_path))
+        {
+            return ids;
+        }
+
+        var lines = await ReadAllLinesSharedAsync(_path, cancellationToken).ConfigureAwait(false);
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(line);
+                var root = document.RootElement;
+                var status = root.TryGetProperty("status", out var statusElement)
+                    ? statusElement.GetString() ?? string.Empty
+                    : string.Empty;
+                if (status.Equals("failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!root.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var mode = target.TryGetProperty("executionMode", out var modeElement)
+                    ? modeElement.GetString() ?? string.Empty
+                    : string.Empty;
+                if (!mode.Equals(executionMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var sourceDecisionId = target.TryGetProperty("sourceDecisionId", out var decisionElement)
+                    ? decisionElement.GetString() ?? string.Empty
+                    : string.Empty;
+                if (!string.IsNullOrWhiteSpace(sourceDecisionId))
+                {
+                    ids.Add($"{sourceDecisionId}|{executionMode}");
+                }
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        return ids;
+    }
+
     private static async ValueTask AppendLineSharedAsync(string path, string line, CancellationToken cancellationToken)
     {
         var bytes = Encoding.UTF8.GetBytes(line + Environment.NewLine);

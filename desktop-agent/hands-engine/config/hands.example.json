@@ -6,6 +6,7 @@
   "actionEventsFile": "desktop-agent\\runtime\\action-events.jsonl",
   "stateFile": "desktop-agent\\runtime\\hands-state.json",
   "orchestratorCommandsFile": "desktop-agent\\runtime\\orchestrator-commands.json",
+  "cursorFile": "desktop-agent\\runtime\\hands-cursor.json",
   "autonomyLevel": 3,
   "executeActions": true,
   "enableInteractionNavigator": true,
@@ -21,6 +22,7 @@
   "navigatorMaxChatsPerCycle": 1,
   "navigatorRevisitMinutes": 30,
   "navigatorMinimumSecondsBetweenClicks": 2,
+  "processedDecisionCursorLimit": 2000,
   "channelMappings": [
     {
       "channelId": "wa-1",

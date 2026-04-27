@@ -26,7 +26,10 @@ public sealed class HandsPipeline
     private readonly IHandsExecutor _executor;
     private readonly ActionVerifier _verifier = new();
     private readonly ActionEventWriter _writer;
+    private readonly HandsCursorStore _cursorStore;
+    private readonly HashSet<string> _processedDecisionKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _processedDecisionScopes = new(StringComparer.OrdinalIgnoreCase);
+    private bool _cursorLoaded;
     private int _idleCycles;
     private int _decisionsRead;
     private int _actionsPlanned;
@@ -52,12 +55,16 @@ public sealed class HandsPipeline
         _safety = new HandsSafetyPolicy(options);
         _executor = executor ?? (options.ExecuteActions ? new Win32HandsExecutor(options) : new DryRunHandsExecutor());
         _writer = new ActionEventWriter(options.ActionEventsFile);
+        _cursorStore = new HandsCursorStore(options.CursorFile);
     }
 
     public async ValueTask<HandsHealthState> RunOnceAsync(CancellationToken cancellationToken = default)
     {
         try
         {
+            _actionsSkipped = 0;
+            await EnsureCursorLoadedAsync(cancellationToken).ConfigureAwait(false);
+
             var decisions = await _decisionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
             _decisionsRead = decisions.Count;
 
@@ -66,6 +73,7 @@ public sealed class HandsPipeline
             var orchestrator = await _orchestratorReader.ReadAsync(cancellationToken).ConfigureAwait(false);
             var existingIds = await _writer.ReadExistingActionIdsAsync(cancellationToken).ConfigureAwait(false);
             var writtenThisCycle = 0;
+            var cursorDirty = false;
 
             if (!orchestrator.ActionsAllowed)
             {
@@ -75,20 +83,26 @@ public sealed class HandsPipeline
 
             foreach (var decision in decisions)
             {
-                if (!IsActionableDecision(decision))
+                var decisionKey = DecisionCursorKey(decision.DecisionId);
+                if (_processedDecisionKeys.Contains(decisionKey))
                 {
-                    _actionsSkipped++;
                     continue;
                 }
 
-                var decisionScope = $"{decision.DecisionId}|{interaction.SourceInteractionEventId}";
+                if (!IsActionableDecision(decision))
+                {
+                    cursorDirty |= _processedDecisionKeys.Add(decisionKey);
+                    continue;
+                }
+
+                var decisionScope = $"{decision.DecisionId}|{interaction.SourceInteractionEventId}|{ExecutionMode()}";
                 var plans = _planner.Plan(decision);
                 if (!_processedDecisionScopes.Add(decisionScope))
                 {
-                    _actionsSkipped += plans.Count;
                     continue;
                 }
 
+                var touchedDecision = false;
                 foreach (var plan in plans)
                 {
                     var enrichedPlan = EnrichPlanWithInteraction(plan, interaction);
@@ -98,15 +112,27 @@ public sealed class HandsPipeline
                         continue;
                     }
 
+                    touchedDecision = true;
                     var scopedActionId = ScopedActionId(enrichedPlan);
                     if (await TryWritePlanAsync(enrichedPlan, scopedActionId, perception, existingIds, cancellationToken).ConfigureAwait(false))
                     {
                         writtenThisCycle++;
                     }
                 }
+
+                if (touchedDecision)
+                {
+                    cursorDirty |= _processedDecisionKeys.Add(decisionKey);
+                }
+
+                cursorDirty = true;
             }
 
             writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, orchestrator, existingIds, cancellationToken).ConfigureAwait(false);
+            if (cursorDirty)
+            {
+                await SaveCursorAsync(cancellationToken).ConfigureAwait(false);
+            }
 
             if (writtenThisCycle == 0)
             {
@@ -124,6 +150,44 @@ public sealed class HandsPipeline
             _lastError = exception.Message;
             return await WriteStateAsync(CreateState("error", _lastSummary, exception.Message), CancellationToken.None).ConfigureAwait(false);
         }
+    }
+
+    private async ValueTask EnsureCursorLoadedAsync(CancellationToken cancellationToken)
+    {
+        if (_cursorLoaded)
+        {
+            return;
+        }
+
+        var snapshot = await _cursorStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var item in snapshot.ProcessedDecisionKeys)
+        {
+            _processedDecisionKeys.Add(item);
+        }
+
+        foreach (var item in snapshot.ProcessedDecisionScopes)
+        {
+            _processedDecisionScopes.Add(item);
+        }
+
+        var seededKeys = await _writer.ReadProcessedDecisionKeysAsync(
+            ExecutionMode(),
+            cancellationToken).ConfigureAwait(false);
+        foreach (var item in seededKeys)
+        {
+            _processedDecisionKeys.Add(item);
+        }
+
+        _cursorLoaded = true;
+    }
+
+    private ValueTask SaveCursorAsync(CancellationToken cancellationToken)
+    {
+        return _cursorStore.SaveAsync(
+            _processedDecisionKeys,
+            _processedDecisionScopes,
+            _options.ProcessedDecisionCursorLimit,
+            cancellationToken);
     }
 
     private bool IsActionableDecision(DecisionEvent decision)
@@ -525,6 +589,16 @@ public sealed class HandsPipeline
             ? string.Empty
             : $"-{StableHash(interactionTargetId)[..8]}";
         return $"{plan.ActionId}-{(_options.ExecuteActions ? "exec" : "plan")}{suffix}";
+    }
+
+    private string DecisionCursorKey(string decisionId)
+    {
+        return $"{decisionId}|{ExecutionMode()}";
+    }
+
+    private string ExecutionMode()
+    {
+        return _options.ExecuteActions ? "execute" : "plan";
     }
 
     private static string StableHash(string raw)

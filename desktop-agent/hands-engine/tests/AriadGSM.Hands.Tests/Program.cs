@@ -69,6 +69,7 @@ static async Task TestPipelineWritesAndDedupes()
     var interaction = Path.Combine(root, "interaction-events.jsonl");
     var actions = Path.Combine(root, "action-events.jsonl");
     var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
     try
     {
         await File.WriteAllTextAsync(cognitive, JsonSerializer.Serialize(new
@@ -185,6 +186,7 @@ static async Task TestPipelineWritesAndDedupes()
             InteractionEventsFile = interaction,
             ActionEventsFile = actions,
             StateFile = state,
+            CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = false,
             RespectOrchestratorCommands = false,
@@ -223,7 +225,7 @@ static async Task TestPipelineWritesAndDedupes()
 
         var second = await pipeline.RunOnceAsync();
         Assert(second.Status == "idle", "second pipeline run should dedupe existing actions");
-        Assert(second.ActionsSkipped >= first.ActionsWritten, "second run should skip known action ids");
+        Assert(second.ActionsSkipped == 0, "second run should ignore completed decisions without replay noise");
 
         var executor = new RecordingExecutor();
         var executeOptions = new HandsOptions
@@ -234,6 +236,7 @@ static async Task TestPipelineWritesAndDedupes()
             InteractionEventsFile = interaction,
             ActionEventsFile = actions,
             StateFile = state,
+            CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = true,
             RespectOrchestratorCommands = false,
@@ -270,6 +273,7 @@ static async Task TestInteractionNavigatorOpensVerifiedRows()
     var interaction = Path.Combine(root, "interaction-events.jsonl");
     var actions = Path.Combine(root, "action-events.jsonl");
     var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
     try
     {
         await File.WriteAllTextAsync(cognitive, string.Empty);
@@ -326,6 +330,7 @@ static async Task TestInteractionNavigatorOpensVerifiedRows()
             InteractionEventsFile = interaction,
             ActionEventsFile = actions,
             StateFile = state,
+            CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = false,
             RespectOrchestratorCommands = false,

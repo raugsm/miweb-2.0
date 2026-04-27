@@ -18,6 +18,8 @@ public sealed class HandsOptions
 
     public string OrchestratorCommandsFile { get; init; } = @"desktop-agent\runtime\orchestrator-commands.json";
 
+    public string CursorFile { get; init; } = @"desktop-agent\runtime\hands-cursor.json";
+
     public int AutonomyLevel { get; init; } = 3;
 
     public bool ExecuteActions { get; init; } = false;
@@ -47,6 +49,8 @@ public sealed class HandsOptions
     public int NavigatorRevisitMinutes { get; init; } = 30;
 
     public int NavigatorMinimumSecondsBetweenClicks { get; init; } = 2;
+
+    public int ProcessedDecisionCursorLimit { get; init; } = 2000;
 
     public IReadOnlyList<HandsChannelMapping> ChannelMappings { get; init; } =
     [

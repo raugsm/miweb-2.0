@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -618,6 +619,22 @@ internal sealed class AgentRuntime : IDisposable
                 return Preflight();
             }
 
+            var recovered = false;
+            foreach (var item in readiness.Where(item => IsAutoRecoverableCabinStatus(item.Status)))
+            {
+                if (TryAutoRecoverChannel(item.Mapping, windows, item.Status))
+                {
+                    recovered = true;
+                    WriteLog($"{item.ChannelId}: cabin auto-recovered {item.Status}.");
+                }
+            }
+
+            if (recovered)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                continue;
+            }
+
             var blocked = readiness.Where(item => item.RequiresHuman).ToArray();
             if (blocked.Length > 0)
             {
@@ -841,6 +858,81 @@ internal sealed class AgentRuntime : IDisposable
         return null;
     }
 
+    private bool TryAutoRecoverChannel(ChannelMapping mapping, IReadOnlyList<WindowInfo> windows, string status)
+    {
+        var window = FindMatchingWindows(windows, mapping).FirstOrDefault()
+            ?? FindBrowserWindows(windows, mapping).FirstOrDefault();
+        if (window is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            ShowWindow(window.Handle, ShowWindowRestore);
+        }
+        catch
+        {
+        }
+
+        var buttons = status switch
+        {
+            "PROFILE_ERROR" => new[] { "aceptar", "ok", "accept" },
+            "NEEDS_USE_HERE" => new[] { "usar aqui", "use here" },
+            _ => []
+        };
+        return buttons.Length > 0 && TryInvokeAutomationButton(window.Handle, buttons);
+    }
+
+    private static bool IsAutoRecoverableCabinStatus(string status)
+    {
+        return status.Equals("PROFILE_ERROR", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("NEEDS_USE_HERE", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryInvokeAutomationButton(IntPtr handle, IReadOnlyList<string> normalizedNames)
+    {
+        try
+        {
+            var root = AutomationElement.FromHandle(handle);
+            if (root is null)
+            {
+                return false;
+            }
+
+            var nodes = root.FindAll(TreeScope.Descendants, System.Windows.Automation.Condition.TrueCondition);
+            for (var index = 0; index < nodes.Count; index++)
+            {
+                var element = nodes[index];
+                var controlType = SafeRead(() => element.Current.ControlType);
+                if (controlType is not null && controlType != ControlType.Button)
+                {
+                    continue;
+                }
+
+                var name = NormalizeForSearch(ReadAutomationElementText(element));
+                if (string.IsNullOrWhiteSpace(name)
+                    || !normalizedNames.Any(item => name.Equals(item, StringComparison.OrdinalIgnoreCase)
+                        || name.Contains(item, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                if (element.TryGetCurrentPattern(InvokePattern.Pattern, out var pattern)
+                    && pattern is InvokePattern invoke)
+                {
+                    invoke.Invoke();
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
     private static bool LooksLikeWhatsAppReady(IReadOnlyList<string> lines, string title)
     {
         var text = NormalizeForSearch(string.Join(" ", lines.Prepend(title)));
@@ -981,14 +1073,17 @@ internal sealed class AgentRuntime : IDisposable
 
     private static string NormalizeForSearch(string value)
     {
-        var normalized = NormalizeText(value).ToLowerInvariant()
-            .Replace('á', 'a')
-            .Replace('é', 'e')
-            .Replace('í', 'i')
-            .Replace('ó', 'o')
-            .Replace('ú', 'u')
-            .Replace('ü', 'u');
-        return normalized;
+        var normalized = NormalizeText(value).Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(char.ToLowerInvariant(character));
+            }
+        }
+
+        return builder.ToString();
     }
 
     private static T? SafeRead<T>(Func<T> read)
