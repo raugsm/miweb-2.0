@@ -382,6 +382,15 @@ internal sealed partial class AgentRuntime
             };
 
             WriteAllTextAtomicShared(CabinAuthorityStateFile, JsonSerializer.Serialize(authority, options));
+            if (report.Blockers.Count > 0 || report.Actions.Count > 0 || !report.Status.Equals("ok", StringComparison.OrdinalIgnoreCase))
+            {
+                WriteDiagnosticTimelineEvent(
+                    "cabin_authority",
+                    report.Status,
+                    report.Summary,
+                    string.Join(" | ", report.Blockers.Select(item => $"{item.ChannelId}:{item.Code}")),
+                    report.Status.Equals("ok", StringComparison.OrdinalIgnoreCase) ? "info" : "warning");
+            }
         }
         catch
         {

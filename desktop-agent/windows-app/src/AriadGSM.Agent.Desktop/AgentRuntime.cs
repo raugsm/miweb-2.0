@@ -76,6 +76,7 @@ internal sealed partial class AgentRuntime : IDisposable
         _cabinChannelRegistryFile = Path.Combine(_runtimeDir, "cabin-channel-registry.json");
         _statusBusStateFile = Path.Combine(_runtimeDir, "status-bus-state.json");
         _workspaceSetupStateFile = Path.Combine(_runtimeDir, "workspace-setup-state.json");
+        WriteArchitectureState();
         WriteLifeState("idle", "login_wait", "IA detenida esperando login e inicio manual.", "constructor");
         WriteCabinChannelRegistry(ReadChannelMappings());
         WriteStatusBusState("idle", "login_wait", "Cabina esperando login e inicio manual.", []);
@@ -302,6 +303,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Input Arbiter", "input-arbiter-state.json", "Hands"),
             StateHealth("Supervisor", "supervisor-state.json", "PythonCoreLoop"),
             StateHealth("Ciclo autonomo", "autonomous-cycle-state.json", "PythonCoreLoop"),
+            StateHealth("Control Plane", "control-plane-state.json", "LifeController"),
             StateHealth("Life Controller", "life-controller-state.json", "LifeController"),
             StateHealth("Agent Supervisor", "agent-supervisor-state.json", "ReliabilitySupervisor"),
             StateHealth("Status Bus", "status-bus-state.json", "StatusBus"),
@@ -2183,6 +2185,12 @@ internal sealed partial class AgentRuntime : IDisposable
                 ["supervisorRunning"] = _supervisorTask is { IsCompleted: false }
             };
             WriteAllTextAtomicShared(_agentSupervisorStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+            WriteDiagnosticTimelineEvent(
+                "runtime_orchestrator",
+                status,
+                summary,
+                $"workers={specs.Length}; restartCount={restartCount}",
+                status.Equals("ok", StringComparison.OrdinalIgnoreCase) ? "info" : "warning");
         }
         catch
         {

@@ -56,6 +56,13 @@ internal sealed partial class AgentRuntime
             WriteAllTextAtomicShared(_cabinManagerStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
             WriteCabinChannelRegistry(readiness.Select(item => item.Mapping).Distinct().ToArray());
             WriteStatusBusState(status, phase, summary, readiness.Where(item => !item.IsReady).Select(item => $"{item.ChannelId}: {item.Status} - {item.Detail}").ToArray());
+            WriteControlPlaneState(status, phase, summary, "cabin_workspace_manager");
+            WriteDiagnosticTimelineEvent(
+                "cabin_workspace_manager",
+                status,
+                summary,
+                string.Join(" | ", readiness.Select(item => $"{item.ChannelId}:{item.Status}")),
+                readiness.Any(item => item.RequiresHuman) ? "warning" : "info");
         }
         catch
         {
@@ -105,6 +112,7 @@ internal sealed partial class AgentRuntime
                 ["visibleToOperator"] = true
             };
             WriteAllTextAtomicShared(_statusBusStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+            WriteControlPlaneState(status, phase, summary, "status_bus");
         }
         catch
         {

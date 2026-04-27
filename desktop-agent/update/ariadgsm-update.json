@@ -1,8 +1,8 @@
 {
-  "version": "0.5.30",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.30.zip",
-  "sha256": "ec7d33ee82f3693c5b3e6a314c43988386e40fb2a65bd1d7192ddefc05007d84",
+  "version": "0.6.0",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.6.0.zip",
+  "sha256": "8cfdc0f437f7034198c06a5939bbb377b48d6acd790a2ac4b23307f0e17ece34",
   "autoApply": true,
-  "notes": "Prevents the control app from sitting on top of WhatsApp during autonomous work. AriadGSM IA Local is now treated as a real blocker for Cabin Authority, autonomous start stays minimized unless there is a blocking error, and Pausar IA requires confirmation before stopping engines.",
-  "publishedAt": "2026-04-27T20:10:00Z"
+  "notes": "Version 0.6.0 introduces the Control Plane architecture: larger Control Center, 0.6 diagnostic timeline, architecture contract, clearer cabin setup space, Control Plane health, and reduced noisy technical rows so the operator can see what the IA is doing without reading raw JSON.",
+  "publishedAt": "2026-04-27T20:25:00Z"
 }

@@ -26,6 +26,8 @@ internal sealed partial class AgentRuntime
             };
 
             WriteAllTextAtomicShared(LifeControllerStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+            WriteControlPlaneState(status, phase, summary, "life_controller");
+            WriteDiagnosticTimelineEvent("life_controller", status, summary, $"reason={reason}", status.Equals("blocked", StringComparison.OrdinalIgnoreCase) ? "warning" : "info");
         }
         catch
         {
