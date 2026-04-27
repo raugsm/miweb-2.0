@@ -682,13 +682,14 @@ internal sealed class AgentRuntime : IDisposable
                 WorkingDirectory = _repoRoot,
                 UseShellExecute = false
             };
-            foreach (var argument in BuildBrowserLaunchArguments(mapping.BrowserProcess))
+            foreach (var argument in BuildBrowserLaunchArguments(mapping))
             {
                 startInfo.ArgumentList.Add(argument);
             }
 
             Process.Start(startInfo);
-            WriteLog($"{mapping.ChannelId}: opening WhatsApp in {mapping.BrowserProcess} with {browser}. Reason: {reason}");
+            var profile = string.IsNullOrWhiteSpace(mapping.ProfileDirectory) ? "default browser profile" : mapping.ProfileDirectory;
+            WriteLog($"{mapping.ChannelId}: opening WhatsApp in {mapping.BrowserProcess} profile {profile} with {browser}. Reason: {reason}");
             return true;
         }
         catch (Exception exception)
@@ -2059,16 +2060,26 @@ internal sealed class AgentRuntime : IDisposable
         return ResolveExecutable(envName, exe, KnownBrowserPaths(normalized));
     }
 
-    private static IReadOnlyList<string> BuildBrowserLaunchArguments(string processName)
+    private static IReadOnlyList<string> BuildBrowserLaunchArguments(ChannelMapping mapping)
     {
-        var normalized = NormalizeProcessName(processName);
+        var normalized = NormalizeProcessName(mapping.BrowserProcess);
         const string url = "https://web.whatsapp.com/";
-        return normalized switch
+        var arguments = normalized switch
         {
-            "msedge" or "chrome" => ["--new-window", url],
-            "firefox" => ["-new-window", url],
-            _ => [url]
+            "msedge" or "chrome" => new List<string> { "--new-window" },
+            "firefox" => new List<string> { "-new-window" },
+            _ => []
         };
+
+        if ((normalized.Equals("msedge", StringComparison.OrdinalIgnoreCase)
+                || normalized.Equals("chrome", StringComparison.OrdinalIgnoreCase))
+            && !string.IsNullOrWhiteSpace(mapping.ProfileDirectory))
+        {
+            arguments.Add($"--profile-directory={mapping.ProfileDirectory}");
+        }
+
+        arguments.Add(url);
+        return arguments;
     }
 
     private static IReadOnlyList<string> KnownBrowserPaths(string normalizedProcessName)
@@ -2332,9 +2343,10 @@ internal sealed class AgentRuntime : IDisposable
                 var channelId = TryString(item, "channelId") ?? string.Empty;
                 var browserProcess = TryString(item, "browserProcess") ?? string.Empty;
                 var titleContains = TryString(item, "titleContains") ?? "WhatsApp";
+                var profileDirectory = TryString(item, "profileDirectory") ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(channelId) && !string.IsNullOrWhiteSpace(browserProcess))
                 {
-                    result.Add(new ChannelMapping(channelId, browserProcess, titleContains));
+                    result.Add(new ChannelMapping(channelId, browserProcess, titleContains, profileDirectory));
                 }
             }
 
@@ -2350,9 +2362,9 @@ internal sealed class AgentRuntime : IDisposable
     {
         return
         [
-            new("wa-1", "msedge", "WhatsApp"),
-            new("wa-2", "chrome", "WhatsApp"),
-            new("wa-3", "firefox", "WhatsApp")
+            new("wa-1", "msedge", "WhatsApp", "Profile 1"),
+            new("wa-2", "chrome", "WhatsApp", "Profile 2"),
+            new("wa-3", "firefox", "WhatsApp", "")
         ];
     }
 
@@ -2706,7 +2718,7 @@ internal sealed class AgentRuntime : IDisposable
         public DateTimeOffset? LastRestartAt { get; set; }
     }
 
-    private sealed record ChannelMapping(string ChannelId, string BrowserProcess, string TitleContains);
+    private sealed record ChannelMapping(string ChannelId, string BrowserProcess, string TitleContains, string ProfileDirectory);
 
     private sealed record WindowInfo(IntPtr Handle, int ProcessId, string ProcessName, string Title);
 }
