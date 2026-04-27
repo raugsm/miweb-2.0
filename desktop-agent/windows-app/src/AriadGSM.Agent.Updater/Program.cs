@@ -145,11 +145,18 @@ internal static class Program
             ReplaceDirectory(stagedLauncher, launcherDir);
         }
 
+        var previousVersion = version.Equals(previous.ActiveVersion, StringComparison.OrdinalIgnoreCase)
+            ? previous.PreviousVersion
+            : previous.ActiveVersion;
+        var previousDirectory = version.Equals(previous.ActiveVersion, StringComparison.OrdinalIgnoreCase)
+            ? previous.PreviousDirectory
+            : previous.ActiveDirectory;
+
         var active = new ActiveVersionState(
             version,
             targetDir,
-            previous.ActiveVersion,
-            previous.ActiveDirectory,
+            previousVersion,
+            previousDirectory,
             PendingConfirmation: !noRestart,
             RollbackReason: null,
             UpdatedAt: DateTimeOffset.UtcNow);
@@ -223,10 +230,12 @@ internal static class Program
             Path.Combine("engines", "vision", "AriadGSM.Vision.Worker.exe"),
             Path.Combine("engines", "perception", "AriadGSM.Perception.Worker.exe"),
             Path.Combine("engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
+            Path.Combine("engines", "orchestrator", "AriadGSM.Orchestrator.Worker.exe"),
             Path.Combine("engines", "hands", "AriadGSM.Hands.Worker.exe"),
             Path.Combine("config", "vision.json"),
             Path.Combine("config", "perception.json"),
             Path.Combine("config", "interaction.json"),
+            Path.Combine("config", "orchestrator.json"),
             Path.Combine("config", "hands.json")
         };
 

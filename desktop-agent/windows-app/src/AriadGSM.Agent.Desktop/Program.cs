@@ -41,10 +41,12 @@ internal static class Program
             Path.Combine("engines", "vision", "AriadGSM.Vision.Worker.exe"),
             Path.Combine("engines", "perception", "AriadGSM.Perception.Worker.exe"),
             Path.Combine("engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
+            Path.Combine("engines", "orchestrator", "AriadGSM.Orchestrator.Worker.exe"),
             Path.Combine("engines", "hands", "AriadGSM.Hands.Worker.exe"),
             Path.Combine("config", "vision.json"),
             Path.Combine("config", "perception.json"),
             Path.Combine("config", "interaction.json"),
+            Path.Combine("config", "orchestrator.json"),
             Path.Combine("config", "hands.json")
         };
 

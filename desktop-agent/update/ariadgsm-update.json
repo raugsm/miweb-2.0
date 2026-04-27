@@ -1,8 +1,8 @@
 {
-  "version": "0.5.8",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.8.zip",
-  "sha256": "40e0356a01ee315bc65668dab5ce233501b77df4963c31d0f2668b466c4b8c71",
+  "version": "0.5.9",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.9.zip",
+  "sha256": "0066bbf5e725dbb6d6afc43b3204335d406a39e04748f328be9c4a1ea85942ab",
   "autoApply": true,
-  "notes": "Hands Navigator: opens verified WhatsApp chat rows directly from Interaction targets, improves Edge/Chrome focus handling, and suppresses unreliable browser-ui conversation identities before they reach Cognitive.",
-  "publishedAt": "2026-04-27T03:10:00Z"
+  "notes": "Ariad Runtime Orchestrator: coordinates cabin, vision, perception, interaction and hands; pauses channels that are not truly visible; prevents stale chat-row clicks; packages Orchestrator as a first-class engine.",
+  "publishedAt": "2026-04-27T03:28:00Z"
 }

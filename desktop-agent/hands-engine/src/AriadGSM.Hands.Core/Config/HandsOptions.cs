@@ -16,11 +16,15 @@ public sealed class HandsOptions
 
     public string StateFile { get; init; } = @"desktop-agent\runtime\hands-state.json";
 
+    public string OrchestratorCommandsFile { get; init; } = @"desktop-agent\runtime\orchestrator-commands.json";
+
     public int AutonomyLevel { get; init; } = 3;
 
     public bool ExecuteActions { get; init; } = false;
 
     public bool EnableInteractionNavigator { get; init; } = true;
+
+    public bool RespectOrchestratorCommands { get; init; } = true;
 
     public bool AllowTextInput { get; init; } = false;
 

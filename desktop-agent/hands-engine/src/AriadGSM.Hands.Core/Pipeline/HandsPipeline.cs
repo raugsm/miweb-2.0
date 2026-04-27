@@ -6,6 +6,7 @@ using AriadGSM.Hands.Decisions;
 using AriadGSM.Hands.Events;
 using AriadGSM.Hands.Execution;
 using AriadGSM.Hands.Interaction;
+using AriadGSM.Hands.Orchestration;
 using AriadGSM.Hands.Perception;
 using AriadGSM.Hands.Planning;
 using AriadGSM.Hands.Safety;
@@ -19,6 +20,7 @@ public sealed class HandsPipeline
     private readonly DecisionEventReader _decisionReader;
     private readonly PerceptionContextReader _perceptionReader;
     private readonly InteractionContextReader _interactionReader;
+    private readonly OrchestratorCommandReader _orchestratorReader;
     private readonly ActionPlanner _planner = new();
     private readonly HandsSafetyPolicy _safety;
     private readonly IHandsExecutor _executor;
@@ -46,6 +48,7 @@ public sealed class HandsPipeline
             options.DecisionLimit);
         _perceptionReader = new PerceptionContextReader(options.PerceptionEventsFile, options.PerceptionLimit);
         _interactionReader = new InteractionContextReader(options.InteractionEventsFile, options.InteractionLimit);
+        _orchestratorReader = new OrchestratorCommandReader(options.OrchestratorCommandsFile, options.RespectOrchestratorCommands);
         _safety = new HandsSafetyPolicy(options);
         _executor = executor ?? (options.ExecuteActions ? new Win32HandsExecutor(options) : new DryRunHandsExecutor());
         _writer = new ActionEventWriter(options.ActionEventsFile);
@@ -60,8 +63,15 @@ public sealed class HandsPipeline
 
             var perception = await _perceptionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
             var interaction = await _interactionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
+            var orchestrator = await _orchestratorReader.ReadAsync(cancellationToken).ConfigureAwait(false);
             var existingIds = await _writer.ReadExistingActionIdsAsync(cancellationToken).ConfigureAwait(false);
             var writtenThisCycle = 0;
+
+            if (!orchestrator.ActionsAllowed)
+            {
+                _idleCycles++;
+                return await WriteStateAsync(CreateState("idle", $"Orchestrator pauso las manos: {orchestrator.Reason}", string.Empty), cancellationToken).ConfigureAwait(false);
+            }
 
             foreach (var decision in decisions)
             {
@@ -82,6 +92,12 @@ public sealed class HandsPipeline
                 foreach (var plan in plans)
                 {
                     var enrichedPlan = EnrichPlanWithInteraction(plan, interaction);
+                    if (orchestrator.IsChannelPaused(TargetString(enrichedPlan, "channelId")))
+                    {
+                        _actionsSkipped++;
+                        continue;
+                    }
+
                     var scopedActionId = ScopedActionId(enrichedPlan);
                     if (await TryWritePlanAsync(enrichedPlan, scopedActionId, perception, existingIds, cancellationToken).ConfigureAwait(false))
                     {
@@ -90,7 +106,7 @@ public sealed class HandsPipeline
                 }
             }
 
-            writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, existingIds, cancellationToken).ConfigureAwait(false);
+            writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, orchestrator, existingIds, cancellationToken).ConfigureAwait(false);
 
             if (writtenThisCycle == 0)
             {
@@ -207,6 +223,7 @@ public sealed class HandsPipeline
     private async ValueTask<int> RunInteractionNavigatorAsync(
         InteractionContext interaction,
         PerceptionContext perception,
+        OrchestratorCommandContext orchestrator,
         HashSet<string> existingIds,
         CancellationToken cancellationToken)
     {
@@ -225,7 +242,7 @@ public sealed class HandsPipeline
         }
 
         var written = 0;
-        foreach (var target in NavigatorCandidates(interaction))
+        foreach (var target in NavigatorCandidates(interaction, orchestrator))
         {
             var plan = CreateNavigatorOpenChatPlan(target, interaction, now);
             var scopedActionId = ScopedActionId(plan);
@@ -244,11 +261,13 @@ public sealed class HandsPipeline
         return written;
     }
 
-    private static IEnumerable<InteractionTarget> NavigatorCandidates(InteractionContext interaction)
+    private static IEnumerable<InteractionTarget> NavigatorCandidates(InteractionContext interaction, OrchestratorCommandContext orchestrator)
     {
         return interaction.Targets
             .Where(target =>
                 target.Actionable
+                && !orchestrator.IsChannelPaused(target.ChannelId)
+                && IsFreshInteractionTarget(interaction, target)
                 && target.TargetType.Equals("chat_row", StringComparison.OrdinalIgnoreCase)
                 && target.ClickX > 0
                 && target.ClickY > 0
@@ -260,6 +279,12 @@ public sealed class HandsPipeline
             .ThenByDescending(target => target.Confidence)
             .ThenBy(target => ChannelOrder(target.ChannelId))
             .ThenBy(target => target.Top);
+    }
+
+    private static bool IsFreshInteractionTarget(InteractionContext interaction, InteractionTarget target)
+    {
+        return string.IsNullOrWhiteSpace(interaction.LatestPerceptionEventId)
+            || string.Equals(target.SourcePerceptionEventId, interaction.LatestPerceptionEventId, StringComparison.OrdinalIgnoreCase);
     }
 
     private ActionPlan CreateNavigatorOpenChatPlan(InteractionTarget target, InteractionContext interaction, DateTimeOffset now)

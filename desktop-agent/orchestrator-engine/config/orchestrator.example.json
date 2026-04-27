@@ -1,0 +1,33 @@
+{
+  "runtimeDir": "desktop-agent\\runtime",
+  "stateFile": "desktop-agent\\runtime\\orchestrator-state.json",
+  "commandsFile": "desktop-agent\\runtime\\orchestrator-commands.json",
+  "pollIntervalMs": 500,
+  "maxCycles": 0,
+  "durationSeconds": 0,
+  "staleStateSeconds": 45,
+  "actionTailLines": 200,
+  "highSkippedActionsThreshold": 1000,
+  "expectedChannels": [
+    "wa-1",
+    "wa-2",
+    "wa-3"
+  ],
+  "channelMappings": [
+    {
+      "channelId": "wa-1",
+      "browserProcess": "msedge",
+      "titleContains": "WhatsApp"
+    },
+    {
+      "channelId": "wa-2",
+      "browserProcess": "chrome",
+      "titleContains": "WhatsApp"
+    },
+    {
+      "channelId": "wa-3",
+      "browserProcess": "firefox",
+      "titleContains": "WhatsApp"
+    }
+  ]
+}

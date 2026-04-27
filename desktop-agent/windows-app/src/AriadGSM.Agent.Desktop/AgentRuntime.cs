@@ -137,6 +137,11 @@ internal sealed class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "interaction-engine", "src", "AriadGSM.Interaction.Worker", "AriadGSM.Interaction.Worker.csproj"),
             Path.Combine("desktop-agent", "interaction-engine", "config", "interaction.example.json"));
         StartWorker(
+            "Orchestrator",
+            Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "orchestrator", "AriadGSM.Orchestrator.Worker.exe"),
+            Path.Combine("desktop-agent", "orchestrator-engine", "src", "AriadGSM.Orchestrator.Worker", "AriadGSM.Orchestrator.Worker.csproj"),
+            Path.Combine("desktop-agent", "orchestrator-engine", "config", "orchestrator.example.json"));
+        StartWorker(
             "Hands",
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "hands", "AriadGSM.Hands.Worker.exe"),
             Path.Combine("desktop-agent", "hands-engine", "src", "AriadGSM.Hands.Worker", "AriadGSM.Hands.Worker.csproj"),
@@ -164,6 +169,11 @@ internal sealed class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
             Path.Combine("desktop-agent", "interaction-engine", "src", "AriadGSM.Interaction.Worker", "AriadGSM.Interaction.Worker.csproj"),
             Path.Combine("desktop-agent", "interaction-engine", "config", "interaction.example.json")).ConfigureAwait(false);
+        await RunWorkerOnceAsync(
+            "Orchestrator once",
+            Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "orchestrator", "AriadGSM.Orchestrator.Worker.exe"),
+            Path.Combine("desktop-agent", "orchestrator-engine", "src", "AriadGSM.Orchestrator.Worker", "AriadGSM.Orchestrator.Worker.csproj"),
+            Path.Combine("desktop-agent", "orchestrator-engine", "config", "orchestrator.example.json")).ConfigureAwait(false);
         await RunCoreSequenceAsync(CancellationToken.None).ConfigureAwait(false);
         await RunWorkerOnceAsync(
             "Hands once",
@@ -199,6 +209,7 @@ internal sealed class AgentRuntime : IDisposable
             ReadJsonStatus("vision-health.json"),
             ReadJsonStatus("perception-health.json"),
             ReadJsonStatus("interaction-state.json"),
+            ReadJsonStatus("orchestrator-state.json"),
             ReadJsonStatus("timeline-state.json"),
             ReadJsonStatus("cognitive-state.json"),
             ReadJsonStatus("operating-state.json"),
@@ -230,6 +241,10 @@ internal sealed class AgentRuntime : IDisposable
                 Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "interaction", "AriadGSM.Interaction.Worker.exe"),
                 Path.Combine("desktop-agent", "interaction-engine", "src", "AriadGSM.Interaction.Worker", "AriadGSM.Interaction.Worker.csproj")),
             CheckWorkerReady(
+                "Orchestrator worker",
+                Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "orchestrator", "AriadGSM.Orchestrator.Worker.exe"),
+                Path.Combine("desktop-agent", "orchestrator-engine", "src", "AriadGSM.Orchestrator.Worker", "AriadGSM.Orchestrator.Worker.csproj")),
+            CheckWorkerReady(
                 "Hands worker",
                 Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "hands", "AriadGSM.Hands.Worker.exe"),
                 Path.Combine("desktop-agent", "hands-engine", "src", "AriadGSM.Hands.Worker", "AriadGSM.Hands.Worker.csproj"))
@@ -246,6 +261,7 @@ internal sealed class AgentRuntime : IDisposable
             StateHealth("Vision", "vision-health.json", "Vision"),
             StateHealth("Perception", "perception-health.json", "Perception"),
             StateHealth("Interaction", "interaction-state.json", "Interaction"),
+            StateHealth("Orchestrator", "orchestrator-state.json", "Orchestrator"),
             StateHealth("Timeline", "timeline-state.json", "PythonCoreLoop"),
             StateHealth("Cognitive", "cognitive-state.json", "PythonCoreLoop"),
             StateHealth("Operating", "operating-state.json", "PythonCoreLoop"),
@@ -303,6 +319,7 @@ internal sealed class AgentRuntime : IDisposable
         using var vision = ReadJsonStatus("vision-health.json");
         using var perception = ReadJsonStatus("perception-health.json");
         using var interaction = ReadJsonStatus("interaction-state.json");
+        using var orchestrator = ReadJsonStatus("orchestrator-state.json");
         using var timeline = ReadJsonStatus("timeline-state.json");
         using var cognitive = ReadJsonStatus("cognitive-state.json");
         using var operating = ReadJsonStatus("operating-state.json");
@@ -330,6 +347,7 @@ internal sealed class AgentRuntime : IDisposable
             $"Vision: capturas={Number(vision, "framesCaptured", "eventsWritten")} | ventanas={Number(vision, "visibleWindowCount")} | intervalo={Number(vision, "captureIntervalMs")}ms",
             $"Lectura: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
             $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
+            $"Orchestrator: fase={Text(orchestrator, "phase")} | {Text(orchestrator, "summary")}",
             $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")}",
             $"Cognitive/Memory: decisiones={NestedNumber(cognitive, "summary", "decisions")} | memoria={NestedNumber(memory, "summary", "memoryMessages")} | aprendizaje={NestedNumber(memory, "summary", "learningEvents")}",
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
@@ -1626,6 +1644,7 @@ internal sealed class AgentRuntime : IDisposable
             "AriadGSM.Vision.Worker",
             "AriadGSM.Perception.Worker",
             "AriadGSM.Interaction.Worker",
+            "AriadGSM.Orchestrator.Worker",
             "AriadGSM.Hands.Worker"
         };
 
@@ -2727,6 +2746,7 @@ internal sealed record AgentSnapshot(
     JsonDocument? Vision,
     JsonDocument? Perception,
     JsonDocument? Interaction,
+    JsonDocument? Orchestrator,
     JsonDocument? Timeline,
     JsonDocument? Cognitive,
     JsonDocument? Operating,

@@ -18,6 +18,7 @@ public sealed class InteractionContext
         var rows = Targets
             .Where(item =>
                 item.Actionable
+                && IsFreshTarget(item)
                 && item.TargetType.Equals("chat_row", StringComparison.OrdinalIgnoreCase)
                 && item.ClickX > 0
                 && item.ClickY > 0
@@ -60,6 +61,12 @@ public sealed class InteractionContext
         }
 
         return null;
+    }
+
+    private bool IsFreshTarget(InteractionTarget target)
+    {
+        return string.IsNullOrWhiteSpace(LatestPerceptionEventId)
+            || string.Equals(target.SourcePerceptionEventId, LatestPerceptionEventId, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsNoisyTitle(string? value)
