@@ -520,8 +520,13 @@ internal sealed class MainForm : Form
             Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
         };
         _timer.Interval = 1200;
-        _timer.Tick += (_, _) => RefreshStatus();
-        _timer.Start();
+        _timer.Tick += (_, _) =>
+        {
+            if (_authenticated && _dashboardPanel.Visible)
+            {
+                RefreshStatus();
+            }
+        };
     }
 
     private static void ConfigureButton(Button button, string text, Color color)
@@ -673,6 +678,11 @@ internal sealed class MainForm : Form
             _loginPanel.Visible = false;
             _dashboardPanel.Visible = true;
             _dashboardPanel.BringToFront();
+            if (!_timer.Enabled)
+            {
+                _timer.Start();
+            }
+
             RefreshStatus();
         }
         catch (Exception exception)

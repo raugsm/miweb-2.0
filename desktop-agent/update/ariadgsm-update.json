@@ -1,8 +1,8 @@
 {
-  "version": "0.5.14",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.14.zip",
-  "sha256": "f4cb104f5cca15ae42ee3c8a5d3eeb3aa35a36cbf6a7bda17be2238d6528b813",
+  "version": "0.5.15",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.15.zip",
+  "sha256": "59d6db6b5bb512211eb176e7d2ad5620f5d479fd581caff3de101d15ceed94ae",
   "autoApply": true,
-  "notes": "Login polish and Windows identity fix: modern AriadGSM login, optional remembered credentials protected by Windows, shared app icon/AppUserModelID for launcher and agent, and cleaner startup progress.",
-  "publishedAt": "2026-04-27T15:05:00Z"
+  "notes": "Login responsiveness fix: startup diagnostics and WhatsApp preflight no longer run while the login screen is waiting, so the UI stays movable and editable before the operator signs in.",
+  "publishedAt": "2026-04-27T15:20:00Z"
 }
