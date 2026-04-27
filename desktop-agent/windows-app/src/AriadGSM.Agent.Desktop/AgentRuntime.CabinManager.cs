@@ -109,6 +109,35 @@ internal sealed partial class AgentRuntime
         }
     }
 
+    private void PublishCabinSetup(
+        IProgress<CabinSetupProgress>? progress,
+        string status,
+        string phase,
+        int percent,
+        IReadOnlyList<ChannelReadiness> readiness,
+        string summary)
+    {
+        var blockers = readiness
+            .Where(item => !item.IsReady)
+            .Select(item => $"{item.ChannelId}: {item.Status} - {item.Detail}")
+            .ToArray();
+
+        WriteCabinReadinessState(status, readiness);
+        WriteCabinManagerState(status, phase, readiness, summary);
+        WriteWorkspaceSetupState(status, summary, percent, blockers);
+        progress?.Report(new CabinSetupProgress(
+            Math.Clamp(percent, 0, 100),
+            phase,
+            summary,
+            readiness.Select(item => new CabinSetupChannelProgress(
+                item.ChannelId,
+                item.Mapping.BrowserProcess,
+                item.Status,
+                item.Detail)).ToArray(),
+            readiness.Count > 0 && readiness.All(item => item.IsReady),
+            CanStartWithDegradedCabin(readiness)));
+    }
+
     private static bool CanStartWithDegradedCabin(IReadOnlyList<ChannelReadiness> readiness)
     {
         return readiness.Any(item => item.IsReady);
@@ -136,3 +165,17 @@ internal sealed partial class AgentRuntime
             : $"Cabina parcial {ready}/{total}: {states}.";
     }
 }
+
+internal sealed record CabinSetupProgress(
+    int Percent,
+    string Phase,
+    string Summary,
+    IReadOnlyList<CabinSetupChannelProgress> Channels,
+    bool IsReady,
+    bool CanStart);
+
+internal sealed record CabinSetupChannelProgress(
+    string ChannelId,
+    string Browser,
+    string Status,
+    string Detail);

@@ -650,14 +650,23 @@ internal sealed partial class AgentRuntime : IDisposable
         }
     }
 
-    public async Task<PreflightReport> PrepareWhatsAppWorkspaceAsync(TimeSpan timeout)
+    public async Task<PreflightReport> PrepareWhatsAppWorkspaceAsync(TimeSpan timeout, IProgress<CabinSetupProgress>? progress = null)
     {
         var started = DateTimeOffset.Now;
         var deadline = DateTimeOffset.Now + timeout;
         var launchAttempts = ReadChannelMappings()
             .ToDictionary(item => item.ChannelId, _ => 0, StringComparer.OrdinalIgnoreCase);
-        WriteLog("Cabin readiness: preparing WhatsApp 1/2/3.");
-        WriteStatusBusState("preparing", "session_locator", "Buscando sesiones existentes de WhatsApp antes de abrir ventanas nuevas.", []);
+        WriteLog("Cabin setup orchestrator: preparing WhatsApp 1/2/3.");
+        WriteStatusBusState("preparing", "observe_channels", "Revisando Edge, Chrome y Firefox antes de mover algo.", []);
+        progress?.Report(new CabinSetupProgress(
+            8,
+            "observe_channels",
+            "Revisando Edge, Chrome y Firefox antes de mover algo.",
+            ReadChannelMappings()
+                .Select(mapping => new CabinSetupChannelProgress(mapping.ChannelId, mapping.BrowserProcess, "SEARCHING_EXISTING_SESSION", "Pendiente de revision."))
+                .ToArray(),
+            false,
+            false));
 
         while (DateTimeOffset.Now < deadline)
         {
@@ -665,18 +674,17 @@ internal sealed partial class AgentRuntime : IDisposable
             var readiness = ReadChannelMappings()
                 .Select(mapping => EvaluateChannelReadiness(mapping, windows))
                 .ToArray();
-            WriteCabinReadinessState("preparing", readiness);
-            WriteCabinManagerState("preparing", "session_locator", readiness, CabinSummary(readiness));
+            PublishCabinSetup(progress, "preparing", "classify_channels", 20, readiness, CabinSummary(readiness));
 
             if (readiness.All(item => item.IsReady))
             {
+                PublishCabinSetup(progress, "preparing", "arrange_windows", 82, readiness, "Los 3 WhatsApps estan vivos. Estoy acomodando la cabina.");
                 ArrangeWhatsAppWorkspace();
                 var arrangedReadiness = ReadChannelMappings()
                     .Select(mapping => EvaluateChannelReadiness(mapping, VisibleWindows()))
                     .ToArray();
-                WriteCabinReadinessState("ready", arrangedReadiness);
-                WriteCabinManagerState("ready", "all_channels_ready", arrangedReadiness, CabinSummary(arrangedReadiness));
-                WriteLog("Cabin readiness: all WhatsApp channels are visible and arranged.");
+                PublishCabinSetup(progress, "ready", "ready", 100, arrangedReadiness, "Cabina lista: puedes encender la IA.");
+                WriteLog("Cabin setup orchestrator: all WhatsApp channels are visible and arranged.");
                 return Preflight();
             }
 
@@ -692,6 +700,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
             if (recovered)
             {
+                PublishCabinSetup(progress, "preparing", "recover_window", 38, readiness, "Una ventana estaba tapada. La traje al frente y vuelvo a validar.");
                 await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                 continue;
             }
@@ -707,7 +716,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
             if (locatedExisting)
             {
-                WriteStatusBusState("preparing", "session_locator", "Encontre una sesion de WhatsApp abierta; la estoy trayendo al frente.", []);
+                PublishCabinSetup(progress, "preparing", "locate_existing_session", 44, readiness, "Encontre una sesion de WhatsApp abierta; la estoy trayendo al frente.");
                 await Task.Delay(TimeSpan.FromMilliseconds(900)).ConfigureAwait(false);
                 continue;
             }
@@ -715,8 +724,7 @@ internal sealed partial class AgentRuntime : IDisposable
             var blocked = readiness.Where(item => item.RequiresHuman).ToArray();
             if (blocked.Length > 0 && !CanStartWithDegradedCabin(readiness))
             {
-                WriteCabinReadinessState("attention", readiness);
-                WriteCabinManagerState("attention", "human_required", readiness, CabinSummary(readiness));
+                PublishCabinSetup(progress, "attention", "human_required", 100, readiness, "Cabina bloqueada: necesito tu ayuda antes de encender IA.");
                 foreach (var item in blocked)
                 {
                     WriteLog($"{item.ChannelId}: cabin blocked by {item.Status}. {item.Detail}");
@@ -727,8 +735,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
             if (blocked.Length > 0 && CanStartWithDegradedCabin(readiness))
             {
-                WriteCabinReadinessState("degraded", readiness);
-                WriteCabinManagerState("degraded", "human_required_degraded", readiness, CabinSummary(readiness));
+                PublishCabinSetup(progress, "degraded", "human_required_degraded", 100, readiness, "Cabina parcial: hay canales listos, pero uno necesita tu ayuda.");
                 foreach (var item in blocked)
                 {
                     WriteLog($"{item.ChannelId}: cabin degraded by {item.Status}. {item.Detail}");
@@ -739,12 +746,18 @@ internal sealed partial class AgentRuntime : IDisposable
 
             if (DateTimeOffset.Now - started < TimeSpan.FromSeconds(8))
             {
-                WriteStatusBusState("preparing", "session_locator", "Sigo buscando WhatsApp ya abierto antes de crear sesiones nuevas.", []);
+                PublishCabinSetup(progress, "preparing", "locate_existing_session", 34, readiness, "Sigo buscando WhatsApp ya abierto antes de crear sesiones nuevas.");
                 await Task.Delay(TimeSpan.FromMilliseconds(900)).ConfigureAwait(false);
                 continue;
             }
 
-            foreach (var item in readiness.Where(item => item.CanLaunch))
+            var launchable = readiness.Where(item => item.CanLaunch).ToArray();
+            if (launchable.Length > 0)
+            {
+                PublishCabinSetup(progress, "preparing", "open_missing_channels", 58, readiness, "No encontre todos los canales abiertos. Abrire solo los WhatsApp que faltan.");
+            }
+
+            foreach (var item in launchable)
             {
                 if (!launchAttempts.TryGetValue(item.ChannelId, out var attempts))
                 {
@@ -765,17 +778,24 @@ internal sealed partial class AgentRuntime : IDisposable
 
             if (CanStartWithDegradedCabin(readiness)
                 && readiness.Any(item => !item.IsReady)
-                && DateTimeOffset.Now - started > TimeSpan.FromSeconds(12))
+                && DateTimeOffset.Now - started > TimeSpan.FromSeconds(26))
             {
-                WriteCabinReadinessState("degraded", readiness);
-                WriteCabinManagerState("degraded", "degraded_timeout", readiness, CabinSummary(readiness));
-                WriteLog("Cabin readiness: starting degraded instead of waiting for every channel forever.");
+                PublishCabinSetup(progress, "degraded", "partial_ready", 100, readiness, "Cabina parcial: puedes encender IA con canales listos o revisar el faltante.");
+                WriteLog("Cabin setup orchestrator: partial cabin ready after waiting for missing channels.");
                 return Preflight();
             }
 
+            PublishCabinSetup(progress, "preparing", "validate_channels", 72, readiness, "Validando que los canales abiertos ya muestren WhatsApp utilizable.");
             await Task.Delay(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
         }
 
+        progress?.Report(new CabinSetupProgress(
+            88,
+            "arrange_windows",
+            "Tiempo de busqueda terminado. Estoy acomodando lo que encontre.",
+            [],
+            false,
+            false));
         ArrangeWhatsAppWorkspace();
         var finalReport = Preflight();
         var stillMissing = finalReport.Items
@@ -791,11 +811,20 @@ internal sealed partial class AgentRuntime : IDisposable
             : CanStartWithDegradedCabin(finalReadiness)
                 ? "degraded"
                 : "attention";
-        WriteCabinReadinessState(finalStatus, finalReadiness);
-        WriteCabinManagerState(finalStatus, finalStatus, finalReadiness, CabinSummary(finalReadiness));
+        PublishCabinSetup(
+            progress,
+            finalStatus,
+            finalStatus,
+            100,
+            finalReadiness,
+            finalStatus.Equals("ready", StringComparison.OrdinalIgnoreCase)
+                ? "Cabina lista: puedes encender la IA."
+                : finalStatus.Equals("degraded", StringComparison.OrdinalIgnoreCase)
+                    ? "Cabina parcial: puedes encender IA con canales listos o revisar el faltante."
+                    : "Cabina bloqueada: necesito tu ayuda antes de encender IA.");
         WriteLog(stillMissing.Length == 0
-            ? "Cabin readiness: WhatsApp workspace ready after wait."
-            : $"Cabin readiness: partial/degraded after wait: {string.Join(", ", stillMissing)}.");
+            ? "Cabin setup orchestrator: WhatsApp workspace ready after wait."
+            : $"Cabin setup orchestrator: partial/attention after wait: {string.Join(", ", stillMissing)}.");
         return finalReport;
     }
 

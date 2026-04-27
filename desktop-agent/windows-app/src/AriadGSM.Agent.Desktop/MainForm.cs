@@ -30,6 +30,10 @@ internal sealed class MainForm : Form
     private readonly Label _versionLabel = new();
     private readonly Label _summaryLabel = new();
     private readonly Label _assistantDetailLabel = new();
+    private readonly Label _cabinSetupTitleLabel = new();
+    private readonly Label _cabinSetupDetailLabel = new();
+    private readonly Label _cabinSetupChannelsLabel = new();
+    private readonly ProgressBar _cabinSetupProgress = new();
     private readonly Label _whatsAppStatusLabel = new();
     private readonly Label _learningStatusLabel = new();
     private readonly Label _accountingStatusLabel = new();
@@ -55,6 +59,7 @@ internal sealed class MainForm : Form
     private PreflightReport? _cachedPreflight;
     private IReadOnlyList<HealthItem> _cachedHealth = [];
     private DateTimeOffset _lastHeavyRefreshAt = DateTimeOffset.MinValue;
+    private bool _cabinSetupActive;
     private string RememberedLoginFile => Path.Combine(_runtime.RuntimeDir, "desktop-login.json");
 
     public MainForm(string[] args)
@@ -118,14 +123,15 @@ internal sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             Padding = new Padding(18),
-            RowCount = 5,
+            RowCount = 6,
             ColumnCount = 1
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 194));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 62));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 56));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
         _dashboardPanel.Dock = DockStyle.Fill;
         _dashboardPanel.Visible = false;
         _dashboardPanel.Controls.Add(root);
@@ -222,6 +228,49 @@ internal sealed class MainForm : Form
             _diagnoseButton
         ]);
 
+        var cabinSetupPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            RowCount = 2,
+            ColumnCount = 2,
+            BackColor = Color.White,
+            Padding = new Padding(16, 10, 16, 10),
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        cabinSetupPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
+        cabinSetupPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+        cabinSetupPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        cabinSetupPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.Controls.Add(cabinSetupPanel, 0, 2);
+
+        _cabinSetupTitleLabel.Text = "Cabina WhatsApp";
+        _cabinSetupTitleLabel.Dock = DockStyle.Fill;
+        _cabinSetupTitleLabel.Font = new Font("Segoe UI", 13, FontStyle.Bold);
+        _cabinSetupTitleLabel.ForeColor = Color.FromArgb(12, 79, 170);
+        _cabinSetupTitleLabel.TextAlign = ContentAlignment.MiddleLeft;
+        cabinSetupPanel.Controls.Add(_cabinSetupTitleLabel, 0, 0);
+
+        _cabinSetupProgress.Dock = DockStyle.Fill;
+        _cabinSetupProgress.Minimum = 0;
+        _cabinSetupProgress.Maximum = 100;
+        _cabinSetupProgress.Style = ProgressBarStyle.Continuous;
+        _cabinSetupProgress.Value = 0;
+        cabinSetupPanel.Controls.Add(_cabinSetupProgress, 1, 0);
+
+        _cabinSetupDetailLabel.Text = "Pulsa Alistar WhatsApps para preparar Edge, Chrome y Firefox antes de encender la IA.";
+        _cabinSetupDetailLabel.Dock = DockStyle.Fill;
+        _cabinSetupDetailLabel.Font = new Font("Segoe UI", 9, FontStyle.Regular);
+        _cabinSetupDetailLabel.ForeColor = Color.FromArgb(58, 82, 112);
+        _cabinSetupDetailLabel.TextAlign = ContentAlignment.TopLeft;
+        cabinSetupPanel.Controls.Add(_cabinSetupDetailLabel, 0, 1);
+
+        _cabinSetupChannelsLabel.Text = "wa-1 Edge: esperando | wa-2 Chrome: esperando | wa-3 Firefox: esperando";
+        _cabinSetupChannelsLabel.Dock = DockStyle.Fill;
+        _cabinSetupChannelsLabel.Font = new Font("Segoe UI", 9, FontStyle.Regular);
+        _cabinSetupChannelsLabel.ForeColor = Color.FromArgb(35, 55, 82);
+        _cabinSetupChannelsLabel.TextAlign = ContentAlignment.TopLeft;
+        cabinSetupPanel.Controls.Add(_cabinSetupChannelsLabel, 1, 1);
+
         var problemPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -231,7 +280,7 @@ internal sealed class MainForm : Form
         };
         problemPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
         problemPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
-        root.Controls.Add(problemPanel, 0, 2);
+        root.Controls.Add(problemPanel, 0, 3);
 
         var assistantPanel = new TableLayoutPanel
         {
@@ -317,7 +366,7 @@ internal sealed class MainForm : Form
         _healthList.Columns.Add("Estado", 100);
         _healthList.Columns.Add("Resumen", 690);
         EnableDoubleBuffering(_healthList);
-        root.Controls.Add(_healthList, 0, 3);
+        root.Controls.Add(_healthList, 0, 4);
 
         var activityPanel = new TableLayoutPanel
         {
@@ -328,7 +377,7 @@ internal sealed class MainForm : Form
         };
         activityPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         activityPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.Controls.Add(activityPanel, 0, 4);
+        root.Controls.Add(activityPanel, 0, 5);
 
         var activityTitle = new Label
         {
@@ -625,13 +674,7 @@ internal sealed class MainForm : Form
         _prepareWhatsAppsButton.Click += async (_, _) =>
             await RunButtonAsync(
                 _prepareWhatsAppsButton,
-                async () =>
-                {
-                    AppendLog("Alistando WhatsApps: pauso motores, localizo sesiones abiertas, acomodo cabina y valido antes de encender IA.");
-                    _runtime.Stop("prepare_whatsapps");
-                    RefreshStatus(null, true);
-                    await _runtime.PrepareWhatsAppWorkspaceAsync(TimeSpan.FromSeconds(35)).ConfigureAwait(true);
-                }).ConfigureAwait(true);
+                RunCabinSetupAsync).ConfigureAwait(true);
         _panelButton.Click += (_, _) => _runtime.OpenPanel();
         _logsButton.Click += (_, _) => _runtime.OpenLogs();
         _diagnoseButton.Click += (_, _) =>
@@ -1011,6 +1054,40 @@ internal sealed class MainForm : Form
         }
     }
 
+    private async Task RunCabinSetupAsync()
+    {
+        AppendLog("Alistando WhatsApps: pauso motores, localizo sesiones abiertas, acomodo cabina y valido antes de encender IA.");
+        _cabinSetupActive = true;
+        TopMost = true;
+        BringControlCenterToFront();
+        _runtime.Stop("prepare_whatsapps");
+        UpdateCabinSetupProgress(new CabinSetupProgress(
+            5,
+            "iniciando",
+            "Estoy preparando la cabina. No encendere la IA todavia.",
+            [
+                new CabinSetupChannelProgress("wa-1", "Edge", "esperando", "Pendiente"),
+                new CabinSetupChannelProgress("wa-2", "Chrome", "esperando", "Pendiente"),
+                new CabinSetupChannelProgress("wa-3", "Firefox", "esperando", "Pendiente")
+            ],
+            false,
+            false));
+        RefreshStatus(null, true);
+
+        try
+        {
+            var progress = new Progress<CabinSetupProgress>(UpdateCabinSetupProgress);
+            var report = await _runtime.PrepareWhatsAppWorkspaceAsync(TimeSpan.FromSeconds(42), progress).ConfigureAwait(true);
+            RefreshStatus(report, true);
+        }
+        finally
+        {
+            _cabinSetupActive = false;
+            TopMost = false;
+            BringControlCenterToFront();
+        }
+    }
+
     private void RefreshStatus()
     {
         RefreshStatus(null, false);
@@ -1052,10 +1129,129 @@ internal sealed class MainForm : Form
         _summaryLabel.Text = BuildHumanHeadline(isRunning, errors.Length, warnings.Length);
         _assistantDetailLabel.Text = BuildHumanSubtitle(isRunning);
         UpdateMetricCards(preflight);
+        if (!_cabinSetupActive)
+        {
+            UpdateCabinSetupFromState();
+        }
+
         _problemBox.Text = BuildNeedsText(errors, warnings, isRunning);
         UpdateHealthList(allItems);
         _activityBox.Text = BuildHumanActivity(preflight, health, active);
         NotifyOnNewProblem(errors, warnings);
+    }
+
+    private void UpdateCabinSetupProgress(CabinSetupProgress progress)
+    {
+        _cabinSetupProgress.Value = Math.Clamp(progress.Percent, _cabinSetupProgress.Minimum, _cabinSetupProgress.Maximum);
+        _cabinSetupTitleLabel.Text = progress.IsReady
+            ? "Cabina lista"
+            : progress.CanStart
+                ? "Cabina parcial"
+                : "Alistando cabina";
+        _cabinSetupDetailLabel.Text = progress.Summary;
+        _cabinSetupChannelsLabel.Text = string.Join(
+            Environment.NewLine,
+            progress.Channels.Select(channel => $"{channel.ChannelId} {BrowserLabel(channel.Browser)}: {HumanChannelStatus(channel.Status)}"));
+        _startButton.Enabled = progress.CanStart || !_cabinSetupActive;
+        Application.DoEvents();
+    }
+
+    private void UpdateCabinSetupFromState()
+    {
+        var workspaceProgress = StateNumber("workspace-setup-state.json", "progress");
+        var summary = StateText("cabin-manager-state.json", "summary");
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            summary = StateText("status-bus-state.json", "summary");
+        }
+
+        if (workspaceProgress > 0)
+        {
+            _cabinSetupProgress.Value = Math.Clamp(workspaceProgress, _cabinSetupProgress.Minimum, _cabinSetupProgress.Maximum);
+        }
+
+        if (!string.IsNullOrWhiteSpace(summary))
+        {
+            _cabinSetupDetailLabel.Text = summary;
+        }
+
+        var channels = CabinChannelsFromState();
+        if (channels.Length > 0)
+        {
+            _cabinSetupChannelsLabel.Text = string.Join(
+                Environment.NewLine,
+                channels.Select(channel => $"{channel.ChannelId} {BrowserLabel(channel.Browser)}: {HumanChannelStatus(channel.Status)}"));
+            var ready = channels.Count(channel => channel.Status.Equals("READY", StringComparison.OrdinalIgnoreCase));
+            _cabinSetupTitleLabel.Text = ready == channels.Length
+                ? "Cabina lista"
+                : ready > 0
+                    ? "Cabina parcial"
+                    : "Cabina pendiente";
+        }
+    }
+
+    private CabinSetupChannelProgress[] CabinChannelsFromState()
+    {
+        var fullPath = Path.Combine(_runtime.RuntimeDir, "cabin-manager-state.json");
+        if (!File.Exists(fullPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(fullPath));
+            if (!document.RootElement.TryGetProperty("channels", out var channels)
+                || channels.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            return channels.EnumerateArray()
+                .Select(item => new CabinSetupChannelProgress(
+                    JsonString(item, "channelId") ?? "-",
+                    JsonString(item, "browser") ?? "-",
+                    JsonString(item, "status") ?? "-",
+                    JsonString(item, "detail") ?? "-"))
+                .ToArray();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static string BrowserLabel(string browser)
+    {
+        return browser.ToLowerInvariant() switch
+        {
+            "msedge" => "Edge",
+            "chrome" => "Chrome",
+            "firefox" => "Firefox",
+            _ => browser
+        };
+    }
+
+    private static string HumanChannelStatus(string status)
+    {
+        return status.ToUpperInvariant() switch
+        {
+            "READY" => "listo",
+            "SEARCHING_EXISTING_SESSION" => "buscando sesion abierta",
+            "EXISTING_SESSION_FOUND" => "trayendo al frente",
+            "OPENING_MISSING_SESSION" => "abriendo WhatsApp Web",
+            "VALIDATING" => "validando",
+            "NOT_OPEN" => "no abierto",
+            "BROWSER_BUSY_OPEN_DEDICATED" => "navegador ocupado",
+            "LOADING_OR_UNKNOWN" => "cargando",
+            "COVERED_BY_WINDOW" => "tapado por otra ventana",
+            "NEEDS_USE_HERE" => "necesita Usar aqui",
+            "LOGIN_REQUIRED" => "necesita QR/login",
+            "PROFILE_ERROR" => "error de perfil",
+            "DUPLICATE_WHATSAPP_WINDOWS" => "duplicado",
+            "BROWSER_NOT_FOUND" => "navegador no encontrado",
+            _ => status.ToLowerInvariant()
+        };
     }
 
     private string BuildHumanHeadline(bool isRunning, int errors, int warnings)

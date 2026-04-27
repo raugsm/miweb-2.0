@@ -1,8 +1,8 @@
 {
-  "version": "0.5.26",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.26.zip",
-  "sha256": "1c42ba6e1658b227a447b7b1b8bdfdf78eeeb924006660816a6951995455cb8e",
+  "version": "0.5.27",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.27.zip",
+  "sha256": "5055f9e2a5fb409571248438cf7a50f3fca8786b4bfb699190e34c5617d19120",
   "autoApply": true,
-  "notes": "Turns Alistar WhatsApps into a Session Locator flow: it first finds and brings forward existing WhatsApp windows or tabs in Edge, Chrome, and Firefox, only opening a new session after search fails. The desktop dashboard is lighter: fewer technical rows, no constantly changing row timestamps, summarized support details, cached heavy refreshes, and double-buffered status rendering.",
-  "publishedAt": "2026-04-27T18:39:14Z"
+  "notes": "Adds Cabin Setup Orchestrator. Alistar WhatsApps now stays visible, pauses engines, shows real progress, tracks each channel independently, searches existing sessions first, opens only missing WhatsApps, validates, arranges, and reports ready/partial/blocked before IA start.",
+  "publishedAt": "2026-04-27T18:56:31Z"
 }
