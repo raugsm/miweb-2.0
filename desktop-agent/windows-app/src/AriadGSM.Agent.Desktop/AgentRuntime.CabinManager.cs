@@ -41,11 +41,12 @@ internal sealed partial class AgentRuntime
                 ["channels"] = channels,
                 ["rules"] = new[]
                 {
-                    "wa-1=Edge dedicado a WhatsApp 1",
-                    "wa-2=Chrome dedicado a WhatsApp 2",
-                    "wa-3=Firefox dedicado a WhatsApp 3",
+                    "wa-1=Edge WhatsApp 1",
+                    "wa-2=Chrome WhatsApp 2",
+                    "wa-3=Firefox WhatsApp 3",
                     "No cierro navegadores del operador",
-                    "Si un navegador esta ocupado, abro o recupero sesion dedicada",
+                    "Primero busco ventanas o pestanas existentes",
+                    "Solo abro una sesion nueva si no encuentro una existente",
                     "Si un canal falla, arranco en modo degradado con los canales listos"
                 }
             };

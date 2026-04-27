@@ -51,6 +51,10 @@ internal sealed class MainForm : Form
     private bool _authenticated;
     private string _operatorName = string.Empty;
     private string _lastProblemSignature = string.Empty;
+    private string _lastHealthListSignature = string.Empty;
+    private PreflightReport? _cachedPreflight;
+    private IReadOnlyList<HealthItem> _cachedHealth = [];
+    private DateTimeOffset _lastHeavyRefreshAt = DateTimeOffset.MinValue;
     private string RememberedLoginFile => Path.Combine(_runtime.RuntimeDir, "desktop-login.json");
 
     public MainForm(string[] args)
@@ -309,10 +313,10 @@ internal sealed class MainForm : Form
         _healthList.GridLines = false;
         _healthList.HideSelection = false;
         _healthList.BackColor = Color.FromArgb(252, 254, 255);
-        _healthList.Columns.Add("Area interna", 180);
-        _healthList.Columns.Add("Estado", 110);
-        _healthList.Columns.Add("Ultima vez", 160);
-        _healthList.Columns.Add("Detalle para soporte", 610);
+        _healthList.Columns.Add("Sistema", 210);
+        _healthList.Columns.Add("Estado", 100);
+        _healthList.Columns.Add("Resumen", 690);
+        EnableDoubleBuffering(_healthList);
         root.Controls.Add(_healthList, 0, 3);
 
         var activityPanel = new TableLayoutPanel
@@ -379,6 +383,19 @@ internal sealed class MainForm : Form
         panel.Controls.Add(titleLabel);
         panel.Controls.Add(valueLabel);
         return panel;
+    }
+
+    private static void EnableDoubleBuffering(Control control)
+    {
+        try
+        {
+            typeof(Control)
+                .GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.SetValue(control, true, null);
+        }
+        catch
+        {
+        }
     }
 
     private void BuildLoginUi()
@@ -610,7 +627,9 @@ internal sealed class MainForm : Form
                 _prepareWhatsAppsButton,
                 async () =>
                 {
-                    AppendLog("Preparando cabina WhatsApp 1/2/3 con diagnostico de bloqueos.");
+                    AppendLog("Alistando WhatsApps: pauso motores, localizo sesiones abiertas, acomodo cabina y valido antes de encender IA.");
+                    _runtime.Stop("prepare_whatsapps");
+                    RefreshStatus(null, true);
                     await _runtime.PrepareWhatsAppWorkspaceAsync(TimeSpan.FromSeconds(35)).ConfigureAwait(true);
                 }).ConfigureAwait(true);
         _panelButton.Click += (_, _) => _runtime.OpenPanel();
@@ -621,7 +640,7 @@ internal sealed class MainForm : Form
             AppendLog($"Diagnostico generado: {path}");
             Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
         };
-        _timer.Interval = 1200;
+        _timer.Interval = 2500;
         _timer.Tick += (_, _) =>
         {
             if (_authenticated && _dashboardPanel.Visible)
@@ -994,13 +1013,36 @@ internal sealed class MainForm : Form
 
     private void RefreshStatus()
     {
-        RefreshStatus(null);
+        RefreshStatus(null, false);
     }
 
     private void RefreshStatus(PreflightReport? preflight)
     {
-        preflight ??= _runtime.Preflight();
-        var health = _runtime.Health();
+        RefreshStatus(preflight, preflight is not null);
+    }
+
+    private void RefreshStatus(PreflightReport? preflight, bool force)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var shouldRefreshHeavy = force
+            || preflight is not null
+            || _cachedPreflight is null
+            || now - _lastHeavyRefreshAt > TimeSpan.FromSeconds(5);
+
+        if (shouldRefreshHeavy)
+        {
+            preflight ??= _runtime.Preflight();
+            _cachedPreflight = preflight;
+            _cachedHealth = _runtime.Health();
+            _lastHeavyRefreshAt = now;
+        }
+        else
+        {
+            preflight = _cachedPreflight;
+        }
+
+        preflight ??= _cachedPreflight ?? _runtime.Preflight();
+        var health = _cachedHealth;
         var allItems = preflight.Items.Concat(health).ToArray();
         var errors = allItems.Where(item => item.Severity == HealthSeverity.Error).ToArray();
         var warnings = allItems.Where(item => item.Severity == HealthSeverity.Warning).ToArray();
@@ -1276,16 +1318,23 @@ internal sealed class MainForm : Form
 
     private void UpdateHealthList(IReadOnlyList<HealthItem> items)
     {
+        var visibleItems = BuildVisibleHealthItems(items).ToArray();
+        var signature = string.Join("|", visibleItems.Select(item => $"{item.Name}:{item.Status}:{item.Severity}:{SummarizeHealthDetail(item)}"));
+        if (signature == _lastHealthListSignature)
+        {
+            return;
+        }
+
+        _lastHealthListSignature = signature;
         _healthList.BeginUpdate();
         try
         {
             _healthList.Items.Clear();
-            foreach (var item in items)
+            foreach (var item in visibleItems)
             {
                 var row = new ListViewItem(item.Name);
                 row.SubItems.Add(item.Status);
-                row.SubItems.Add(item.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
-                row.SubItems.Add(item.Detail);
+                row.SubItems.Add(SummarizeHealthDetail(item));
                 row.BackColor = item.Severity switch
                 {
                     HealthSeverity.Error => Color.FromArgb(255, 229, 229),
@@ -1300,6 +1349,67 @@ internal sealed class MainForm : Form
         {
             _healthList.EndUpdate();
         }
+    }
+
+    private static IEnumerable<HealthItem> BuildVisibleHealthItems(IReadOnlyList<HealthItem> items)
+    {
+        var priority = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Status Bus",
+            "Cabin Manager",
+            "Cabina WhatsApp",
+            "Life Controller",
+            "Input Arbiter",
+            "Vision",
+            "Perception",
+            "Memory",
+            "Hands",
+            "Actualizaciones",
+            "WebPanel"
+        };
+
+        return items
+            .Where(item => item.Severity != HealthSeverity.Ok || priority.Contains(item.Name) || item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => SeverityRank(item.Severity))
+            .ThenBy(item => item.Name)
+            .Take(14);
+    }
+
+    private static int SeverityRank(HealthSeverity severity)
+    {
+        return severity switch
+        {
+            HealthSeverity.Error => 0,
+            HealthSeverity.Warning => 1,
+            HealthSeverity.Info => 2,
+            HealthSeverity.Ok => 3,
+            _ => 4
+        };
+    }
+
+    private static string SummarizeHealthDetail(HealthItem item)
+    {
+        var detail = item.Detail;
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return "-";
+        }
+
+        if (detail.Contains("Ejecutable listo:", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("Carpeta de trabajo lista", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("Ejecutando como administrador", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("Python listo:", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("Node listo:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Listo.";
+        }
+
+        if (detail.Length <= 140)
+        {
+            return detail;
+        }
+
+        return detail[..137] + "...";
     }
 
     private void NotifyOnNewProblem(IReadOnlyList<HealthItem> errors, IReadOnlyList<HealthItem> warnings)

@@ -657,7 +657,7 @@ internal sealed partial class AgentRuntime : IDisposable
         var launchAttempts = ReadChannelMappings()
             .ToDictionary(item => item.ChannelId, _ => 0, StringComparer.OrdinalIgnoreCase);
         WriteLog("Cabin readiness: preparing WhatsApp 1/2/3.");
-        WriteStatusBusState("preparing", "cabin_prepare", "Cabin Manager esta revisando sesiones dedicadas de WhatsApp.", []);
+        WriteStatusBusState("preparing", "session_locator", "Buscando sesiones existentes de WhatsApp antes de abrir ventanas nuevas.", []);
 
         while (DateTimeOffset.Now < deadline)
         {
@@ -666,7 +666,7 @@ internal sealed partial class AgentRuntime : IDisposable
                 .Select(mapping => EvaluateChannelReadiness(mapping, windows))
                 .ToArray();
             WriteCabinReadinessState("preparing", readiness);
-            WriteCabinManagerState("preparing", "verify_channels", readiness, CabinSummary(readiness));
+            WriteCabinManagerState("preparing", "session_locator", readiness, CabinSummary(readiness));
 
             if (readiness.All(item => item.IsReady))
             {
@@ -696,6 +696,22 @@ internal sealed partial class AgentRuntime : IDisposable
                 continue;
             }
 
+            var locatedExisting = false;
+            foreach (var item in readiness.Where(item => !item.IsReady && !item.RequiresHuman))
+            {
+                if (TryLocateExistingWhatsAppSession(item.Mapping, windows))
+                {
+                    locatedExisting = true;
+                }
+            }
+
+            if (locatedExisting)
+            {
+                WriteStatusBusState("preparing", "session_locator", "Encontre una sesion de WhatsApp abierta; la estoy trayendo al frente.", []);
+                await Task.Delay(TimeSpan.FromMilliseconds(900)).ConfigureAwait(false);
+                continue;
+            }
+
             var blocked = readiness.Where(item => item.RequiresHuman).ToArray();
             if (blocked.Length > 0 && !CanStartWithDegradedCabin(readiness))
             {
@@ -719,6 +735,13 @@ internal sealed partial class AgentRuntime : IDisposable
                 }
 
                 return Preflight();
+            }
+
+            if (DateTimeOffset.Now - started < TimeSpan.FromSeconds(8))
+            {
+                WriteStatusBusState("preparing", "session_locator", "Sigo buscando WhatsApp ya abierto antes de crear sesiones nuevas.", []);
+                await Task.Delay(TimeSpan.FromMilliseconds(900)).ConfigureAwait(false);
+                continue;
             }
 
             foreach (var item in readiness.Where(item => item.CanLaunch))

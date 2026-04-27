@@ -1,8 +1,8 @@
 {
-  "version": "0.5.25",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.25.zip",
-  "sha256": "67926b8ed1116c5ca04bef5a7ebe334ffb7d522e6ff634b4757c696543adc2d4",
+  "version": "0.5.26",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.26.zip",
+  "sha256": "1c42ba6e1658b227a447b7b1b8bdfdf78eeeb924006660816a6951995455cb8e",
   "autoApply": true,
-  "notes": "Adds Cabin Manager and Status Bus. WhatsApp channels are now prepared as dedicated browser sessions, busy normal browser pages no longer block the full cabin, startup can continue in degraded mode when at least one WhatsApp is ready, and the interface reports the real cabin phase instead of going silent.",
-  "publishedAt": "2026-04-27T18:24:21Z"
+  "notes": "Turns Alistar WhatsApps into a Session Locator flow: it first finds and brings forward existing WhatsApp windows or tabs in Edge, Chrome, and Firefox, only opening a new session after search fails. The desktop dashboard is lighter: fewer technical rows, no constantly changing row timestamps, summarized support details, cached heavy refreshes, and double-buffered status rendering.",
+  "publishedAt": "2026-04-27T18:39:14Z"
 }
