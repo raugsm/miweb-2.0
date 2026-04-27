@@ -18,6 +18,7 @@ CONTRACT_FILES: dict[str, str] = {
     "action_event": "action-event.schema.json",
     "accounting_event": "accounting-event.schema.json",
     "learning_event": "learning-event.schema.json",
+    "autonomous_cycle_event": "autonomous-cycle-event.schema.json",
 }
 
 
@@ -157,6 +158,23 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
         "summary": "La frase 'cuanto vale' indica pregunta de precio.",
         "confidence": 0.9,
         "appliesTo": ["price_request"],
+    },
+    "autonomous_cycle_event": {
+        "eventType": "autonomous_cycle_event",
+        "cycleId": "cycle-sample-1",
+        "createdAt": utc_now(),
+        "status": "ok",
+        "phase": "observing",
+        "summary": "Ciclo autonomo listo: ojos, memoria, supervisor y manos reportan estado.",
+        "stages": [
+            {
+                "stageId": "eyes",
+                "name": "Ojos",
+                "status": "ok",
+                "detail": "WhatsApp visible en los canales esperados.",
+                "metrics": {"channelsReady": 3},
+            }
+        ],
     },
 }
 

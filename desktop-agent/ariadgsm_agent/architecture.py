@@ -21,6 +21,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("Cognitive Core", "Python", "Reason, plan, learn, ask for confirmation and choose the next action.", "decision_event"),
     Layer("Hands Engine", "C#/.NET", "Move mouse, keyboard, windows and scroll, then verify the action.", "action_event"),
     Layer("Supervisor", "C#/.NET + Python", "Enforce autonomy, confidence, permissions, audit and safety policy.", "action_event"),
+    Layer("Autonomous Cycle", "Python + C#/.NET", "Unify eyes, timeline, reasoning, memory, safety and hands into one auditable operating loop.", "autonomous_cycle_event"),
 )
 
 
@@ -42,6 +43,7 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "action_event",
     "accounting_event",
     "learning_event",
+    "autonomous_cycle_event",
 )
 
 
@@ -55,4 +57,3 @@ def describe_pipeline() -> list[dict[str, str]]:
         }
         for layer in LAYERS
     ]
-

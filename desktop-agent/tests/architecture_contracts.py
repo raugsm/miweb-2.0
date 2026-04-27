@@ -15,6 +15,7 @@ from ariadgsm_agent.memory import MemoryStore, run_memory_once
 from ariadgsm_agent.operating import OperatingCore, OperatingStore, run_operating_once
 from ariadgsm_agent.supervisor import SupervisorCore, SupervisorPolicy, run_supervisor_once
 from ariadgsm_agent.timeline import ConversationTimeline, run_timeline_once
+from ariadgsm_agent.autonomous_cycle import run_autonomous_cycle_once
 
 
 def main() -> int:
@@ -98,6 +99,8 @@ def main() -> int:
         cognitive_state_file = root / "cognitive-state.json"
         memory_state_file = root / "memory-state.json"
         supervisor_state_file = root / "supervisor-state.json"
+        autonomous_cycle_state_file = root / "autonomous-cycle-state.json"
+        autonomous_cycle_events_file = root / "autonomous-cycle-events.jsonl"
         action_file = root / "action-events.jsonl"
         db_file = root / "operating.sqlite"
         cognitive_db_file = root / "cognitive.sqlite"
@@ -294,6 +297,90 @@ def main() -> int:
         assert supervisor_run["status"] in {"ok", "attention"}
         assert supervisor_run["summary"]["actionsRead"] == 1
         assert supervisor_state_file.exists()
+
+        (root / "vision-health.json").write_text(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "framesCaptured": 5,
+                    "visibleWindowCount": 3,
+                    "captureIntervalMs": 750,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        (root / "perception-health.json").write_text(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "messagesExtracted": 3,
+                    "conversationEventsWritten": 2,
+                    "lastReaderStatus": "ok",
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        (root / "interaction-state.json").write_text(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "targetsObserved": 3,
+                    "actionableTargets": 2,
+                    "targetsRejected": 0,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        (root / "orchestrator-state.json").write_text(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "phase": "ready",
+                    "summary": "3/3 canales listos.",
+                    "metrics": {
+                        "expectedChannels": 3,
+                        "cabinReadyChannels": 3,
+                        "visionWhatsAppWindows": 3,
+                        "perceptionChannels": 3,
+                        "actionableTargets": 2,
+                    },
+                    "recommendations": [],
+                    "blockers": [],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        (root / "hands-state.json").write_text(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "actionsPlanned": 1,
+                    "actionsWritten": 1,
+                    "actionsBlocked": 0,
+                    "actionsExecuted": 1,
+                    "actionsVerified": 1,
+                    "actionsSkipped": 0,
+                    "lastSummary": "open_chat: verified.",
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        cycle_state = run_autonomous_cycle_once(
+            root,
+            autonomous_cycle_state_file,
+            autonomous_cycle_events_file,
+            append_event=True,
+        )
+        assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
+        assert cycle_state["status"] in {"ok", "attention"}
+        assert len(cycle_state["stages"]) == 6
+        cycle_event = json.loads(autonomous_cycle_events_file.read_text(encoding="utf-8").splitlines()[-1])
+        assert not validate_contract(cycle_event, "autonomous_cycle_event")
     print("architecture contracts OK")
     return 0
 

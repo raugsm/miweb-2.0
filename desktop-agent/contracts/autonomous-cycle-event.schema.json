@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/autonomous-cycle-event.schema.json",
+  "title": "AriadGSM Autonomous Cycle Event",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "eventType",
+    "cycleId",
+    "createdAt",
+    "status",
+    "phase",
+    "summary",
+    "stages"
+  ],
+  "properties": {
+    "eventType": {
+      "const": "autonomous_cycle_event"
+    },
+    "cycleId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "attention", "blocked"]
+    },
+    "phase": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["stageId", "name", "status", "detail"],
+        "additionalProperties": true,
+        "properties": {
+          "stageId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "attention", "blocked"]
+          },
+          "detail": {
+            "type": "string"
+          },
+          "metrics": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

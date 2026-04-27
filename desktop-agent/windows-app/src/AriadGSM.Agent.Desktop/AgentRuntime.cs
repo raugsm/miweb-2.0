@@ -216,6 +216,7 @@ internal sealed class AgentRuntime : IDisposable
             ReadJsonStatus("memory-state.json"),
             ReadJsonStatus("hands-state.json"),
             ReadJsonStatus("supervisor-state.json"),
+            ReadJsonStatus("autonomous-cycle-state.json"),
             ActiveProcessSummary());
     }
 
@@ -268,6 +269,7 @@ internal sealed class AgentRuntime : IDisposable
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
             StateHealth("Supervisor", "supervisor-state.json", "PythonCoreLoop"),
+            StateHealth("Ciclo autonomo", "autonomous-cycle-state.json", "PythonCoreLoop"),
             StateHealth("Agent Supervisor", "agent-supervisor-state.json", "ReliabilitySupervisor"),
             CabinReadinessHealth(),
             UpdateHealth(),
@@ -326,6 +328,7 @@ internal sealed class AgentRuntime : IDisposable
         using var memory = ReadJsonStatus("memory-state.json");
         using var hands = ReadJsonStatus("hands-state.json");
         using var supervisor = ReadJsonStatus("supervisor-state.json");
+        using var autonomousCycle = ReadJsonStatus("autonomous-cycle-state.json");
         using var agentSupervisor = ReadJsonStatus("agent-supervisor-state.json");
 
         var whatsappSummary = preflight.Items
@@ -353,6 +356,7 @@ internal sealed class AgentRuntime : IDisposable
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
             $"Hands: ejecutadas={Number(hands, "actionsExecuted")} | verificadas={Number(hands, "actionsVerified")} | bloqueadas={Number(hands, "actionsBlocked")} | ultimo={Text(hands, "lastSummary")}",
             $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}",
+            $"Ciclo autonomo: fase={Text(autonomousCycle, "phase")} | {Text(autonomousCycle, "summary")}",
             $"Confiabilidad: {Text(agentSupervisor, "status")} | reinicios={Number(agentSupervisor, "restartCount")} | {Text(agentSupervisor, "lastSummary")}"
         };
 
@@ -1226,7 +1230,7 @@ internal sealed class AgentRuntime : IDisposable
 
         return _coreLoopTask.IsCompleted
             ? new HealthItem("PythonCoreLoop", "DETENIDO", HealthSeverity.Warning, DateTimeOffset.Now, "El ciclo cognitivo termino o fue detenido.")
-            : new HealthItem("PythonCoreLoop", "ACTIVO", HealthSeverity.Ok, DateTimeOffset.Now, "Timeline, Cognitive, Operating, Memory y Supervisor estan ciclando.");
+            : new HealthItem("PythonCoreLoop", "ACTIVO", HealthSeverity.Ok, DateTimeOffset.Now, "Timeline, Cognitive, Operating, Memory, Supervisor y Ciclo autonomo estan ciclando.");
     }
 
     private HealthItem UpdateHealth()
@@ -1516,7 +1520,8 @@ internal sealed class AgentRuntime : IDisposable
             ("Cognitive", "ariadgsm_agent.cognitive", new[] { "--autonomy-level", "3", "--json" }),
             ("Operating", "ariadgsm_agent.operating", new[] { "--autonomy-level", "3", "--json" }),
             ("Memory", "ariadgsm_agent.memory", new[] { "--json" }),
-            ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" })
+            ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" }),
+            ("AutonomousCycle", "ariadgsm_agent.autonomous_cycle", new[] { "--json" })
         };
 
         foreach (var (name, module, args) in modules)
@@ -2765,4 +2770,5 @@ internal sealed record AgentSnapshot(
     JsonDocument? Memory,
     JsonDocument? Hands,
     JsonDocument? Supervisor,
+    JsonDocument? AutonomousCycle,
     IReadOnlyList<string> Processes);

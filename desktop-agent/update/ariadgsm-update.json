@@ -1,8 +1,8 @@
 {
-  "version": "0.5.15",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.15.zip",
-  "sha256": "59d6db6b5bb512211eb176e7d2ad5620f5d479fd581caff3de101d15ceed94ae",
+  "version": "0.5.16",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.16.zip",
+  "sha256": "a8122d41fa989343cca601a3b7beeb800a22eaeb65d684addd77310572f189b2",
   "autoApply": true,
-  "notes": "Login responsiveness fix: startup diagnostics and WhatsApp preflight no longer run while the login screen is waiting, so the UI stays movable and editable before the operator signs in.",
-  "publishedAt": "2026-04-27T15:20:00Z"
+  "notes": "Autonomous Cycle v1: unifies eyes, timeline, brain, memory/accounting, supervisor and hands into one auditable state shown by the desktop app.",
+  "publishedAt": "2026-04-27T15:55:00Z"
 }
