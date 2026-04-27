@@ -6,6 +6,16 @@ Fecha: 2026-04-27
 Estado: arquitectura propuesta, sin codigo nuevo
 Version objetivo inicial: 0.7.x
 
+Nota 2026-04-27:
+
+El plano maestro de producto final ahora vive en:
+
+```text
+docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md
+```
+
+Este documento queda como base historica y tecnica. El blueprint final manda cuando haya conflicto de criterio, especialmente en experiencia de producto, Trust & Safety, Cabin Authority, Input Arbiter, memoria viva y prohibicion de parches.
+
 ## 1. Proposito
 
 AriadGSM no debe terminar siendo un bot con muchas reglas. El objetivo es una IA operativa local capaz de observar el trabajo diario, entender el negocio, aprender de conversaciones, decidir acciones, usar herramientas disponibles, verificar resultados y reportar lo que hizo.
@@ -755,4 +765,3 @@ Managed Cabin Host + Box Grid + Estado Unico de Cabina
 ```
 
 Sin eso, la IA seguira perdiendo Edge, Chrome o Firefox y todo lo demas sera inestable.
-
