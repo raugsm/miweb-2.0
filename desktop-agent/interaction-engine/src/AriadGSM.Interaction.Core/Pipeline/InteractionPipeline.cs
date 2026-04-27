@@ -224,6 +224,11 @@ public sealed class InteractionPipeline
             reasons.Add("browser_or_generic_ui_text");
         }
 
+        if (IsStatusOrNonChatTitle(normalizedTitle) || !LooksLikeRealChatTitle(normalizedTitle))
+        {
+            reasons.Add("not_real_chat_title");
+        }
+
         if (_options.RejectBusinessAdminGroups && IsLowValueBusinessGroup(normalizedTitle))
         {
             reasons.Add("low_value_payment_group");
@@ -309,17 +314,29 @@ public sealed class InteractionPipeline
             || normalizedTitle.Contains(" perfil 1", StringComparison.Ordinal);
     }
 
+    private static bool IsStatusOrNonChatTitle(string normalizedTitle)
+    {
+        return normalizedTitle.StartsWith("ver estado", StringComparison.Ordinal)
+            || normalizedTitle.Contains(" mensajes no leidos", StringComparison.Ordinal)
+            || normalizedTitle.StartsWith("estado ", StringComparison.Ordinal);
+    }
+
     private static bool LooksLikeRealChatTitle(string normalizedTitle)
     {
-        if (normalizedTitle.Length < 3 || !normalizedTitle.Any(char.IsLetter))
+        var letters = normalizedTitle.Count(char.IsLetter);
+        if (normalizedTitle.Length < 3 || letters < 2)
         {
             return false;
         }
 
         return !IsGenericWhatsAppTitle(normalizedTitle)
+            && !IsStatusOrNonChatTitle(normalizedTitle)
             && !normalizedTitle.Contains("marcador", StringComparison.Ordinal)
             && !normalizedTitle.Contains("favorito", StringComparison.Ordinal)
             && !normalizedTitle.Contains("pagina", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("pestana", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("configuracion", StringComparison.Ordinal)
+            && !normalizedTitle.Contains("extensiones", StringComparison.Ordinal)
             && !normalizedTitle.Contains("informacion del sitio", StringComparison.Ordinal)
             && !normalizedTitle.Contains("leer en voz alta", StringComparison.Ordinal)
             && !normalizedTitle.Contains("http", StringComparison.Ordinal)

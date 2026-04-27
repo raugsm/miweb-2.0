@@ -1,8 +1,8 @@
 {
-  "version": "0.5.9",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.9.zip",
-  "sha256": "0066bbf5e725dbb6d6afc43b3204335d406a39e04748f328be9c4a1ea85942ab",
+  "version": "0.5.10",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.10.zip",
+  "sha256": "34e2141f01017927c3658af0517d921abcc7846486d7a715c04e3ccbb20966a4",
   "autoApply": true,
-  "notes": "Ariad Runtime Orchestrator: coordinates cabin, vision, perception, interaction and hands; pauses channels that are not truly visible; prevents stale chat-row clicks; packages Orchestrator as a first-class engine.",
-  "publishedAt": "2026-04-27T03:28:00Z"
+  "notes": "Reader quality pass: rejects browser UI, status rows, flag-only rows and non-chat titles before they reach Interaction, Timeline, Memory or Accounting.",
+  "publishedAt": "2026-04-27T03:45:00Z"
 }
