@@ -1,8 +1,8 @@
 {
-  "version": "0.5.17",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.17.zip",
-  "sha256": "ee44d688914c8ba448dff822e90a6320b3e41281aa38617ada3a300064bd390a",
+  "version": "0.5.18",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.5.18.zip",
+  "sha256": "1a0306b7bfc75466fe44ed4ecf581b70f1f220598870964085b9df98d006ccfa",
   "autoApply": true,
-  "notes": "Root stability pass: Hands remembers processed decisions to stop replaying old queues, and cabin prep auto-resolves safe WhatsApp/Chrome modals such as Aceptar and Usar aqui before asking for help.",
-  "publishedAt": "2026-04-27T16:15:00Z"
+  "notes": "Human dashboard pass: friendlier AriadGSM-branded interface with plain-language status cards, needs panel and activity summary while keeping technical diagnostics available for support.",
+  "publishedAt": "2026-04-27T16:35:00Z"
 }

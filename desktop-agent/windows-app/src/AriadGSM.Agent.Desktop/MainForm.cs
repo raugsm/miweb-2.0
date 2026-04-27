@@ -29,6 +29,11 @@ internal sealed class MainForm : Form
     private readonly Label _versionBadge = new();
     private readonly Label _versionLabel = new();
     private readonly Label _summaryLabel = new();
+    private readonly Label _assistantDetailLabel = new();
+    private readonly Label _whatsAppStatusLabel = new();
+    private readonly Label _learningStatusLabel = new();
+    private readonly Label _accountingStatusLabel = new();
+    private readonly Label _handsStatusLabel = new();
     private readonly TextBox _problemBox = new();
     private readonly ListView _healthList = new();
     private readonly TextBox _activityBox = new();
@@ -89,19 +94,19 @@ internal sealed class MainForm : Form
 
     private void BuildUi()
     {
-        Text = "AriadGSM Agent Desktop";
+        Text = "AriadGSM IA Local";
         var iconPath = Path.Combine(AppContext.BaseDirectory, "assets", "ariadgsm-agent.ico");
         if (File.Exists(iconPath))
         {
             Icon = new Icon(iconPath);
         }
 
-        Width = 980;
-        Height = 800;
-        MinimumSize = new Size(880, 620);
+        Width = 1040;
+        Height = 820;
+        MinimumSize = new Size(940, 680);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
-        BackColor = Color.FromArgb(247, 251, 255);
+        BackColor = Color.FromArgb(239, 247, 255);
         BuildLoginUi();
 
         var root = new TableLayoutPanel
@@ -112,10 +117,10 @@ internal sealed class MainForm : Form
             ColumnCount = 1
         };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 52));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 48));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 194));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 62));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
         _dashboardPanel.Dock = DockStyle.Fill;
         _dashboardPanel.Visible = false;
         _dashboardPanel.Controls.Add(root);
@@ -147,7 +152,7 @@ internal sealed class MainForm : Form
 
         var title = new Label
         {
-            Text = "AriadGSM Agent Desktop",
+            Text = "AriadGSM IA Local",
             ForeColor = Color.FromArgb(12, 79, 170),
             Font = new Font("Segoe UI", 20, FontStyle.Bold),
             AutoSize = true,
@@ -155,7 +160,7 @@ internal sealed class MainForm : Form
         };
         var subtitle = new Label
         {
-            Text = "Cabina local para lectura, aprendizaje, manos seguras y sincronizacion con ariadgsm.com",
+            Text = "Tu asistente local para WhatsApp, aprendizaje del negocio y contabilidad",
             ForeColor = Color.FromArgb(58, 82, 112),
             Font = new Font("Segoe UI", 10, FontStyle.Regular),
             AutoSize = true,
@@ -168,7 +173,7 @@ internal sealed class MainForm : Form
         _versionBadge.TextAlign = ContentAlignment.MiddleCenter;
         _versionBadge.Location = new Point(790, 18);
         _versionBadge.Size = new Size(132, 30);
-        _versionLabel.Text = $"{_runtime.VersionSummary} | {AppContext.BaseDirectory}";
+        _versionLabel.Text = $"{_runtime.VersionSummary}";
         _versionLabel.ForeColor = Color.FromArgb(73, 114, 170);
         _versionLabel.Font = new Font("Segoe UI", 8, FontStyle.Regular);
         _versionLabel.AutoEllipsis = true;
@@ -195,13 +200,13 @@ internal sealed class MainForm : Form
         };
         root.Controls.Add(buttons, 0, 1);
 
-        ConfigureButton(_startButton, "Iniciar IA", Color.FromArgb(24, 120, 242));
-        ConfigureButton(_stopButton, "Detener", Color.FromArgb(205, 61, 61));
-        ConfigureButton(_onceButton, "Leer una vez", Color.FromArgb(17, 145, 101));
-        ConfigureButton(_prepareWhatsAppsButton, "Preparar WhatsApps", Color.FromArgb(31, 151, 170));
-        ConfigureButton(_panelButton, "Abrir panel", Color.FromArgb(82, 97, 120));
-        ConfigureButton(_logsButton, "Logs", Color.FromArgb(82, 97, 120));
-        ConfigureButton(_diagnoseButton, "Diagnostico", Color.FromArgb(82, 97, 120));
+        ConfigureButton(_startButton, "Encender IA", Color.FromArgb(24, 120, 242));
+        ConfigureButton(_stopButton, "Pausar IA", Color.FromArgb(205, 61, 61));
+        ConfigureButton(_onceButton, "Leer ahora", Color.FromArgb(17, 145, 101));
+        ConfigureButton(_prepareWhatsAppsButton, "Alistar WhatsApps", Color.FromArgb(31, 151, 170));
+        ConfigureButton(_panelButton, "Panel web", Color.FromArgb(82, 97, 120));
+        ConfigureButton(_logsButton, "Historial", Color.FromArgb(82, 97, 120));
+        ConfigureButton(_diagnoseButton, "Reporte", Color.FromArgb(82, 97, 120));
         buttons.Controls.AddRange([
             _startButton,
             _stopButton,
@@ -215,37 +220,98 @@ internal sealed class MainForm : Form
         var problemPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            RowCount = 2,
-            ColumnCount = 1
+            RowCount = 1,
+            ColumnCount = 2,
+            Padding = new Padding(0, 2, 0, 6)
         };
-        problemPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        problemPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        problemPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
+        problemPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
         root.Controls.Add(problemPanel, 0, 2);
 
+        var assistantPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            RowCount = 3,
+            ColumnCount = 1,
+            BackColor = Color.White,
+            Padding = new Padding(18, 14, 18, 12),
+            Margin = new Padding(0, 0, 10, 0)
+        };
+        assistantPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        assistantPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        assistantPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        problemPanel.Controls.Add(assistantPanel, 0, 0);
+
         _summaryLabel.Dock = DockStyle.Fill;
-        _summaryLabel.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-        _summaryLabel.ForeColor = Color.FromArgb(22, 44, 72);
+        _summaryLabel.Font = new Font("Segoe UI", 16, FontStyle.Bold);
+        _summaryLabel.ForeColor = Color.FromArgb(12, 79, 170);
         _summaryLabel.TextAlign = ContentAlignment.MiddleLeft;
-        problemPanel.Controls.Add(_summaryLabel, 0, 0);
+        assistantPanel.Controls.Add(_summaryLabel, 0, 0);
+
+        _assistantDetailLabel.Dock = DockStyle.Fill;
+        _assistantDetailLabel.Font = new Font("Segoe UI", 10, FontStyle.Regular);
+        _assistantDetailLabel.ForeColor = Color.FromArgb(58, 82, 112);
+        _assistantDetailLabel.TextAlign = ContentAlignment.MiddleLeft;
+        assistantPanel.Controls.Add(_assistantDetailLabel, 0, 1);
+
+        var cards = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            RowCount = 1,
+            ColumnCount = 4,
+            BackColor = Color.White
+        };
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        cards.Controls.Add(BuildMetricCard("WhatsApps", _whatsAppStatusLabel, Color.FromArgb(24, 120, 242)), 0, 0);
+        cards.Controls.Add(BuildMetricCard("Aprendizaje", _learningStatusLabel, Color.FromArgb(31, 151, 170)), 1, 0);
+        cards.Controls.Add(BuildMetricCard("Contabilidad", _accountingStatusLabel, Color.FromArgb(17, 145, 101)), 2, 0);
+        cards.Controls.Add(BuildMetricCard("Manos", _handsStatusLabel, Color.FromArgb(82, 97, 120)), 3, 0);
+        assistantPanel.Controls.Add(cards, 0, 2);
+
+        var needsPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            RowCount = 2,
+            ColumnCount = 1,
+            BackColor = Color.White,
+            Padding = new Padding(16, 12, 16, 12),
+            Margin = new Padding(0)
+        };
+        needsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        needsPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        problemPanel.Controls.Add(needsPanel, 1, 0);
+        needsPanel.Controls.Add(new Label
+        {
+            Text = "Lo que necesito de ti",
+            Dock = DockStyle.Fill,
+            Font = new Font("Segoe UI", 11, FontStyle.Bold),
+            ForeColor = Color.FromArgb(22, 44, 72),
+            TextAlign = ContentAlignment.MiddleLeft
+        }, 0, 0);
 
         _problemBox.Dock = DockStyle.Fill;
         _problemBox.Multiline = true;
         _problemBox.ReadOnly = true;
         _problemBox.ScrollBars = ScrollBars.Vertical;
-        _problemBox.BorderStyle = BorderStyle.FixedSingle;
-        _problemBox.BackColor = Color.FromArgb(255, 250, 235);
+        _problemBox.BorderStyle = BorderStyle.None;
+        _problemBox.BackColor = Color.FromArgb(246, 250, 255);
+        _problemBox.ForeColor = Color.FromArgb(45, 69, 102);
         _problemBox.Font = new Font("Segoe UI", 10);
-        problemPanel.Controls.Add(_problemBox, 0, 1);
+        needsPanel.Controls.Add(_problemBox, 0, 1);
 
         _healthList.Dock = DockStyle.Fill;
         _healthList.View = View.Details;
         _healthList.FullRowSelect = true;
-        _healthList.GridLines = true;
+        _healthList.GridLines = false;
         _healthList.HideSelection = false;
-        _healthList.Columns.Add("Motor / requisito", 180);
+        _healthList.BackColor = Color.FromArgb(252, 254, 255);
+        _healthList.Columns.Add("Area interna", 180);
         _healthList.Columns.Add("Estado", 110);
-        _healthList.Columns.Add("Ultima vez", 170);
-        _healthList.Columns.Add("Detalle", 560);
+        _healthList.Columns.Add("Ultima vez", 160);
+        _healthList.Columns.Add("Detalle para soporte", 610);
         root.Controls.Add(_healthList, 0, 3);
 
         var activityPanel = new TableLayoutPanel
@@ -261,7 +327,7 @@ internal sealed class MainForm : Form
 
         var activityTitle = new Label
         {
-            Text = "Actividad de la IA",
+            Text = "Lo que estoy haciendo ahora",
             Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 11, FontStyle.Bold),
             ForeColor = Color.FromArgb(22, 44, 72),
@@ -273,10 +339,45 @@ internal sealed class MainForm : Form
         _activityBox.Multiline = true;
         _activityBox.ReadOnly = true;
         _activityBox.ScrollBars = ScrollBars.Vertical;
-        _activityBox.BorderStyle = BorderStyle.FixedSingle;
-        _activityBox.BackColor = Color.White;
+        _activityBox.BorderStyle = BorderStyle.None;
+        _activityBox.BackColor = Color.FromArgb(252, 254, 255);
+        _activityBox.ForeColor = Color.FromArgb(35, 55, 82);
         _activityBox.Font = new Font("Segoe UI", 10);
         activityPanel.Controls.Add(_activityBox, 0, 1);
+    }
+
+    private static Panel BuildMetricCard(string title, Label valueLabel, Color accent)
+    {
+        var panel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(246, 250, 255),
+            Margin = new Padding(0, 0, 10, 0),
+            Padding = new Padding(10)
+        };
+        var stripe = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 4,
+            BackColor = accent
+        };
+        var titleLabel = new Label
+        {
+            Text = title,
+            ForeColor = Color.FromArgb(58, 82, 112),
+            Font = new Font("Segoe UI", 8, FontStyle.Bold),
+            Location = new Point(16, 8),
+            Size = new Size(120, 18)
+        };
+        valueLabel.ForeColor = Color.FromArgb(16, 32, 55);
+        valueLabel.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        valueLabel.Location = new Point(16, 28);
+        valueLabel.Size = new Size(128, 48);
+        valueLabel.Text = "-";
+        panel.Controls.Add(stripe);
+        panel.Controls.Add(titleLabel);
+        panel.Controls.Add(valueLabel);
+        return panel;
     }
 
     private void BuildLoginUi()
@@ -320,7 +421,7 @@ internal sealed class MainForm : Form
 
         var brandTitle = new Label
         {
-            Text = "AriadGSM\nOperating Core",
+            Text = "AriadGSM\nIA Local",
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 25, FontStyle.Bold),
             Location = new Point(34, 155),
@@ -328,7 +429,7 @@ internal sealed class MainForm : Form
         };
         var brandCopy = new Label
         {
-            Text = "Acceso protegido, actualizacion visible y arranque manual antes de encender ojos, memoria y manos.",
+            Text = "Tu cabina inteligente queda apagada hasta que tu autorices el inicio.",
             ForeColor = Color.FromArgb(188, 216, 250),
             Font = new Font("Segoe UI", 12, FontStyle.Regular),
             Location = new Point(36, 278),
@@ -336,7 +437,7 @@ internal sealed class MainForm : Form
         };
         var statusStrip = new Label
         {
-            Text = "NUBE SEGURA  |  IA DETENIDA  |  UPDATE READY",
+            Text = "NUBE SEGURA  |  IA EN PAUSA  |  LISTA PARA TRABAJAR",
             ForeColor = Color.FromArgb(98, 183, 255),
             Font = new Font("Segoe UI", 8, FontStyle.Bold),
             Location = new Point(36, 390),
@@ -380,7 +481,7 @@ internal sealed class MainForm : Form
 
         var title = new Label
         {
-            Text = "Iniciar sesion",
+            Text = "Entrar a AriadGSM",
             Dock = DockStyle.Fill,
             ForeColor = Color.FromArgb(12, 79, 170),
             Font = new Font("Segoe UI", 24, FontStyle.Bold),
@@ -388,7 +489,7 @@ internal sealed class MainForm : Form
         };
         var subtitle = new Label
         {
-            Text = "AriadGSM Agent queda apagado hasta tu autorizacion.",
+            Text = "Primero entro, reviso actualizaciones y luego tu decides cuando encender la IA.",
             Dock = DockStyle.Fill,
             ForeColor = Color.FromArgb(58, 82, 112),
             Font = new Font("Segoe UI", 10, FontStyle.Regular),
@@ -435,7 +536,7 @@ internal sealed class MainForm : Form
         options.Controls.Add(_showPasswordBox);
         formPanel.Controls.Add(options, 0, 6);
 
-        _loginButton.Text = "Entrar y revisar actualizaciones";
+        _loginButton.Text = "Entrar a mi cabina";
         _loginButton.Dock = DockStyle.Fill;
         _loginButton.FlatStyle = FlatStyle.Flat;
         _loginButton.BackColor = Color.FromArgb(24, 120, 242);
@@ -532,13 +633,14 @@ internal sealed class MainForm : Form
     private static void ConfigureButton(Button button, string text, Color color)
     {
         button.Text = text;
-        button.Width = 145;
-        button.Height = 38;
+        button.Width = 136;
+        button.Height = 40;
         button.FlatStyle = FlatStyle.Flat;
         button.BackColor = color;
         button.ForeColor = Color.White;
+        button.Font = new Font("Segoe UI", 9, FontStyle.Bold);
         button.FlatAppearance.BorderSize = 0;
-        button.Margin = new Padding(0, 0, 10, 0);
+        button.Margin = new Padding(0, 0, 9, 0);
     }
 
     private async Task AutonomousStartupAsync()
@@ -896,46 +998,235 @@ internal sealed class MainForm : Form
         var active = _runtime.ActiveProcessSummary();
 
         var isRunning = _runtime.IsRunning;
-        _summaryLabel.Text = errors.Length > 0
-            ? $"Estado: requiere atencion ({errors.Length} error/es, {warnings.Length} aviso/s)"
-            : warnings.Length > 0
-                ? $"Estado: {(isRunning ? "trabajando" : "detenido")} con avisos ({warnings.Length})"
-                : $"Estado: listo ({(isRunning ? "motores activos" : "detenido")})";
-
-        var problemLines = new List<string>
-        {
-            isRunning
-                ? "Ventana visible: el agente esta trabajando, pero este panel queda como cabina de control."
-                : $"Sesion: {_operatorName}. Motores detenidos hasta que presiones Iniciar IA.",
-            $"Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
-            $"Version: {_runtime.VersionSummary}",
-            $"Ejecutable: {_runtime.ExecutableDirectory}",
-            $"Runtime: {_runtime.RuntimeDir}",
-            string.Empty
-        };
-
-        if (errors.Length == 0 && warnings.Length == 0)
-        {
-            problemLines.Add("Que paso: sin errores detectados. Listo para observar, aprender y sincronizar.");
-        }
-        else
-        {
-            problemLines.Add("Que paso:");
-            problemLines.AddRange(errors.Concat(warnings).Take(10).Select(item => $"- {item.Name}: {item.Detail}"));
-        }
-
-        var recentProblems = _runtime.RecentProblemLines(5);
-        if (recentProblems.Count > 0)
-        {
-            problemLines.Add(string.Empty);
-            problemLines.Add("Ultimas pistas del log:");
-            problemLines.AddRange(recentProblems.Select(line => $"- {line}"));
-        }
-
-        _problemBox.Text = string.Join(Environment.NewLine, problemLines);
+        _summaryLabel.Text = BuildHumanHeadline(isRunning, errors.Length, warnings.Length);
+        _assistantDetailLabel.Text = BuildHumanSubtitle(isRunning);
+        UpdateMetricCards(preflight);
+        _problemBox.Text = BuildNeedsText(errors, warnings, isRunning);
         UpdateHealthList(allItems);
-        _activityBox.Text = string.Join(Environment.NewLine, _runtime.OperationalActivityLines(preflight, health, _recentLogLines.ToArray()));
+        _activityBox.Text = BuildHumanActivity(preflight, health, active);
         NotifyOnNewProblem(errors, warnings);
+    }
+
+    private string BuildHumanHeadline(bool isRunning, int errors, int warnings)
+    {
+        if (errors > 0)
+        {
+            return "Necesito tu ayuda para seguir";
+        }
+
+        if (warnings > 0)
+        {
+            return isRunning ? "Estoy trabajando con avisos" : "Estoy lista, pero falta revisar algo";
+        }
+
+        return isRunning ? "Estoy trabajando contigo" : "Estoy lista para empezar";
+    }
+
+    private string BuildHumanSubtitle(bool isRunning)
+    {
+        var cycle = StateText("autonomous-cycle-state.json", "summary");
+        if (!string.IsNullOrWhiteSpace(cycle))
+        {
+            return cycle;
+        }
+
+        return isRunning
+            ? "Estoy mirando WhatsApp, guardando memoria y avisando si algo necesita permiso."
+            : $"Hola {_operatorName}. Cuando presiones Encender IA preparo WhatsApp, miro, aprendo y sincronizo.";
+    }
+
+    private void UpdateMetricCards(PreflightReport preflight)
+    {
+        var whatsappItems = preflight.Items
+            .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var ready = whatsappItems.Count(item => item.Severity == HealthSeverity.Ok);
+        var total = Math.Max(3, whatsappItems.Length);
+        _whatsAppStatusLabel.Text = $"{ready}/{total} listos{Environment.NewLine}{(ready == total ? "cabina alineada" : "revisando canales")}";
+
+        var memoryMessages = StateNumber("memory-state.json", "summary", "memoryMessages");
+        var learningEvents = StateNumber("memory-state.json", "summary", "learningEvents");
+        _learningStatusLabel.Text = $"{learningEvents} aprendizajes{Environment.NewLine}{memoryMessages} mensajes";
+
+        var accountingEvents = StateNumber("memory-state.json", "summary", "accountingEvents");
+        var accountingDrafts = StateNumber("operating-state.json", "summary", "accountingDrafts");
+        _accountingStatusLabel.Text = $"{accountingEvents} registros{Environment.NewLine}{accountingDrafts} borradores";
+
+        var actionsExecuted = StateNumber("hands-state.json", "actionsExecuted");
+        var actionsVerified = StateNumber("hands-state.json", "actionsVerified");
+        _handsStatusLabel.Text = $"{actionsExecuted} acciones{Environment.NewLine}{actionsVerified} verificadas";
+    }
+
+    private string BuildNeedsText(IReadOnlyList<HealthItem> errors, IReadOnlyList<HealthItem> warnings, bool isRunning)
+    {
+        if (errors.Count == 0 && warnings.Count == 0)
+        {
+            return isRunning
+                ? "Nada urgente. Puedes seguir trabajando; yo observo y te aviso si necesito permiso."
+                : "Nada urgente. Cuando quieras, pulsa Encender IA para empezar.";
+        }
+
+        var lines = new List<string>();
+        foreach (var item in errors.Concat(warnings).Take(6))
+        {
+            lines.Add($"- {HumanizeHealthItem(item)}");
+        }
+
+        lines.Add(string.Empty);
+        lines.Add("Para detalle completo usa Reporte o Historial.");
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private string BuildHumanActivity(
+        PreflightReport preflight,
+        IReadOnlyList<HealthItem> health,
+        IReadOnlyList<string> active)
+    {
+        var lines = new List<string>();
+        var phase = StateText("autonomous-cycle-state.json", "phase");
+        if (!string.IsNullOrWhiteSpace(phase))
+        {
+            lines.Add($"Estado mental: {HumanPhase(phase)}.");
+        }
+
+        var whatsappItems = preflight.Items
+            .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var ready = whatsappItems.Count(item => item.Severity == HealthSeverity.Ok);
+        lines.Add($"WhatsApps: {ready}/{Math.Max(3, whatsappItems.Length)} canales listos para leer.");
+        lines.Add($"Memoria: {StateNumber("memory-state.json", "summary", "memoryMessages")} mensajes guardados y {StateNumber("memory-state.json", "summary", "learningEvents")} aprendizajes.");
+        lines.Add($"Contabilidad: {StateNumber("memory-state.json", "summary", "accountingEvents")} eventos detectados.");
+        lines.Add($"Manos: {StateNumber("hands-state.json", "actionsExecuted")} acciones ejecutadas, {StateNumber("hands-state.json", "actionsVerified")} verificadas.");
+        lines.Add($"Procesos activos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}.");
+
+        var usefulLogs = _recentLogLines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .TakeLast(5)
+            .ToArray();
+        if (usefulLogs.Length > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add("Ultimos movimientos:");
+            lines.AddRange(usefulLogs.Select(line => $"- {HumanizeLogLine(line)}"));
+        }
+
+        var warnings = health.Where(item => item.Severity == HealthSeverity.Warning).Take(3).ToArray();
+        if (warnings.Length > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add("Estoy vigilando:");
+            lines.AddRange(warnings.Select(item => $"- {HumanizeHealthItem(item)}"));
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private string HumanizeHealthItem(HealthItem item)
+    {
+        if (item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
+        {
+            var channel = item.Name.Replace("WhatsApp ", string.Empty, StringComparison.OrdinalIgnoreCase);
+            return item.Severity == HealthSeverity.Ok
+                ? $"{channel}: listo para leer."
+                : $"{channel}: necesito que ese navegador tenga web.whatsapp.com visible o vinculado.";
+        }
+
+        return item.Name switch
+        {
+            "Permisos Windows" => item.Severity == HealthSeverity.Ok
+                ? "Windows ya dio permisos suficientes."
+                : "Ejecuta la app como administrador para mover ventanas y mouse sin fallar.",
+            "Cabina WhatsApp" => $"Cabina WhatsApp: {item.Detail}",
+            "Ciclo autonomo" => $"Ciclo autonomo: {StateText("autonomous-cycle-state.json", new[] { "summary" }, item.Detail)}",
+            "Hands" => $"Manos: {item.Detail}",
+            "Supervisor" => $"Supervisor: {item.Detail}",
+            "Actualizaciones" => $"Actualizaciones: {item.Detail}",
+            "WebPanel" => $"Panel web: {item.Detail}",
+            _ => $"{item.Name}: {item.Detail}"
+        };
+    }
+
+    private static string HumanPhase(string phase)
+    {
+        return phase.ToLowerInvariant() switch
+        {
+            "acting" => "moviendo manos y verificando",
+            "reasoning" => "pensando el siguiente paso",
+            "learning" => "aprendiendo del historial",
+            "observing" => "observando conversaciones",
+            "waiting" => "esperando inicio",
+            "blocked" => "bloqueada por seguridad",
+            _ => phase
+        };
+    }
+
+    private static string HumanizeLogLine(string line)
+    {
+        return line
+            .Replace("ERROR", "Error", StringComparison.OrdinalIgnoreCase)
+            .Replace("Preflight", "Revision inicial", StringComparison.OrdinalIgnoreCase)
+            .Replace("Cabin readiness", "Cabina WhatsApp", StringComparison.OrdinalIgnoreCase)
+            .Replace("PythonCoreLoop", "nucleo IA", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private int StateNumber(string fileName, params string[] path)
+    {
+        var value = StateValue(fileName, path);
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+        {
+            return number;
+        }
+
+        if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out var parsed))
+        {
+            return parsed;
+        }
+
+        return 0;
+    }
+
+    private string StateText(string fileName, params string[] path)
+    {
+        return StateText(fileName, path, string.Empty);
+    }
+
+    private string StateText(string fileName, string[] path, string fallback)
+    {
+        var value = StateValue(fileName, path);
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString() ?? fallback;
+        }
+
+        return fallback;
+    }
+
+    private JsonElement StateValue(string fileName, params string[] path)
+    {
+        var fullPath = Path.Combine(_runtime.RuntimeDir, fileName);
+        if (!File.Exists(fullPath))
+        {
+            return default;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(fullPath));
+            var current = document.RootElement;
+            foreach (var key in path)
+            {
+                if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(key, out current))
+                {
+                    return default;
+                }
+            }
+
+            return current.Clone();
+        }
+        catch
+        {
+            return default;
+        }
     }
 
     private void UpdateHealthList(IReadOnlyList<HealthItem> items)
