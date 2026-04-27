@@ -17,7 +17,7 @@ using System.Windows.Automation;
 
 namespace AriadGSM.Agent.Desktop;
 
-internal sealed class AgentRuntime : IDisposable
+internal sealed partial class AgentRuntime : IDisposable
 {
     private const string DefaultUpdateManifestUrl = "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/ariadgsm-update.json";
     private const int ShowWindowRestore = 9;
@@ -47,6 +47,8 @@ internal sealed class AgentRuntime : IDisposable
     private Task? _coreLoopTask;
     private CancellationTokenSource? _supervisorCts;
     private Task? _supervisorTask;
+    private CancellationTokenSource? _workspaceGuardianCts;
+    private Task? _workspaceGuardianTask;
     private bool _desiredRunning;
     private bool _stopping;
     private string? _cachedPython;
@@ -126,6 +128,7 @@ internal sealed class AgentRuntime : IDisposable
         }
 
         StartWebPanel();
+        StartWorkspaceGuardianLoop();
         StartWorker(
             "Vision",
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "vision", "AriadGSM.Vision.Worker.exe"),
@@ -192,6 +195,7 @@ internal sealed class AgentRuntime : IDisposable
         WriteLog("Stopping AriadGSM Agent.");
         _stopping = true;
         _desiredRunning = false;
+        StopWorkspaceGuardianLoop();
         _supervisorCts?.Cancel();
         _coreLoopCts?.Cancel();
         lock (_gate)
@@ -277,6 +281,7 @@ internal sealed class AgentRuntime : IDisposable
             StateHealth("Ciclo autonomo", "autonomous-cycle-state.json", "PythonCoreLoop"),
             StateHealth("Agent Supervisor", "agent-supervisor-state.json", "ReliabilitySupervisor"),
             StateHealth("Alistamiento cabina", "workspace-setup-state.json", "WorkspaceSetup"),
+            StateHealth("Guardian cabina", "workspace-guardian-state.json", "WorkspaceGuardian"),
             CabinReadinessHealth(),
             UpdateHealth(),
             WebPanelHealth(),
@@ -295,6 +300,7 @@ internal sealed class AgentRuntime : IDisposable
                 .Select(item => $"{item.Name} #{item.Process.Id}")
                 .Concat(_coreLoopTask is { IsCompleted: false } ? ["PythonCoreLoop"] : [])
                 .Concat(_supervisorTask is { IsCompleted: false } ? ["ReliabilitySupervisor"] : [])
+                .Concat(_workspaceGuardianTask is { IsCompleted: false } ? ["WorkspaceGuardian"] : [])
                 .ToArray();
         }
     }
@@ -337,6 +343,7 @@ internal sealed class AgentRuntime : IDisposable
         using var autonomousCycle = ReadJsonStatus("autonomous-cycle-state.json");
         using var agentSupervisor = ReadJsonStatus("agent-supervisor-state.json");
         using var workspaceSetup = ReadJsonStatus("workspace-setup-state.json");
+        using var workspaceGuardian = ReadJsonStatus("workspace-guardian-state.json");
 
         var whatsappSummary = preflight.Items
             .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
@@ -359,6 +366,7 @@ internal sealed class AgentRuntime : IDisposable
             $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
             $"Orchestrator: fase={Text(orchestrator, "phase")} | {Text(orchestrator, "summary")}",
             $"Alistamiento: fase={Text(workspaceSetup, "phase")} | {Text(workspaceSetup, "summary")}",
+            $"Guardian cabina: {Text(workspaceGuardian, "status")} | {Text(workspaceGuardian, "summary")}",
             $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")}",
             $"Cognitive/Memory: decisiones={NestedNumber(cognitive, "summary", "decisions")} | memoria={NestedNumber(memory, "summary", "memoryMessages")} | aprendizaje={NestedNumber(memory, "summary", "learningEvents")}",
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
@@ -720,6 +728,7 @@ internal sealed class AgentRuntime : IDisposable
             70,
             []);
         ArrangeWhatsAppWorkspace();
+        WriteWorkspaceGuardianState(EnsureWorkspaceOwned("bootstrap"));
         await Task.Delay(TimeSpan.FromMilliseconds(700)).ConfigureAwait(false);
 
         var finalReadiness = ReadChannelMappings()
@@ -1284,6 +1293,8 @@ internal sealed class AgentRuntime : IDisposable
     {
         Stop();
         _coreLoopCts?.Dispose();
+        _supervisorCts?.Dispose();
+        _workspaceGuardianCts?.Dispose();
     }
 
     private HealthItem CheckAdministrator()
@@ -2045,6 +2056,11 @@ internal sealed class AgentRuntime : IDisposable
         if (name.Equals("ReliabilitySupervisor", StringComparison.OrdinalIgnoreCase))
         {
             return _supervisorTask is { IsCompleted: false };
+        }
+
+        if (name.Equals("WorkspaceGuardian", StringComparison.OrdinalIgnoreCase))
+        {
+            return _workspaceGuardianTask is { IsCompleted: false };
         }
 
         lock (_gate)

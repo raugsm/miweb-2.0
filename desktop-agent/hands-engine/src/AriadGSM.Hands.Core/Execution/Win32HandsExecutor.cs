@@ -175,6 +175,15 @@ public sealed class Win32HandsExecutor : IHandsExecutor
                 return new WindowResolution(best, string.Empty);
             }
 
+            var recoverable = candidates
+                .Where(window => IsWhatsAppTitle(window.Title))
+                .OrderByDescending(window => WindowScore(window, cabin))
+                .FirstOrDefault();
+            if (recoverable is not null && TryRecoverWindow(recoverable) is { } recovered)
+            {
+                return new WindowResolution(recovered, string.Empty);
+            }
+
             var processHint = cabin.ProcessId > 0
                 ? $"{cabin.ProcessName} #{cabin.ProcessId}"
                 : cabin.ProcessName;
@@ -194,6 +203,21 @@ public sealed class Win32HandsExecutor : IHandsExecutor
         return fallback is null
             ? new WindowResolution(null, $"No visible WhatsApp browser window was found for channel '{channelId ?? "unknown"}'.")
             : new WindowResolution(fallback, string.Empty);
+    }
+
+    private static BrowserWindow? TryRecoverWindow(BrowserWindow window)
+    {
+        if (window.Handle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        TryFocusWindow(window.Handle);
+        Thread.Sleep(120);
+        return EnumerateWindows()
+            .Where(item => item.Handle == window.Handle)
+            .Where(item => item.Visible && !item.Minimized && IsWhatsAppTitle(item.Title))
+            .FirstOrDefault();
     }
 
     private static string? GetTargetString(ActionPlan plan, string key)
