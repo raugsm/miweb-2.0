@@ -269,16 +269,59 @@ async function handleOperativaApi(req, res, requestUrl) {
     try {
       const body = await parseBody(req, { maxBytes: 5 * 1024 * 1024 });
       const actor = body.actor || "desktop_agent";
-      const events = Array.isArray(body.events) ? body.events.slice(0, 100) : [];
-      let eventsIngested = 0;
-      for (const event of events) {
-        ingestOperativaEvent(event, actor);
-        eventsIngested++;
+      const idempotencyKey = body.idempotencyKey || req.headers["idempotency-key"] || body.id || "";
+      if (idempotencyKey) {
+        const currentState = readOperativaState();
+        const syncBatches = Array.isArray(currentState.syncBatches) ? currentState.syncBatches : [];
+        const existing = syncBatches.find(
+          (item) => item.idempotencyKey === idempotencyKey || item.id === idempotencyKey
+        );
+        if (existing) {
+          const duplicatePayload = recordCloudSync({ ...body, idempotencyKey, id: body.id || idempotencyKey }, actor);
+          sendJson(res, 200, {
+            ok: true,
+            duplicate: true,
+            batch: duplicatePayload.batch,
+            eventErrors: [],
+            snapshot: buildCleanOperativaSnapshot(duplicatePayload.snapshot),
+          });
+          return true;
+        }
       }
-      const payload = recordCloudSync({ ...body, eventsIngested }, actor);
+      const events = Array.isArray(body.events) ? body.events.slice(0, 250) : [];
+      let eventsIngested = 0;
+      let eventsRejected = 0;
+      const eventErrors = [];
+      for (const event of events) {
+        try {
+          ingestOperativaEvent(event, actor);
+          eventsIngested++;
+        } catch (error) {
+          eventsRejected++;
+          eventErrors.push({
+            type: event?.type || event?.eventType || "unknown",
+            error: error.message || "Evento rechazado",
+          });
+        }
+      }
+      const syncStatus = body.status === "ok" && eventsRejected > 0 ? "attention" : body.status;
+      const payload = recordCloudSync(
+        {
+          ...body,
+          idempotencyKey,
+          status: syncStatus,
+          eventsIngested,
+          eventsRejected,
+          eventErrors,
+          error: eventsRejected > 0 ? `${eventsRejected} eventos rechazados por el panel cloud.` : body.error,
+        },
+        actor
+      );
       sendJson(res, 201, {
         ok: true,
+        duplicate: Boolean(payload.duplicate),
         batch: payload.batch,
+        eventErrors,
         snapshot: buildCleanOperativaSnapshot(payload.snapshot),
       });
     } catch (error) {

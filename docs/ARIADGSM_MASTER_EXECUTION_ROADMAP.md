@@ -93,7 +93,7 @@ Quedo cerrado:
 - incidentes normalizados;
 - UI usando Kernel para titular estado humano;
 - Vision tolera escritura denegada sin tumbar el motor;
-- Cloud Sync congelado hasta consumir Runtime Kernel.
+- Cloud Sync consumiendo Runtime Kernel como verdad unica local.
 
 ### Etapa 1: Domain Event Contracts
 
@@ -367,20 +367,31 @@ Quedo cerrado:
 Panel, reportes, respaldos, sincronizacion, contabilidad y aprendizaje subido a
 la nube.
 
-Estado actual: `siguiente etapa pendiente despues de Runtime Kernel`.
+Estado actual: `cerrada como base final en 0.8.18`.
 
-Debe cerrar:
+Existe:
+
+- `docs/ARIADGSM_CLOUD_SYNC_ARIADGSM_COM_FINAL.md`
+- `desktop-agent/contracts/cloud-sync-state.schema.json`
+- `desktop-agent/ariadgsm_agent/cloud_sync.py`
+- `desktop-agent/tests/cloud_sync.py`
+- `scripts/test-cloud-sync-server.js`
+
+Quedo cerrado:
 
 - sincronizacion de casos, memoria, contabilidad y auditoria;
 - respaldo seguro;
 - reportes para Bryams;
-- no subir informacion sensible sin politica.
+- no subir informacion sensible sin politica;
+- idempotencia local y nube;
+- Runtime Kernel como verdad previa a publicar;
+- panel con lotes nuevos, duplicados y eventos rechazados.
 
 ### Etapa 15: Evaluation + Release
 
 Pruebas, metricas, instalador, updater, rollback, versiones y entrega estable.
 
-Estado actual: `pendiente final`.
+Estado actual: `siguiente etapa pendiente`.
 
 Debe cerrar:
 
@@ -396,9 +407,8 @@ Debe cerrar:
 La proxima etapa pendiente es:
 
 ```text
-Etapa 14: Cloud Sync / ariadgsm.com
+Etapa 15: Evaluation + Release
 ```
 
-No se debe saltar a `Evaluation + Release`, updater final o ejecucion real de
-herramientas GSM antes de cerrar esta etapa, salvo bloqueo real aprobado por
-Bryams.
+No se debe saltar a ejecucion real de herramientas GSM sin cerrar pruebas,
+metricas, instalador, updater, rollback y release estable.

@@ -1792,8 +1792,8 @@ internal sealed class MainForm : Form
             "Mouse y teclado solo actuan si hay permiso y verificacion.");
         yield return AreaFrom(
             "Nube y panel",
-            allItems.Where(item => NameIs(item, "Actualizaciones", "WebPanel", "Panel local", "AriadGSM Updater")),
-            "Panel, version y actualizaciones quedan visibles para soporte.");
+            allItems.Where(item => NameIs(item, "Cloud Sync", "Actualizaciones", "WebPanel", "Panel local", "AriadGSM Updater")),
+            "Panel, version, actualizaciones y ariadgsm.com quedan sincronizados.");
     }
 
     private HealthItem AreaFrom(string name, IEnumerable<HealthItem> sourceItems, string okDetail)

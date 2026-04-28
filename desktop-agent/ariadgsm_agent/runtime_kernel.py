@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "0.8.17"
+VERSION = "0.8.18"
 ENGINE = "ariadgsm_runtime_kernel"
 CONTRACT = "runtime_kernel_state"
 
@@ -27,6 +27,7 @@ ENGINE_FILES: tuple[tuple[str, str, str, str], ...] = (
     ("memory", "Memory", "python_core", "memory-state.json"),
     ("business_brain", "Business Brain", "python_core", "business-brain-state.json"),
     ("tool_registry", "Tool Registry", "python_core", "tool-registry-state.json"),
+    ("cloud_sync", "Cloud Sync", "python_core", "cloud-sync-state.json"),
     ("trust_safety", "Trust & Safety", "python_core", "trust-safety-state.json"),
     ("hands", "Hands", "worker", "hands-state.json"),
     ("input_arbiter", "Input Arbiter", "worker", "input-arbiter-state.json"),
@@ -260,6 +261,7 @@ def build_runtime_kernel_state(
                 "memory",
                 "business_brain",
                 "tool_registry",
+                "cloud_sync",
                 "trust_safety",
                 "supervisor",
                 "autonomous_cycle",

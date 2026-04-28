@@ -1,8 +1,8 @@
 {
-  "version": "0.8.17",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.17.zip",
-  "sha256": "b22a81a7a4b763da92bcc526fd18d7081b57a06fe02fca78c038a6e2ab27c81b",
+  "version": "0.8.18",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.18.zip",
+  "sha256": "550a54b1b3c6e4fcb3be5deeae3f4d63a935e20e867825a8208e30e46c466060",
   "autoApply": true,
-  "notes": "Version 0.8.17 closes Runtime Kernel: lifecycle, incidents, recovery and human-facing state now have a single local truth before Cloud Sync; Vision state writes retry and fall back instead of stopping on transient Windows access denial.",
-  "publishedAt": "2026-04-28T15:01:06Z"
+  "notes": "Version 0.8.18 closes Cloud Sync / ariadgsm.com: local runtime state, WhatsApp checkpoints, useful messages and review items now sync as idempotent structured events; no raw frames, screenshots or secrets are uploaded.",
+  "publishedAt": "2026-04-28T15:35:50Z"
 }

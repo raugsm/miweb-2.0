@@ -168,7 +168,7 @@ Definicion de terminado:
 - la UI usa Runtime Kernel para explicar estado humano;
 - Vision no cae por `Access denied` al escribir estado;
 - los incidentes recientes se normalizan en vez de esconderse en logs;
-- Cloud Sync queda congelado hasta consumir este estado;
+- Cloud Sync consume este estado como verdad unica local;
 - tiene pruebas repetibles.
 
 Existe:
@@ -182,8 +182,7 @@ Existe:
 Pendiente para autonomia final:
 
 - enriquecer incidentes con trazas OpenTelemetry completas;
-- conectar Cloud Sync para subir reportes desde Runtime Kernel, no desde estados
-  sueltos.
+- ampliar metricas en Evaluation + Release.
 
 ### 6.1 Domain Event Contracts
 
@@ -702,20 +701,62 @@ Pendiente para autonomia final:
 - permitir ejecucion externa solo en etapas superiores, con aprobacion por
   accion y verificacion.
 
+### 6.14 Cloud Sync / ariadgsm.com
+
+Estado:
+
+```text
+CERRADA COMO BASE FINAL EN 0.8.18
+```
+
+Objetivo:
+
+Conectar la cabina local con `ariadgsm.com` como panel, respaldo, reportes,
+sincronizacion y auditoria, sin convertir la nube en cerebro y sin subir
+capturas o secretos.
+
+Definicion de terminado:
+
+- existe documento final;
+- existe contrato `cloud_sync_state`;
+- existe motor local `cloud_sync.py`;
+- Runtime Kernel conoce Cloud Sync como motor;
+- la app Windows muestra Cloud Sync en salud y actividad;
+- el ciclo Python ejecuta Cloud Sync al final;
+- `ariadgsm.com` recibe lotes con idempotencia;
+- el panel distingue lote nuevo, duplicado y eventos rechazados;
+- hay pruebas de contrato, dry-run, endpoint local e idempotencia;
+- se empaqueta una version nueva.
+
+Existe:
+
+- `docs/ARIADGSM_CLOUD_SYNC_ARIADGSM_COM_FINAL.md`
+- `desktop-agent/contracts/cloud-sync-state.schema.json`
+- `desktop-agent/ariadgsm_agent/cloud_sync.py`
+- `desktop-agent/tests/cloud_sync.py`
+- `scripts/test-cloud-sync-server.js`
+- integracion en `AgentRuntime.cs`, `runtime_kernel.py`, `server-wrapper.js`,
+  `operativa-store.js` y `public/operativa-v2.js`
+
+Pendiente para autonomia final:
+
+- validar corrida larga contra produccion dentro de Evaluation + Release;
+- consolidar metricas OpenTelemetry;
+- cerrar instalador, updater, rollback y release estable.
+
 ## 7. Bloques que NO pueden adelantarse
 
 Estos bloques son importantes, pero no deben sustituir el orden de la nueva
 etapa salvo que Bryams lo autorice:
 
-- Cloud Sync / ariadgsm.com.
 - Updater final.
 - Evaluation + Release.
 
 Motivo:
 
 Son necesarios para producto, pero si se hacen antes de cerrar el bloque activo
-volvemos al patron de parches. Cloud Sync queda congelado hasta que Runtime
-Kernel este cerrado y la nube pueda consumir una verdad local unica.
+volvemos al patron de parches. Cloud Sync ya quedo cerrado como base final; el
+bloque activo ahora es Evaluation + Release.
 
 Excepcion:
 
@@ -755,26 +796,26 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0`, `0.5` y `1` a `13` quedan cerradas como base operativa, la
-siguiente etapa pendiente del mapa maestro vuelve a ser:
+Como las etapas `0`, `0.5` y `1` a `14` quedan cerradas como base operativa, la
+siguiente etapa pendiente del mapa maestro es:
 
 ```text
-Etapa 14: Cloud Sync / ariadgsm.com
+Etapa 15: Evaluation + Release
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_CLOUD_SYNC_ARIADGSM_COM_FINAL.md
+docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md
 ```
 
 El entregable tecnico minimo posterior es:
 
 ```text
-panel web unificado
-sincronizacion local -> nube
-respaldo seguro de estados, reportes y memoria aprobada
-politica de privacidad y redaccion antes de subir datos
-reportes de contabilidad, aprendizaje y actividad
-pruebas sin subir evidencia sensible bruta por defecto
+metricas de lectura, decision, accion y aprendizaje
+pruebas largas de estabilidad
+instalador final
+updater final
+rollback seguro
+release estable
 ```

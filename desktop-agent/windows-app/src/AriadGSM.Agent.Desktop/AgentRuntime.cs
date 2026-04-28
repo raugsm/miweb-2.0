@@ -309,6 +309,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
             StateHealth("Business Brain", "business-brain-state.json", "PythonCoreLoop"),
             StateHealth("Tool Registry", "tool-registry-state.json", "PythonCoreLoop"),
+            StateHealth("Cloud Sync", "cloud-sync-state.json", "PythonCoreLoop"),
             StateHealth("Domain Events", "domain-events-state.json", "PythonCoreLoop"),
             StateHealth("Trust & Safety", "trust-safety-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
@@ -386,6 +387,7 @@ internal sealed partial class AgentRuntime : IDisposable
         using var memory = ReadJsonStatus("memory-state.json");
         using var businessBrain = ReadJsonStatus("business-brain-state.json");
         using var toolRegistry = ReadJsonStatus("tool-registry-state.json");
+        using var cloudSync = ReadJsonStatus("cloud-sync-state.json");
         using var hands = ReadJsonStatus("hands-state.json");
         using var inputArbiter = ReadJsonStatus("input-arbiter-state.json");
         using var supervisor = ReadJsonStatus("supervisor-state.json");
@@ -432,6 +434,7 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Accounting Core: registros={NestedNumber(accountingCore, "summary", "accountingRecords")} | confirmados={NestedNumber(accountingCore, "summary", "confirmedRecords")} | falta evidencia={NestedNumber(accountingCore, "summary", "needsEvidence")}",
             $"Business Brain: propuestas={NestedNumber(businessBrain, "summary", "recommendations")} | humano={NestedNumber(businessBrain, "summary", "requiresHuman")} | memoria={NestedNumber(businessBrain, "summary", "memoryItemsRead")}",
             $"Tool Registry: herramientas={NestedNumber(toolRegistry, "summary", "toolsRegistered")} | capacidades={NestedNumber(toolRegistry, "summary", "capabilitiesRegistered")} | planes={NestedNumber(toolRegistry, "summary", "matchedRequests")} | humano={NestedNumber(toolRegistry, "summary", "plansNeedHuman")}",
+            $"Cloud Sync: estado={Text(cloudSync, "status")} | eventos={NestedNumber(cloudSync, "summary", "eventsPrepared")} | mensajes={NestedNumber(cloudSync, "summary", "messagesPrepared")} | nube={Text(cloudSync, "endpoint")}",
             $"Input Arbiter: {Text(inputArbiter, "phase")} | idle={Number(inputArbiter, "operatorIdleMs")}ms | {Text(inputArbiter, "summary")}",
             $"Hands: ejecutadas={Number(hands, "actionsExecuted")} | verificadas={Number(hands, "actionsVerified")} | bloqueadas={Number(hands, "actionsBlocked")} | ultimo={Text(hands, "lastSummary")}",
             $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}",
@@ -1654,7 +1657,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
         return _coreLoopTask.IsCompleted
             ? new HealthItem("PythonCoreLoop", "DETENIDO", HealthSeverity.Warning, DateTimeOffset.Now, "El ciclo cognitivo termino o fue detenido.")
-            : new HealthItem("PythonCoreLoop", "ACTIVO", HealthSeverity.Ok, DateTimeOffset.Now, "Timeline, Cognitive, Operating, Memory, Business Brain, Tool Registry, Supervisor y Ciclo autonomo estan ciclando.");
+            : new HealthItem("PythonCoreLoop", "ACTIVO", HealthSeverity.Ok, DateTimeOffset.Now, "Timeline, Cognitive, Operating, Memory, Business Brain, Tool Registry, Cloud Sync, Supervisor y Ciclo autonomo estan ciclando.");
     }
 
     private HealthItem UpdateHealth()
@@ -1964,7 +1967,9 @@ internal sealed partial class AgentRuntime : IDisposable
             ("TrustSafety", "ariadgsm_agent.trust_safety", new[] { "--autonomy-level", "3", "--json" }),
             ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" }),
             ("AutonomousCycle", "ariadgsm_agent.autonomous_cycle", new[] { "--json" }),
-            ("DomainEventsAfterCycle", "ariadgsm_agent.domain_events", new[] { "--json" })
+            ("DomainEventsAfterCycle", "ariadgsm_agent.domain_events", new[] { "--json" }),
+            ("RuntimeKernel", "ariadgsm_agent.runtime_kernel", new[] { "--json" }),
+            ("CloudSync", "ariadgsm_agent.cloud_sync", new[] { "--json" })
         };
 
         foreach (var (name, module, args) in modules)

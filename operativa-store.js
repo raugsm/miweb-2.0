@@ -904,8 +904,45 @@ function updateCheckpoint(state, data) {
 
 function recordCloudSync(data, actor = "visual_agent") {
   const state = readOperativaState();
+  state.syncBatches = Array.isArray(state.syncBatches) ? state.syncBatches : [];
+  const idempotencyKey = data.idempotencyKey || data.batchId || data.id || "";
+  if (idempotencyKey) {
+    const existing = state.syncBatches.find(
+      (item) => item.idempotencyKey === idempotencyKey || item.id === idempotencyKey
+    );
+    if (existing) {
+      const duplicate = {
+        ...existing,
+        duplicate: true,
+        duplicateReceivedAt: nowIso(),
+      };
+      state.cloud = {
+        ...state.cloud,
+        status: "sincronizado",
+        lastSyncAt: duplicate.duplicateReceivedAt,
+        message: `Sincronizacion duplicada ignorada por idempotencia: ${idempotencyKey}`,
+      };
+      updateAgentStatus(state, {
+        mode: existing.mode,
+        connected: true,
+        lastHeartbeat: duplicate.duplicateReceivedAt,
+        message: state.cloud.message,
+      });
+      return {
+        duplicate: true,
+        batch: duplicate,
+        snapshot: buildOperativaSnapshot(writeOperativaState(state)),
+      };
+    }
+  }
+
+  const runtimeKernel = data.runtimeKernel && typeof data.runtimeKernel === "object" ? data.runtimeKernel : {};
+  const summary = data.summary && typeof data.summary === "object" ? data.summary : {};
   const batch = {
     id: data.id || createId("sync"),
+    idempotencyKey,
+    payloadHash: data.payloadHash || null,
+    schemaVersion: data.schemaVersion || null,
     actor,
     source: data.source || "desktop_agent",
     mode: data.mode || state.agent.mode || "observador",
@@ -918,6 +955,13 @@ function recordCloudSync(data, actor = "visual_agent") {
     accountingEvents: Number(data.accountingEvents || data.accountingEventCount || 0),
     learningEvents: Number(data.learningEvents || data.learningEventCount || 0),
     eventsIngested: Number(data.eventsIngested || 0),
+    eventsRejected: Number(data.eventsRejected || 0),
+    eventErrors: Array.isArray(data.eventErrors) ? data.eventErrors.slice(0, 12) : [],
+    runtimeKernelStatus: data.runtimeKernelStatus || runtimeKernel.status || null,
+    canAct: Boolean(runtimeKernel.canAct),
+    canSync: Boolean(runtimeKernel.canSync),
+    incidentsOpen: Number(data.incidentsOpen || summary.incidentsOpen || 0),
+    duplicate: false,
     error: data.error || null,
   };
 
@@ -925,10 +969,12 @@ function recordCloudSync(data, actor = "visual_agent") {
   state.syncBatches = state.syncBatches.slice(0, 100);
   state.cloud = {
     ...state.cloud,
-    status: batch.status === "ok" ? "sincronizado" : "alerta",
+    status: batch.status === "ok" && batch.eventsRejected === 0 ? "sincronizado" : "alerta",
     lastSyncAt: batch.receivedAt,
     message: batch.error
       ? `Sincronizacion recibida con alerta: ${batch.error}`
+      : batch.eventsRejected > 0
+      ? `Sincronizacion recibida con ${batch.eventsRejected} eventos rechazados para revisar.`
       : `Sincronizacion recibida: ${batch.messages} mensajes, ${batch.conversations} conversaciones.`,
   };
   updateAgentStatus(state, {

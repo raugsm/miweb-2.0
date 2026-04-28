@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/cloud-sync-state.schema.json",
+  "title": "AriadGSM Cloud Sync State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "contract",
+    "endpoint",
+    "enabled",
+    "authenticated",
+    "runtimeKernel",
+    "policy",
+    "summary",
+    "batch",
+    "retry",
+    "sourceFiles",
+    "outputFiles",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "dry_run", "attention", "blocked", "error"] },
+    "engine": { "type": "string", "const": "ariadgsm_cloud_sync" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "contract": { "type": "string", "const": "cloud_sync_state" },
+    "endpoint": { "type": "string", "minLength": 1 },
+    "enabled": { "type": "boolean" },
+    "authenticated": { "type": "boolean" },
+    "dryRun": { "type": "boolean" },
+    "runtimeKernel": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "canSync", "canAct", "operatorHasPriority", "mainBlocker"],
+      "properties": {
+        "status": { "type": "string" },
+        "canSync": { "type": "boolean" },
+        "canAct": { "type": "boolean" },
+        "operatorHasPriority": { "type": "boolean" },
+        "mainBlocker": { "type": "string" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "idempotencyRequired",
+        "retryAttemptsMax",
+        "rawFramesUploaded",
+        "screenshotsUploaded",
+        "secretsLogged",
+        "tokenSource"
+      ],
+      "properties": {
+        "idempotencyRequired": { "type": "boolean" },
+        "retryAttemptsMax": { "type": "integer", "minimum": 0 },
+        "rawFramesUploaded": { "type": "boolean" },
+        "screenshotsUploaded": { "type": "boolean" },
+        "secretsLogged": { "type": "boolean" },
+        "tokenSource": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "eventsPrepared",
+        "eventsSent",
+        "messagesPrepared",
+        "messagesRejected",
+        "conversationsSeen",
+        "reviewEvents",
+        "attempts",
+        "canSync"
+      ],
+      "properties": {
+        "eventsPrepared": { "type": "integer", "minimum": 0 },
+        "eventsSent": { "type": "integer", "minimum": 0 },
+        "messagesPrepared": { "type": "integer", "minimum": 0 },
+        "messagesRejected": { "type": "integer", "minimum": 0 },
+        "conversationsSeen": { "type": "integer", "minimum": 0 },
+        "reviewEvents": { "type": "integer", "minimum": 0 },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "canSync": { "type": "boolean" }
+      }
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "idempotencyKey", "payloadHash", "cloudAccepted", "responseStatusCode"],
+      "properties": {
+        "id": { "type": "string" },
+        "idempotencyKey": { "type": "string" },
+        "payloadHash": { "type": "string" },
+        "cloudAccepted": { "type": "boolean" },
+        "responseStatusCode": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["attempts", "circuit", "lastError"],
+      "properties": {
+        "attempts": { "type": "array", "items": { "type": "string" } },
+        "circuit": { "type": "string", "enum": ["closed", "open"] },
+        "lastError": { "type": "string" }
+      }
+    },
+    "sourceFiles": { "type": "object", "additionalProperties": true },
+    "outputFiles": { "type": "object", "additionalProperties": true },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queQuedoListo", "queNecesitoDeBryams", "riesgos"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queQuedoListo": { "type": "array", "items": { "type": "string" } },
+        "queNecesitoDeBryams": { "type": "array", "items": { "type": "string" } },
+        "riesgos": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

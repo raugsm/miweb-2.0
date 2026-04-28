@@ -336,11 +336,13 @@ function renderCloudReport() {
 function renderSyncBatches() {
   renderList("syncBatches", state.data?.syncBatches || [], "No hay lotes de sincronizacion todavia.", (item) => `
     <article class="list-row">
-      <h4>${escapeHtml(item.source || "desktop_agent")} - ${escapeHtml(item.status || "ok")}</h4>
+      <h4>${escapeHtml(item.source || "desktop_agent")} - ${escapeHtml(item.status || "ok")}${item.duplicate ? " (duplicado)" : ""}</h4>
       <p>${formatDate(item.receivedAt)} | ${formatNumber(item.messages)} mensajes | ${formatNumber(item.conversations)} conversaciones</p>
+      <p>Kernel: ${escapeHtml(item.runtimeKernelStatus || "-")} | enviados ${formatNumber(item.eventsIngested)} | rechazados ${formatNumber(item.eventsRejected)}</p>
       <div class="row-meta">
         <span class="tag">${escapeHtml(item.mode || "observador")}</span>
         <span class="tag">${escapeHtml(item.channelId || "todos")}</span>
+        <span class="tag">${escapeHtml(item.idempotencyKey || item.id || "sin-idempotencia")}</span>
       </div>
     </article>
   `);
