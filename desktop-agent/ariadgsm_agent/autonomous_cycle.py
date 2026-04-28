@@ -374,26 +374,35 @@ def build_workspace_guardian_stage(
     workspace_setup: dict[str, Any],
     cabin_manager: dict[str, Any],
     workspace_guardian: dict[str, Any],
+    cabin_authority: dict[str, Any],
     cabin: dict[str, Any],
     orchestrator: dict[str, Any],
 ) -> dict[str, Any]:
     setup_status = normalize_status(workspace_setup.get("status") if workspace_setup else "attention")
     manager_status = normalize_status(cabin_manager.get("status") if cabin_manager else "attention")
     guardian_status = normalize_status(workspace_guardian.get("status") if workspace_guardian else "attention")
+    authority_status = normalize_status(cabin_authority.get("status") if cabin_authority else "attention")
     cabin_status = normalize_status(cabin.get("status") if cabin else "attention")
-    status = worst_status([setup_status, manager_status, guardian_status, cabin_status])
+    status = worst_status([setup_status, manager_status, guardian_status, authority_status, cabin_status])
     channels = cabin_manager.get("channels") if isinstance(cabin_manager.get("channels"), list) else []
+    if not channels:
+        channels = cabin_authority.get("channels") if isinstance(cabin_authority.get("channels"), list) else []
     if not channels:
         channels = workspace_guardian.get("channels") if isinstance(workspace_guardian.get("channels"), list) else []
     ready = sum(1 for item in channels if isinstance(item, dict) and text(item.get("status")).lower() == "ready")
     blockers = cabin_manager.get("blockers") if isinstance(cabin_manager.get("blockers"), list) else []
     if not blockers:
+        blockers = cabin_authority.get("blockers") if isinstance(cabin_authority.get("blockers"), list) else []
+    if not blockers:
         blockers = workspace_guardian.get("blockers") if isinstance(workspace_guardian.get("blockers"), list) else []
     detail = text(
         cabin_manager.get("summary"),
         text(
-            workspace_guardian.get("summary"),
-            text(workspace_setup.get("summary"), "Cabina pendiente de diagnostico."),
+            cabin_authority.get("summary"),
+            text(
+                workspace_guardian.get("summary"),
+                text(workspace_setup.get("summary"), "Cabina pendiente de diagnostico."),
+            ),
         ),
     )
     return make_stage(
@@ -407,8 +416,10 @@ def build_workspace_guardian_stage(
             "canStartDegraded": bool(cabin_manager.get("canStartDegraded")),
             "blockers": len(blockers),
             "orchestratorPhase": text(orchestrator.get("phase")),
+            "exclusiveWindowControl": bool(cabin_authority.get("exclusiveWindowControl")),
+            "shellUrlLaunchAllowed": bool(nested(cabin_authority, "launchPolicy", "shellUrlLaunchAllowed")),
         },
-        ["cabin-manager-state.json", "workspace-setup-state.json", "workspace-guardian-state.json", "cabin-readiness.json"],
+        ["cabin-manager-state.json", "workspace-setup-state.json", "cabin-authority-state.json", "workspace-guardian-state.json", "cabin-readiness.json"],
     )
 
 
@@ -1071,13 +1082,14 @@ def run_autonomous_cycle_once(
         "update": read_json(runtime / "update-state.json"),
         "workspace_setup": read_json(runtime / "workspace-setup-state.json"),
         "cabin_manager": read_json(runtime / "cabin-manager-state.json"),
+        "cabin_authority": read_json(runtime / "cabin-authority-state.json"),
         "workspace_guardian": read_json(runtime / "workspace-guardian-state.json"),
         "cabin": read_json(runtime / "cabin-readiness.json"),
     }
 
     stages = [
         build_life_controller_stage(states["life"], states["agent_supervisor"], states["update"]),
-        build_workspace_guardian_stage(states["workspace_setup"], states["cabin_manager"], states["workspace_guardian"], states["cabin"], states["orchestrator"]),
+        build_workspace_guardian_stage(states["workspace_setup"], states["cabin_manager"], states["workspace_guardian"], states["cabin_authority"], states["cabin"], states["orchestrator"]),
         build_input_arbiter_stage(states["input_arbiter"]),
         build_reader_core_stage(states),
         build_case_manager_stage(states["case_manager"]),

@@ -26,6 +26,7 @@ CONTRACT_FILES: dict[str, str] = {
     "case_manager_state": "case-manager-state.schema.json",
     "channel_routing_state": "channel-routing-state.schema.json",
     "accounting_core_state": "accounting-core-state.schema.json",
+    "cabin_authority_state": "cabin-authority-state.schema.json",
 }
 
 
@@ -208,6 +209,65 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "status": "implemented_as_central_cycle",
             "reason": "Etapa 2 ya existe; despues corresponde Case Manager.",
         },
+    },
+    "cabin_authority_state": {
+        "status": "ok",
+        "engine": "ariadgsm_cabin_authority",
+        "phase": "ready",
+        "summary": "Cabin Authority: las 3 columnas WhatsApp estan visibles y libres.",
+        "reason": "manual_setup",
+        "updatedAt": utc_now(),
+        "exclusiveWindowControl": True,
+        "handsMayFocus": True,
+        "handsMayRecoverWindows": False,
+        "handsMayArrangeWindows": False,
+        "launchPolicy": {
+            "mode": "explicit_browser_executable_only",
+            "url": "https://web.whatsapp.com/",
+            "profilePinningDefault": False,
+            "shellUrlLaunchAllowed": False,
+            "tabSelectionAllowedControlTypes": ["TabItem"],
+        },
+        "policy": [
+            "Solo Cabin Authority puede acomodar o restaurar ventanas de navegador.",
+            "El monitor en bucle solo observa; no minimiza ventanas del operador.",
+            "Hands puede clicar solo en canales ready, visibles y sin bloqueadores.",
+            "Si una ventana cubre WhatsApp, se reporta al operador en vez de cerrarla.",
+        ],
+        "channels": [
+            {
+                "channelId": "wa-1",
+                "browserProcess": "msedge",
+                "status": "ready",
+                "handsMayAct": True,
+                "expectedBounds": {"left": 0, "top": 0, "width": 640, "height": 900},
+                "remainingBlockers": 0,
+            },
+            {
+                "channelId": "wa-2",
+                "browserProcess": "chrome",
+                "status": "ready",
+                "handsMayAct": True,
+                "expectedBounds": {"left": 640, "top": 0, "width": 640, "height": 900},
+                "remainingBlockers": 0,
+            },
+            {
+                "channelId": "wa-3",
+                "browserProcess": "firefox",
+                "status": "ready",
+                "handsMayAct": True,
+                "expectedBounds": {"left": 1280, "top": 0, "width": 640, "height": 900},
+                "remainingBlockers": 0,
+            },
+        ],
+        "blockers": [],
+        "actions": [
+            {
+                "channelId": "wa-2",
+                "type": "authority_place_whatsapp",
+                "detail": "wa-2: Cabin Authority coloco chrome en columna 2.",
+            }
+        ],
     },
     "vision_event": {
         "eventType": "vision_event",

@@ -85,8 +85,10 @@ internal sealed partial class AgentRuntime
                     ["titleContains"] = mapping.TitleContains,
                     ["legacyProfileDirectory"] = mapping.ProfileDirectory,
                     ["dedicatedProfileDirectory"] = CabinProfileDirectory(mapping),
-                    ["launchMode"] = "browser_window",
-                    ["allowOperatorBrowserReuse"] = true
+                    ["launchMode"] = "reuse_existing_or_open_explicit_browser_url",
+                    ["profilePinningDefault"] = false,
+                    ["allowOperatorBrowserReuse"] = true,
+                    ["neverCloseOperatorBrowsers"] = true
                 }).ToArray()
             };
             WriteAllTextAtomicShared(_cabinChannelRegistryFile, JsonSerializer.Serialize(registry, new JsonSerializerOptions { WriteIndented = true }));

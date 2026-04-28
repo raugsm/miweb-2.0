@@ -22,14 +22,12 @@
     {
       "channelId": "wa-1",
       "browserProcess": "msedge",
-      "titleContains": "WhatsApp",
-      "profileDirectory": "Profile 1"
+      "titleContains": "WhatsApp"
     },
     {
       "channelId": "wa-2",
       "browserProcess": "chrome",
-      "titleContains": "WhatsApp",
-      "profileDirectory": "Profile 2"
+      "titleContains": "WhatsApp"
     },
     {
       "channelId": "wa-3",

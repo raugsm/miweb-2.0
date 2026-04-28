@@ -47,12 +47,12 @@ internal sealed partial class AgentRuntime
             for (var index = 0; index < count; index++)
             {
                 var element = nodes[index];
-                if (!IsWhatsAppTabCandidate(element))
+                if (!IsWhatsAppTabItemCandidate(element))
                 {
                     continue;
                 }
 
-                if (TrySelectAutomationElement(element) || TryInvokeAutomationElement(element))
+                if (TrySelectAutomationElement(element) || TryInvokeTabItem(element))
                 {
                     Thread.Sleep(300);
                     BringBrowserWindowForward(browserWindow);
@@ -83,7 +83,7 @@ internal sealed partial class AgentRuntime
             .OrderBy(window => window.ZOrder);
     }
 
-    private static bool IsWhatsAppTabCandidate(AutomationElement element)
+    private static bool IsWhatsAppTabItemCandidate(AutomationElement element)
     {
         try
         {
@@ -94,11 +94,15 @@ internal sealed partial class AgentRuntime
                 return false;
             }
 
-            var controlType = element.Current.ControlType;
-            return controlType == ControlType.TabItem
-                || controlType == ControlType.Button
-                || controlType == ControlType.ListItem
-                || controlType == ControlType.Custom;
+            if (name.Contains("cerrar", StringComparison.Ordinal)
+                || name.Contains("close", StringComparison.Ordinal)
+                || name.Contains("cerrar pestana", StringComparison.Ordinal)
+                || name.Contains("close tab", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return element.Current.ControlType == ControlType.TabItem;
         }
         catch
         {
@@ -124,10 +128,15 @@ internal sealed partial class AgentRuntime
         return false;
     }
 
-    private static bool TryInvokeAutomationElement(AutomationElement element)
+    private static bool TryInvokeTabItem(AutomationElement element)
     {
         try
         {
+            if (element.Current.ControlType != ControlType.TabItem)
+            {
+                return false;
+            }
+
             if (element.TryGetCurrentPattern(InvokePattern.Pattern, out var pattern)
                 && pattern is InvokePattern invoke)
             {

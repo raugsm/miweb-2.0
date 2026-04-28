@@ -156,6 +156,62 @@ def seed_runtime(root: Path, *, operator_control: bool = False, critical: bool =
     write_json(root / "update-state.json", {"status": "ok", "currentVersion": "0.8.0", "latestVersion": "0.8.0"})
     write_json(root / "workspace-setup-state.json", {"status": "ok", "phase": "ready", "summary": "Cabina lista."})
     write_json(
+        root / "cabin-authority-state.json",
+        {
+            "status": "ok",
+            "engine": "ariadgsm_cabin_authority",
+            "phase": "ready",
+            "summary": "Cabin Authority: las 3 columnas WhatsApp estan visibles y libres.",
+            "reason": "test",
+            "updatedAt": "2026-04-27T00:00:00Z",
+            "exclusiveWindowControl": True,
+            "handsMayFocus": True,
+            "handsMayRecoverWindows": False,
+            "handsMayArrangeWindows": False,
+            "launchPolicy": {
+                "mode": "explicit_browser_executable_only",
+                "url": "https://web.whatsapp.com/",
+                "profilePinningDefault": False,
+                "shellUrlLaunchAllowed": False,
+                "tabSelectionAllowedControlTypes": ["TabItem"],
+            },
+            "policy": [
+                "Solo Cabin Authority puede acomodar o restaurar ventanas de navegador.",
+                "El monitor en bucle solo observa; no minimiza ventanas del operador.",
+                "Hands puede clicar solo en canales ready, visibles y sin bloqueadores.",
+                "Si una ventana cubre WhatsApp, se reporta al operador en vez de cerrarla.",
+            ],
+            "channels": [
+                {
+                    "channelId": "wa-1",
+                    "browserProcess": "msedge",
+                    "status": "ready",
+                    "handsMayAct": True,
+                    "expectedBounds": {"left": 0, "top": 0, "width": 640, "height": 900},
+                    "remainingBlockers": 0,
+                },
+                {
+                    "channelId": "wa-2",
+                    "browserProcess": "chrome",
+                    "status": "ready",
+                    "handsMayAct": True,
+                    "expectedBounds": {"left": 640, "top": 0, "width": 640, "height": 900},
+                    "remainingBlockers": 0,
+                },
+                {
+                    "channelId": "wa-3",
+                    "browserProcess": "firefox",
+                    "status": "ready",
+                    "handsMayAct": True,
+                    "expectedBounds": {"left": 1280, "top": 0, "width": 640, "height": 900},
+                    "remainingBlockers": 0,
+                },
+            ],
+            "blockers": [],
+            "actions": [],
+        },
+    )
+    write_json(
         root / "cabin-manager-state.json",
         {
             "status": "ok",

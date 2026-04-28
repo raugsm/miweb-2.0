@@ -1,8 +1,8 @@
 {
-  "version": "0.8.5",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.5.zip",
-  "sha256": "e63d8e8c98b7de59f6f4d336065d917eaebac6cdf6d5d034174f8e1f06e42da8",
+  "version": "0.8.6",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.6.zip",
+  "sha256": "9fa0f7e36d379878b2c2b4d11822a11195e4cc1dde1992810c631914d1cb5c07",
   "autoApply": true,
-  "notes": "Version 0.8.5 closes Accounting Core evidence-first: payments, debts and refunds now become case-linked accounting records with evidence levels, draft vs confirmed separation, AccountingEvidenceAttached/AccountingRecordConfirmed events, human review for weak evidence, and runtime ordering before Memory.",
-  "publishedAt": "2026-04-28T01:16:28Z"
+  "notes": "Version 0.8.6 closes Cabin Authority final: Edge/Chrome/Firefox alistamiento now uses explicit browser executables, safe TabItem-only WhatsApp tab selection, no default profile pinning, a validated cabin-authority state contract, and no browser close/kill policy regressions.",
+  "publishedAt": "2026-04-28T01:40:00Z"
 }

@@ -1140,8 +1140,14 @@ internal sealed partial class AgentRuntime : IDisposable
 
     private static bool IsIgnoredCoverageWindow(WindowInfo window)
     {
-        return window.ProcessName.Equals("TextInputHost", StringComparison.OrdinalIgnoreCase)
-            || window.ProcessName.Equals("ShellExperienceHost", StringComparison.OrdinalIgnoreCase)
+        var process = NormalizeProcessName(window.ProcessName);
+        var title = NormalizeForSearch(window.Title);
+        return process.Equals("textinputhost", StringComparison.OrdinalIgnoreCase)
+            || process.Equals("shellexperiencehost", StringComparison.OrdinalIgnoreCase)
+            || process.Equals("ariadgsm agent", StringComparison.OrdinalIgnoreCase)
+            || process.Equals("ariadgsm.agent.desktop", StringComparison.OrdinalIgnoreCase)
+            || title.Contains("ariadgsm ia local", StringComparison.Ordinal)
+            || title.Contains("ariadgsm agent desktop", StringComparison.Ordinal)
             || window.Title.Equals("Program Manager", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -2501,7 +2507,8 @@ internal sealed partial class AgentRuntime : IDisposable
             arguments.Add("--no-first-run");
             arguments.Add("--disable-session-crashed-bubble");
             arguments.Add("--disable-features=DesktopPWAsLinkCapturing");
-            if (!string.IsNullOrWhiteSpace(mapping.ProfileDirectory))
+            if (BrowserProfilePinningEnabled()
+                && !string.IsNullOrWhiteSpace(mapping.ProfileDirectory))
             {
                 arguments.Add($"--profile-directory={mapping.ProfileDirectory}");
             }
@@ -2519,6 +2526,15 @@ internal sealed partial class AgentRuntime : IDisposable
 
         arguments.Add(WhatsAppWebUrl);
         return arguments;
+    }
+
+    private static bool BrowserProfilePinningEnabled()
+    {
+        var value = Environment.GetEnvironmentVariable("ARIADGSM_ENABLE_BROWSER_PROFILE_PINNING");
+        return value is not null
+            && (value.Equals("1", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("yes", StringComparison.OrdinalIgnoreCase));
     }
 
     private static IReadOnlyList<string> KnownBrowserPaths(string normalizedProcessName)
@@ -2837,7 +2853,7 @@ internal sealed partial class AgentRuntime : IDisposable
                 var channelId = TryString(item, "channelId") ?? string.Empty;
                 var browserProcess = TryString(item, "browserProcess") ?? string.Empty;
                 var titleContains = TryString(item, "titleContains") ?? "WhatsApp";
-                var profileDirectory = TryString(item, "legacyProfileDirectory", "profileDirectory") ?? string.Empty;
+                var profileDirectory = TryString(item, "launchProfileDirectory", "profileDirectory") ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(channelId) && !string.IsNullOrWhiteSpace(browserProcess))
                 {
                     result.Add(new ChannelMapping(channelId, browserProcess, titleContains, profileDirectory));
@@ -2856,8 +2872,8 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         return
         [
-            new("wa-1", "msedge", "WhatsApp", "Profile 1"),
-            new("wa-2", "chrome", "WhatsApp", "Profile 2"),
+            new("wa-1", "msedge", "WhatsApp", ""),
+            new("wa-2", "chrome", "WhatsApp", ""),
             new("wa-3", "firefox", "WhatsApp", "")
         ];
     }

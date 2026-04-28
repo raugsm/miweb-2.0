@@ -350,12 +350,22 @@ internal sealed partial class AgentRuntime
                 ["handsMayFocus"] = report.Channels.Any(channel => channel.Status.Equals("ready", StringComparison.OrdinalIgnoreCase)),
                 ["handsMayRecoverWindows"] = false,
                 ["handsMayArrangeWindows"] = false,
+                ["launchPolicy"] = new Dictionary<string, object?>
+                {
+                    ["mode"] = "explicit_browser_executable_only",
+                    ["url"] = WhatsAppWebUrl,
+                    ["profilePinningDefault"] = false,
+                    ["shellUrlLaunchAllowed"] = false,
+                    ["tabSelectionAllowedControlTypes"] = new[] { "TabItem" }
+                },
                 ["policy"] = new[]
                 {
                     "Solo Cabin Authority puede acomodar o restaurar ventanas de navegador.",
                     "El monitor en bucle solo observa; no minimiza ventanas del operador.",
                     "Hands puede clicar solo en canales ready, visibles y sin bloqueadores.",
-                    "Si una ventana cubre WhatsApp, se reporta al operador en vez de cerrarla."
+                    "Si una ventana cubre WhatsApp, se reporta al operador en vez de cerrarla.",
+                    "El localizador de sesiones solo selecciona pestanas reales; nunca invoca botones de cerrar.",
+                    "Abrir un canal usa el ejecutable exacto del navegador asignado, nunca la URL por shell."
                 },
                 ["channels"] = report.Channels.Select(channel => new Dictionary<string, object?>
                 {

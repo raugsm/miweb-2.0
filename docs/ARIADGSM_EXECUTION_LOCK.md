@@ -405,7 +405,7 @@ Como `Product Foundation`, `Domain Event Contracts`, `Case Manager`,
 `Channel Routing Brain` y `Accounting Core evidence-first` quedan cerrados, la
 columna mental inicial del negocio queda completa.
 
-El siguiente bloque recomendado para producto final es:
+El bloque recomendado para producto final ya cerrado en `0.8.6` es:
 
 ```text
 Cabin Authority final
@@ -424,4 +424,35 @@ alistamiento determinista de Edge/Chrome/Firefox
 verificacion de 3 WhatsApps visibles sin cerrar ventanas del usuario
 estado visible para Bryams antes de Encender IA
 pruebas sin mover/cerrar sesiones reales
+```
+
+Queda cerrado con:
+
+- `docs/ARIADGSM_CABIN_AUTHORITY_FINAL_DESIGN.md`
+- `desktop-agent/contracts/cabin-authority-state.schema.json`
+- selector de pestanas seguro solo `TabItem`
+- apertura por ejecutable exacto de Edge/Chrome/Firefox
+- perfil fijo desactivado por defecto
+- prueba `desktop-agent/tests/cabin_authority_final.py`
+
+El siguiente bloque recomendado para producto final es:
+
+```text
+Hands Engine avanzado + accion sobre chat verificada
+```
+
+El entregable documental minimo es:
+
+```text
+docs/ARIADGSM_HANDS_ENGINE_ADVANCED_DESIGN.md
+```
+
+Y el entregable tecnico minimo posterior es:
+
+```text
+abrir chat visible con confirmacion de chat correcto
+ceder mouse al operador sin apagar ojos ni memoria
+verificar accion por percepcion antes de continuar
+reportar fallo accionable en lenguaje humano
+pruebas sin depender de sesiones reales
 ```
