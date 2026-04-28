@@ -15,6 +15,7 @@ def main() -> int:
     executor = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Execution/Win32HandsExecutor.cs")
     verifier = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Verification/ActionVerifier.cs")
     arbiter = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Input/InputArbiter.cs")
+    trust_gate = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Safety/TrustSafetyGate.cs")
     options = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Config/HandsOptions.cs")
 
     assert "abrir un chat visible" in doc.lower()
@@ -43,10 +44,21 @@ def main() -> int:
     assert "OpenChatVerificationPollMs" in options
 
     assert "GetLastInputInfo" in arbiter
+    assert "contractVersion" in arbiter
+    assert "activeOwner" in arbiter
+    assert "businessBrainContinue" in arbiter
+    assert "cooldownUntil" in arbiter
+    assert "OperatorOverrideActive" in arbiter
     assert "handsPausedOnly" in arbiter
     assert "eyesContinue" in arbiter
     assert "memoryContinue" in arbiter
     assert "cognitiveContinue" in arbiter
+
+    assert "TrustSafetyGate" in trust_gate
+    assert "permissionGate" in trust_gate
+    assert "canHandsRun" in trust_gate
+    assert "TrustSafetyMaxAgeMs" in options
+    assert "RequireTrustSafetyGate" in options
 
     print("hands engine advanced OK")
     return 0

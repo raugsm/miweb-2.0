@@ -195,6 +195,8 @@ def run_supervisor_once(
     action_events_file: Path,
     state_file: Path,
     domain_events_file: Path | None = None,
+    business_decision_events_file: Path | None = None,
+    approval_events_file: Path | None = None,
     input_arbiter_state_file: Path | None = None,
     permissions_file: Path | None = None,
     trust_safety_state_file: Path | None = None,
@@ -211,6 +213,8 @@ def run_supervisor_once(
         action_events_file,
         domain_events_file,
         trust_safety_state_file,
+        business_decision_events_file=business_decision_events_file,
+        approval_events_file=approval_events_file,
         input_arbiter_state_file=input_arbiter_state_file,
         permissions_file=permissions_file,
         autonomy_level=autonomy_level,
@@ -290,6 +294,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AriadGSM Supervisor Core")
     parser.add_argument("--cognitive-decisions", default="runtime/cognitive-decision-events.jsonl")
     parser.add_argument("--operating-decisions", default="runtime/decision-events.jsonl")
+    parser.add_argument("--business-decisions", default="runtime/business-decision-events.jsonl")
+    parser.add_argument("--approvals", default="runtime/safety-approval-events.jsonl")
     parser.add_argument("--actions", default="runtime/action-events.jsonl")
     parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
     parser.add_argument("--input-arbiter-state", default="runtime/input-arbiter-state.json")
@@ -310,6 +316,8 @@ def main() -> int:
         resolve_runtime_path(args.actions),
         resolve_runtime_path(args.state_file),
         domain_events_file=resolve_runtime_path(args.domain_events),
+        business_decision_events_file=resolve_runtime_path(args.business_decisions),
+        approval_events_file=resolve_runtime_path(args.approvals),
         input_arbiter_state_file=resolve_runtime_path(args.input_arbiter_state),
         permissions_file=resolve_runtime_path(args.permissions_file),
         trust_safety_state_file=resolve_runtime_path(args.trust_safety_state_file),

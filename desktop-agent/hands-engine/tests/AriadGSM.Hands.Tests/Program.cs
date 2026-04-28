@@ -2,6 +2,7 @@ using System.Text.Json;
 using AriadGSM.Hands.Config;
 using AriadGSM.Hands.Events;
 using AriadGSM.Hands.Execution;
+using AriadGSM.Hands.Input;
 using AriadGSM.Hands.Pipeline;
 using AriadGSM.Hands.Planning;
 using AriadGSM.Hands.Safety;
@@ -13,6 +14,7 @@ await TestInteractionNavigatorOpensVerifiedRows();
 await TestMissingChatTargetSuspendsDecisionChain();
 await TestOpenChatWaitsForFreshPerceptionVerification();
 await TestOpenChatFailsWhenPerceptionShowsDifferentChat();
+await TestTrustSafetyGateBlocksHandsBeforeExecutor();
 await TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory();
 TestContractValidator();
 
@@ -243,6 +245,7 @@ static async Task TestPipelineWritesAndDedupes()
             CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = true,
+            RequireTrustSafetyGate = false,
             RequireCabinAuthorityForWindowActions = false,
             InputArbiterEnabled = false,
             RespectOrchestratorCommands = false,
@@ -414,6 +417,7 @@ static async Task TestMissingChatTargetSuspendsDecisionChain()
             CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = true,
+            RequireTrustSafetyGate = false,
             InputArbiterEnabled = false,
             RespectOrchestratorCommands = false,
             EnableInteractionNavigator = false,
@@ -519,6 +523,7 @@ static async Task TestOpenChatWaitsForFreshPerceptionVerification()
             CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = true,
+            RequireTrustSafetyGate = false,
             RequireCabinAuthorityForWindowActions = false,
             InputArbiterEnabled = false,
             RespectOrchestratorCommands = false,
@@ -652,6 +657,7 @@ static async Task TestOpenChatFailsWhenPerceptionShowsDifferentChat()
             CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = true,
+            RequireTrustSafetyGate = false,
             RequireCabinAuthorityForWindowActions = false,
             InputArbiterEnabled = false,
             RespectOrchestratorCommands = false,
@@ -673,6 +679,90 @@ static async Task TestOpenChatFailsWhenPerceptionShowsDifferentChat()
         Assert(document.RootElement.GetProperty("status").GetString() == "failed", "open_chat should fail when perception shows another chat");
         Assert(!document.RootElement.GetProperty("verification").GetProperty("verified").GetBoolean(), "verification should be false for wrong chat");
         Assert(document.RootElement.GetProperty("verification").GetProperty("summary").GetString()!.Contains("Cliente Equivocado", StringComparison.Ordinal), "failure should explain the visible wrong chat");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestTrustSafetyGateBlocksHandsBeforeExecutor()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-trust-gate-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
+    var trust = Path.Combine(root, "trust-safety-state.json");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, JsonSerializer.Serialize(new
+        {
+            eventType = "decision_event",
+            decisionId = "decision-trust-gate-1",
+            createdAt = DateTimeOffset.UtcNow,
+            goal = "learn",
+            intent = "learning_navigation",
+            confidence = 0.9,
+            autonomyLevel = 3,
+            proposedAction = "open_visible_chat_for_learning",
+            requiresHumanConfirmation = false,
+            reasoningSummary = "open",
+            channelId = "wa-1",
+            conversationTitle = "Cliente Trust",
+            evidence = new[] { "msg-wa-1-abc" }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(perception, string.Empty);
+        await File.WriteAllTextAsync(interaction, string.Empty);
+        await File.WriteAllTextAsync(trust, JsonSerializer.Serialize(new
+        {
+            status = "attention",
+            updatedAt = DateTimeOffset.UtcNow,
+            permissionGate = new
+            {
+                decision = "ASK_HUMAN",
+                reason = "Bryams debe aprobar antes de tocar manos.",
+                canHandsRun = false
+            }
+        }));
+
+        var executor = new RecordingExecutor();
+        var options = new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            CursorFile = cursor,
+            TrustSafetyStateFile = trust,
+            AutonomyLevel = 3,
+            ExecuteActions = true,
+            RequireTrustSafetyGate = true,
+            RequireCabinAuthorityForWindowActions = false,
+            InputArbiterEnabled = false,
+            RespectOrchestratorCommands = false,
+            EnableInteractionNavigator = false,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10
+        };
+
+        var pipeline = new HandsPipeline(options, executor);
+        var result = await pipeline.RunOnceAsync();
+        Assert(result.Status == "idle", "Trust & Safety gate should pause hands before execution");
+        Assert(result.LastSummary.Contains("Trust & Safety", StringComparison.Ordinal), "state should explain Trust & Safety gate");
+        Assert(executor.Count == 0, "executor must not run when Trust & Safety denies hands");
+        Assert(!File.Exists(actions) || (await File.ReadAllTextAsync(actions)).Length == 0, "denied hands should not emit physical actions");
     }
     finally
     {
@@ -762,8 +852,10 @@ static async Task TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory()
             InputArbiterStateFile = arbiter,
             AutonomyLevel = 3,
             ExecuteActions = true,
+            RequireTrustSafetyGate = false,
             RequireCabinAuthorityForWindowActions = false,
             InputArbiterEnabled = true,
+            OperatorOverrideActive = true,
             OperatorIdleRequiredMs = int.MaxValue,
             RespectOrchestratorCommands = false,
             EnableInteractionNavigator = false,
@@ -772,25 +864,41 @@ static async Task TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory()
             InteractionLimit = 10
         };
 
-        var pipeline = new HandsPipeline(options, executor);
-        var result = await pipeline.RunOnceAsync();
-        Assert(result.Status == "ok", "arbiter should audit handoff without crashing");
-        Assert(executor.Count == 0, "executor must not move mouse while operator has priority");
-
-        var actionLine = (await File.ReadAllLinesAsync(actions)).Single();
-        using var actionDocument = JsonDocument.Parse(actionLine);
-        var actionTarget = actionDocument.RootElement.GetProperty("target");
-        Assert(actionDocument.RootElement.GetProperty("status").GetString() == "blocked", "operator handoff should block the mouse action only");
-        Assert(actionTarget.GetProperty("operatorHasPriority").GetBoolean(), "action should audit operator priority");
-        Assert(actionTarget.GetProperty("handsPausedOnly").GetBoolean(), "action should mark only hands as paused");
-        Assert(actionTarget.GetProperty("eyesContinue").GetBoolean(), "eyes should keep running");
-        Assert(actionTarget.GetProperty("memoryContinue").GetBoolean(), "memory should keep running");
+        var sourceDecision = new AriadGSM.Hands.Decisions.DecisionEvent
+        {
+            EventType = "decision_event",
+            DecisionId = "decision-arbiter-direct",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Goal = "operate",
+            Intent = "price_request",
+            Confidence = 0.9,
+            AutonomyLevel = 3,
+            ProposedAction = "open_chat",
+            RequiresHumanConfirmation = false,
+            ReasoningSummary = "open",
+            ChannelId = "wa-3",
+            ConversationTitle = "Cliente Operador",
+            Evidence = ["msg-wa-3-abc"]
+        };
+        var plan = new ActionPlan(
+            "action-arbiter-direct",
+            "open_chat",
+            new Dictionary<string, object?> { ["channelId"] = "wa-3", ["conversationTitle"] = "Cliente Operador" },
+            3,
+            false,
+            "test",
+            sourceDecision);
+        var lease = new InputArbiter(options).Acquire(plan);
+        Assert(!lease.Granted, "arbiter must not grant mouse while operator override is active");
 
         using var arbiterDocument = JsonDocument.Parse(await File.ReadAllTextAsync(arbiter));
         Assert(arbiterDocument.RootElement.GetProperty("phase").GetString() == "operator_control", "arbiter state should show operator control");
+        Assert(arbiterDocument.RootElement.GetProperty("decision").GetString() == "PAUSE_FOR_OPERATOR", "arbiter state should publish pause decision");
+        Assert(arbiterDocument.RootElement.GetProperty("activeOwner").GetString() == "operator", "arbiter state should name the active owner");
         Assert(arbiterDocument.RootElement.GetProperty("handsPausedOnly").GetBoolean(), "arbiter state should pause only hands");
         Assert(arbiterDocument.RootElement.GetProperty("eyesContinue").GetBoolean(), "arbiter state should keep eyes on");
         Assert(arbiterDocument.RootElement.GetProperty("memoryContinue").GetBoolean(), "arbiter state should keep memory on");
+        Assert(arbiterDocument.RootElement.GetProperty("businessBrainContinue").GetBoolean(), "arbiter state should keep business brain on");
     }
     finally
     {

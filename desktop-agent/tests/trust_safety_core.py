@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -38,6 +39,21 @@ def decision_event(decision_id: str, proposed_action: str, confidence: float = 0
         "evidence": ["msg-wa-1-test"],
         "channelId": "wa-1",
         "conversationTitle": "Cliente prueba",
+    }
+
+
+def approval_event(target_source_id: str) -> dict[str, object]:
+    return {
+        "eventType": "safety_approval_event",
+        "approvalId": f"approval-{target_source_id}",
+        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
+        "targetSourceId": target_source_id,
+        "decision": "APPROVE",
+        "approvedBy": "bryams",
+        "scope": "single_decision",
+        "reason": "Aprobado para prueba.",
+        "constraints": {"maxUses": 1},
     }
 
 
@@ -121,6 +137,8 @@ def run_core(root: Path, *, autonomy_level: int = 3, permissions: dict[str, obje
         root / "action-events.jsonl",
         root / "domain-events.jsonl",
         root / "trust-safety-state.json",
+        business_decision_events_file=root / "business-decision-events.jsonl",
+        approval_events_file=root / "safety-approval-events.jsonl",
         input_arbiter_state_file=root / "input-arbiter-state.json",
         permissions=permissions,
         autonomy_level=autonomy_level,
@@ -131,6 +149,10 @@ def run_core(root: Path, *, autonomy_level: int = 3, permissions: dict[str, obje
 def test_contract_sample() -> None:
     state = sample_event("trust_safety_state")
     assert not validate_contract(state, "trust_safety_state"), state
+    input_state = sample_event("input_arbiter_state")
+    assert not validate_contract(input_state, "input_arbiter_state"), input_state
+    approval = sample_event("safety_approval_event")
+    assert not validate_contract(approval, "safety_approval_event"), approval
 
 
 def test_local_verified_chat_is_allowed_with_limits() -> None:
@@ -161,7 +183,7 @@ def test_send_message_without_explicit_permission_is_blocked() -> None:
         assert any("allowMessageSend" in item["reason"] for item in state["blockedActions"]), state
 
 
-def test_send_message_with_permission_and_high_confidence_can_pass() -> None:
+def test_send_message_with_permission_still_requires_per_action_approval() -> None:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
         write_jsonl(root / "cognitive-decision-events.jsonl", decision_event("decision-send-2", "send_message", 0.99))
@@ -169,8 +191,14 @@ def test_send_message_with_permission_and_high_confidence_can_pass() -> None:
         write_jsonl(root / "action-events.jsonl")
         write_jsonl(root / "domain-events.jsonl")
         state = run_core(root, autonomy_level=6, permissions={"allowMessageSend": True})
-        assert state["permissionGate"]["decision"] == "ALLOW", state
+        assert state["permissionGate"]["decision"] == "ASK_HUMAN", state
         assert state["summary"]["blocked"] == 0, state
+        assert state["summary"]["requiresHumanConfirmation"] == 1, state
+
+        write_jsonl(root / "safety-approval-events.jsonl", approval_event("decision-send-2"))
+        approved = run_core(root, autonomy_level=6, permissions={"allowMessageSend": True})
+        assert approved["permissionGate"]["decision"] == "ALLOW", approved
+        assert approved["summary"]["approvalsApplied"] == 1, approved
 
 
 def test_accounting_confirmation_requires_evidence_a_and_permission() -> None:
@@ -205,6 +233,31 @@ def test_operator_control_pauses_hands_only() -> None:
         assert state["permissionGate"]["allowedEngines"]["memory"] is True
 
 
+def test_supervisor_reads_business_brain_decisions() -> None:
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        write_jsonl(root / "cognitive-decision-events.jsonl")
+        write_jsonl(root / "decision-events.jsonl")
+        write_jsonl(root / "business-decision-events.jsonl", decision_event("business-decision-send-1", "send_message", 0.99))
+        write_jsonl(root / "action-events.jsonl")
+        write_jsonl(root / "domain-events.jsonl")
+        state = run_supervisor_once(
+            root / "cognitive-decision-events.jsonl",
+            root / "decision-events.jsonl",
+            root / "action-events.jsonl",
+            root / "supervisor-state.json",
+            domain_events_file=root / "domain-events.jsonl",
+            business_decision_events_file=root / "business-decision-events.jsonl",
+            input_arbiter_state_file=root / "input-arbiter-state.json",
+            trust_safety_state_file=root / "trust-safety-state.json",
+            autonomy_level=6,
+            limit=100,
+        )
+        assert state["summary"]["decisionsRead"] == 1, state
+        assert state["permissionGate"]["decision"] == "BLOCK", state
+        assert state["latestFindings"][0]["sourceId"] == "business-decision-send-1", state
+
+
 def test_supervisor_writes_compatible_trust_state() -> None:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -233,9 +286,10 @@ def main() -> int:
     test_contract_sample()
     test_local_verified_chat_is_allowed_with_limits()
     test_send_message_without_explicit_permission_is_blocked()
-    test_send_message_with_permission_and_high_confidence_can_pass()
+    test_send_message_with_permission_still_requires_per_action_approval()
     test_accounting_confirmation_requires_evidence_a_and_permission()
     test_operator_control_pauses_hands_only()
+    test_supervisor_reads_business_brain_decisions()
     test_supervisor_writes_compatible_trust_state()
     print("trust safety core OK")
     return 0

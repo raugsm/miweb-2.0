@@ -278,11 +278,15 @@ Pendiente para autonomia final:
 Permisos, niveles de autonomia, no pelear con tu mouse, pedir confirmacion
 cuando haya riesgo.
 
-Estado actual: `siguiente etapa pendiente`.
+Estado actual: `cerrada como base final en 0.8.14`.
 
 Existe:
 
+- `docs/ARIADGSM_TRUST_SAFETY_INPUT_ARBITER_FINAL.md`
 - `docs/ARIADGSM_TRUST_SAFETY_CORE_DESIGN.md`
+- `desktop-agent/contracts/trust-safety-state.schema.json`
+- `desktop-agent/contracts/input-arbiter-state.schema.json`
+- `desktop-agent/contracts/safety-approval-event.schema.json`
 - `desktop-agent/ariadgsm_agent/trust_safety.py`
 - `desktop-agent/tests/trust_safety_core.py`
 
@@ -293,7 +297,7 @@ Debe mantenerse como gate central de etapas posteriores.
 Abrir chats, hacer scroll, escribir borradores, operar herramientas y verificar
 que hizo lo correcto.
 
-Estado actual: `avanzada como base`.
+Estado actual: `siguiente etapa pendiente`.
 
 Existe:
 

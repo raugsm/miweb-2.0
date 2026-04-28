@@ -28,11 +28,17 @@ public sealed class HandsOptions
 
     public string InputArbiterStateFile { get; init; } = @"desktop-agent\runtime\input-arbiter-state.json";
 
+    public string TrustSafetyStateFile { get; init; } = @"desktop-agent\runtime\trust-safety-state.json";
+
     public int AutonomyLevel { get; init; } = 3;
 
     public bool ExecuteActions { get; init; } = false;
 
     public bool InputArbiterEnabled { get; init; } = true;
+
+    public bool RequireTrustSafetyGate { get; init; } = true;
+
+    public int TrustSafetyMaxAgeMs { get; init; } = 6000;
 
     public bool RequireCabinAuthorityForWindowActions { get; init; } = true;
 
@@ -67,6 +73,8 @@ public sealed class HandsOptions
     public int OperatorIdleRequiredMs { get; init; } = 1200;
 
     public int OperatorCooldownMs { get; init; } = 1600;
+
+    public bool OperatorOverrideActive { get; init; } = false;
 
     public int AiControlLeaseMs { get; init; } = 900;
 

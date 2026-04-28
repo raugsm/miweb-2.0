@@ -9,12 +9,18 @@
     "version",
     "updatedAt",
     "policy",
+    "contracts",
     "permissions",
     "riskMatrix",
+    "approvalLedger",
+    "inputArbiter",
     "permissionGate",
     "summary",
     "latestFindings",
     "safeNextActions",
+    "limitedActions",
+    "pausedActions",
+    "requiresHumanActions",
     "blockedActions",
     "humanReport"
   ],
@@ -33,8 +39,44 @@
         "principles": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "contracts": {
+      "type": "object",
+      "required": ["decisionSources", "inputArbiterState", "approvalEvent", "permissionState"],
+      "properties": {
+        "decisionSources": { "type": "array", "items": { "type": "string" } },
+        "inputArbiterState": { "type": "string" },
+        "approvalEvent": { "type": "string" },
+        "permissionState": { "type": "string" }
+      }
+    },
     "permissions": { "type": "object" },
     "riskMatrix": { "type": "object" },
+    "approvalLedger": {
+      "type": "object",
+      "required": ["approvalsRead", "approvalsApplied", "ttlSeconds", "applied"],
+      "properties": {
+        "approvalsRead": { "type": "integer", "minimum": 0 },
+        "approvalsApplied": { "type": "integer", "minimum": 0 },
+        "ttlSeconds": { "type": "integer", "minimum": 1 },
+        "applied": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "inputArbiter": {
+      "type": "object",
+      "required": ["status", "phase", "decision", "activeOwner", "operatorHasPriority", "handsPausedOnly", "operatorIdleMs", "requiredIdleMs", "leaseId", "summary"],
+      "properties": {
+        "status": { "type": "string" },
+        "phase": { "type": "string" },
+        "decision": { "type": "string" },
+        "activeOwner": { "type": "string" },
+        "operatorHasPriority": { "type": "boolean" },
+        "handsPausedOnly": { "type": "boolean" },
+        "operatorIdleMs": { "type": "integer", "minimum": 0 },
+        "requiredIdleMs": { "type": "integer", "minimum": 0 },
+        "leaseId": { "type": "string" },
+        "summary": { "type": "string" }
+      }
+    },
     "permissionGate": {
       "type": "object",
       "required": ["decision", "reason", "canHandsRun", "allowedEngines"],
@@ -47,19 +89,23 @@
     },
     "summary": {
       "type": "object",
-      "required": ["decisionsRead", "actionsRead", "domainEventsRead", "findings", "allowed", "allowedWithLimit", "blocked", "requiresHumanConfirmation", "critical", "safeNextActions", "irreversibleBlocked"],
+      "required": ["decisionsRead", "actionsRead", "domainEventsRead", "approvalsRead", "approvalsApplied", "findings", "allowed", "allowedWithLimit", "paused", "blocked", "requiresHumanConfirmation", "critical", "safeNextActions", "irreversibleBlocked", "evidenceMissing"],
       "properties": {
         "decisionsRead": { "type": "integer", "minimum": 0 },
         "actionsRead": { "type": "integer", "minimum": 0 },
         "domainEventsRead": { "type": "integer", "minimum": 0 },
+        "approvalsRead": { "type": "integer", "minimum": 0 },
+        "approvalsApplied": { "type": "integer", "minimum": 0 },
         "findings": { "type": "integer", "minimum": 0 },
         "allowed": { "type": "integer", "minimum": 0 },
         "allowedWithLimit": { "type": "integer", "minimum": 0 },
+        "paused": { "type": "integer", "minimum": 0 },
         "blocked": { "type": "integer", "minimum": 0 },
         "requiresHumanConfirmation": { "type": "integer", "minimum": 0 },
         "critical": { "type": "integer", "minimum": 0 },
         "safeNextActions": { "type": "integer", "minimum": 0 },
-        "irreversibleBlocked": { "type": "integer", "minimum": 0 }
+        "irreversibleBlocked": { "type": "integer", "minimum": 0 },
+        "evidenceMissing": { "type": "integer", "minimum": 0 }
       }
     },
     "latestFindings": {
@@ -67,6 +113,18 @@
       "items": { "type": "object" }
     },
     "safeNextActions": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "limitedActions": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "pausedActions": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "requiresHumanActions": {
       "type": "array",
       "items": { "type": "object" }
     },

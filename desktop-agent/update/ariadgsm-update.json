@@ -1,8 +1,8 @@
 {
-  "version": "0.8.13",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.13.zip",
-  "sha256": "070817d251383696d4b39a8cf6852147bd5e5371bde50a15e2c99641aafcf2ed",
+  "version": "0.8.14",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.14.zip",
+  "sha256": "ecfe7a60aa21758222bdee5e7c9c1efee626bdd3c1d29aaf68eb5a9956bc0408",
   "autoApply": true,
-  "notes": "Version 0.8.13 closes Business Brain as a base: business-brain contract, evidence-first recommendations from cases, memory, routing and accounting, decision events, Trust/Safety ingestion, autonomous-cycle integration and Product Shell status.",
-  "publishedAt": "2026-04-28T03:45:44Z"
+  "notes": "Version 0.8.14 closes Trust & Safety + Input Arbiter: final permission gate, Business Brain decisions in Supervisor, safety approval events, Input Arbiter lease contract, Hands Trust/Safety execution gate, evidence requirements and operator-priority mouse protection.",
+  "publishedAt": "2026-04-28T11:09:06Z"
 }

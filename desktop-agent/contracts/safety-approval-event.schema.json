@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/safety-approval-event.schema.json",
+  "title": "AriadGSM Safety Approval Event",
+  "type": "object",
+  "required": [
+    "eventType",
+    "approvalId",
+    "createdAt",
+    "targetSourceId",
+    "decision",
+    "approvedBy",
+    "scope",
+    "reason"
+  ],
+  "properties": {
+    "eventType": { "type": "string", "const": "safety_approval_event" },
+    "approvalId": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string" },
+    "expiresAt": { "type": "string" },
+    "targetSourceId": { "type": "string", "minLength": 1 },
+    "decision": { "type": "string", "enum": ["APPROVE", "ALLOW", "DENY", "REVOKE"] },
+    "approvedBy": { "type": "string", "minLength": 1 },
+    "scope": { "type": "string", "enum": ["single_action", "single_decision", "case_step"] },
+    "reason": { "type": "string" },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "maxUses": { "type": "integer", "minimum": 1 },
+        "channelId": { "type": "string" },
+        "caseId": { "type": "string" },
+        "actionKey": { "type": "string" }
+      }
+    }
+  }
+}

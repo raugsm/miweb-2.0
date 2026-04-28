@@ -99,6 +99,7 @@ def main() -> int:
         cognitive_state_file = root / "cognitive-state.json"
         memory_state_file = root / "memory-state.json"
         supervisor_state_file = root / "supervisor-state.json"
+        trust_safety_state_file = root / "trust-safety-state.json"
         autonomous_cycle_state_file = root / "autonomous-cycle-state.json"
         autonomous_cycle_events_file = root / "autonomous-cycle-events.jsonl"
         action_file = root / "action-events.jsonl"
@@ -292,6 +293,7 @@ def main() -> int:
             decision_file,
             action_file,
             supervisor_state_file,
+            trust_safety_state_file=trust_safety_state_file,
             autonomy_level=3,
         )
         assert supervisor_run["status"] in {"ok", "attention"}
@@ -390,8 +392,9 @@ def main() -> int:
         )
         assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
         assert cycle_state["status"] in {"ok", "attention", "blocked"}
-        assert len(cycle_state["stages"]) == 10
+        assert len(cycle_state["stages"]) == 11
         assert any(stage["stageId"] == "business_brain" for stage in cycle_state["stages"])
+        assert any(stage["stageId"] == "trust_safety" for stage in cycle_state["stages"])
         assert [step["stepId"] for step in cycle_state["steps"]] == [
             "observe",
             "understand",

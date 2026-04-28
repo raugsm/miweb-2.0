@@ -3,16 +3,25 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.8.8"
+VERSION = "0.8.14"
 
 DECISIONS = ("ALLOW", "ALLOW_WITH_LIMIT", "ASK_HUMAN", "PAUSE_FOR_OPERATOR", "BLOCK")
 RISK_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+EVIDENCE_REQUIREMENTS = {
+    "accounting_draft": "any",
+    "text_draft": "any",
+    "cross_channel_transfer": "any",
+    "external_tool": "strong",
+    "message_send": "strong",
+    "accounting_confirmation": "level_a",
+}
+APPROVAL_TTL_SECONDS = 15 * 60
 
 
 @dataclass(frozen=True)
@@ -194,6 +203,9 @@ class TrustFinding:
     required_level: int
     permission: str | None
     reversible: bool
+    evidence_count: int
+    evidence_levels: list[str]
+    approval_id: str
     reasons: list[str]
     allowed_actions: list[str]
     blocked_actions: list[str]
@@ -214,6 +226,9 @@ class TrustFinding:
             "requiredLevel": self.required_level,
             "permission": self.permission or "",
             "reversible": self.reversible,
+            "evidenceCount": self.evidence_count,
+            "evidenceLevels": self.evidence_levels,
+            "approvalId": self.approval_id,
             "reasons": self.reasons,
             "allowedActions": self.allowed_actions,
             "blockedActions": self.blocked_actions,
@@ -228,9 +243,11 @@ class TrustSafetyCore:
         self,
         autonomy_level: int = 1,
         permissions: TrustSafetyPermissions | None = None,
+        approvals_by_source: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self.autonomy_level = max(1, min(6, int(autonomy_level)))
         self.permissions = permissions or TrustSafetyPermissions()
+        self.approvals_by_source = approvals_by_source or {}
 
     def assess(
         self,
@@ -254,6 +271,8 @@ class TrustSafetyCore:
         paused = [item for item in findings if item.decision == "PAUSE_FOR_OPERATOR"]
         limited = [item for item in findings if item.decision == "ALLOW_WITH_LIMIT"]
         allowed = [item for item in findings if item.decision == "ALLOW"]
+        evidence_missing = [item for item in findings if any("evidencia" in reason.lower() for reason in item.reasons)]
+        approvals_applied = [item for item in findings if item.approval_id]
         critical = [item for item in findings if item.risk_level == "critical" or item.severity == "critical"]
 
         gate_decision = decide_gate(blocked, ask_human, paused, limited)
@@ -274,10 +293,32 @@ class TrustSafetyCore:
                     "verify_before_continue",
                     "audit_every_permission_decision",
                     "operator_has_mouse_priority",
+                    "critical_actions_need_per_action_approval",
+                    "high_risk_actions_need_evidence",
                 ],
+            },
+            "contracts": {
+                "decisionSources": ["cognitive", "operating", "business_brain"],
+                "inputArbiterState": "input-arbiter-state.schema.json",
+                "approvalEvent": "safety-approval-event.schema.json",
+                "permissionState": "trust-safety-state.schema.json",
             },
             "permissions": self.permissions.to_public(),
             "riskMatrix": {key: requirement.to_public() for key, requirement in ACTION_REQUIREMENTS.items()},
+            "approvalLedger": {
+                "approvalsRead": len(self.approvals_by_source),
+                "approvalsApplied": len(approvals_applied),
+                "ttlSeconds": APPROVAL_TTL_SECONDS,
+                "applied": [
+                    {
+                        "sourceId": item.source_id,
+                        "approvalId": item.approval_id,
+                        "actionKey": item.action_key,
+                    }
+                    for item in approvals_applied[-12:]
+                ],
+            },
+            "inputArbiter": summarize_input_arbiter(input_state or {}),
             "permissionGate": {
                 "decision": gate_decision,
                 "reason": human_report["resumenDecision"],
@@ -287,6 +328,7 @@ class TrustSafetyCore:
                     "perception": True,
                     "memory": True,
                     "cognitive": True,
+                    "businessBrain": True,
                     "hands": gate_decision in {"ALLOW", "ALLOW_WITH_LIMIT"},
                 },
             },
@@ -294,17 +336,24 @@ class TrustSafetyCore:
                 "decisionsRead": len(decisions),
                 "actionsRead": len(actions),
                 "domainEventsRead": len(domain_events),
+                "approvalsRead": len(self.approvals_by_source),
+                "approvalsApplied": len(approvals_applied),
                 "findings": len(findings),
                 "allowed": len(allowed),
                 "allowedWithLimit": len(limited),
+                "paused": len(paused),
                 "blocked": len(blocked),
                 "requiresHumanConfirmation": len(ask_human) + len(paused),
                 "critical": len(critical),
                 "safeNextActions": len(allowed) + len(limited),
                 "irreversibleBlocked": sum(1 for item in blocked if not item.reversible),
+                "evidenceMissing": len(evidence_missing),
             },
             "latestFindings": [item.to_dict() for item in findings[-40:]],
             "safeNextActions": [item.to_dict() for item in (allowed + limited)[-12:]],
+            "limitedActions": [item.to_dict() for item in limited[-12:]],
+            "pausedActions": [item.to_dict() for item in paused[-12:]],
+            "requiresHumanActions": [item.to_dict() for item in ask_human[-12:]],
             "blockedActions": [item.to_dict() for item in blocked[-12:]],
             "humanReport": human_report,
         }
@@ -320,6 +369,7 @@ class TrustSafetyCore:
         )
         action_key = classify_text_action(text)
         confidence = clamp(event.get("confidence"), 0.0)
+        source_id = clean_text(event.get("decisionId"))
         return self.make_finding(
             source_id=source_id,
             source_type="decision_event",
@@ -329,6 +379,8 @@ class TrustSafetyCore:
             source_requires_human=bool(event.get("requiresHumanConfirmation")),
             source_risk=read_risk_level(event),
             evidence_levels=[],
+            evidence_count=count_evidence_references(event),
+            approval=approval_for(self.approvals_by_source, source_id),
         )
 
     def assess_action(self, event: dict[str, Any]) -> TrustFinding:
@@ -349,6 +401,8 @@ class TrustSafetyCore:
             source_requires_human=source_requires_human,
             source_risk=read_risk_level(event),
             evidence_levels=[],
+            evidence_count=count_action_evidence(event),
+            approval=approval_for(self.approvals_by_source, clean_text(event.get("actionId"))),
         )
         if status in {"blocked", "failed"}:
             return replace_finding(
@@ -377,8 +431,9 @@ class TrustSafetyCore:
         source_requires_human = bool(event.get("requiresHumanReview"))
         source_risk = read_risk_level(event)
         evidence_levels = evidence_levels_for(event)
+        source_id = clean_text(event.get("eventId"))
         finding = self.make_finding(
-            source_id=clean_text(event.get("eventId")),
+            source_id=source_id,
             source_type="domain_event",
             action_key=action_key,
             proposed_action=event_type,
@@ -386,6 +441,8 @@ class TrustSafetyCore:
             source_requires_human=source_requires_human,
             source_risk=source_risk,
             evidence_levels=evidence_levels,
+            evidence_count=count_evidence_references(event),
+            approval=approval_for(self.approvals_by_source, source_id),
         )
         if event_type in {"PaymentConfirmed", "AccountingRecordConfirmed"} and "A" not in evidence_levels:
             return replace_finding(
@@ -409,9 +466,12 @@ class TrustSafetyCore:
         source_requires_human: bool,
         source_risk: str,
         evidence_levels: list[str],
+        evidence_count: int,
+        approval: dict[str, Any] | None,
     ) -> TrustFinding:
         requirement = ACTION_REQUIREMENTS.get(action_key, ACTION_REQUIREMENTS["suggest"])
         risk_level = highest_risk(requirement.risk_level, source_risk)
+        approval_id = clean_text((approval or {}).get("approvalId"))
         reasons: list[str] = []
         decision = "ALLOW"
         allowed = True
@@ -435,11 +495,32 @@ class TrustSafetyCore:
             requires_human = True
             reasons.append(f"Permiso explicito faltante: {requirement.permission}.")
 
-        if source_requires_human:
+        evidence_requirement = EVIDENCE_REQUIREMENTS.get(action_key, "none")
+        if evidence_requirement == "any" and evidence_count <= 0:
             decision = more_restrictive(decision, "ASK_HUMAN")
             allowed = False
             requires_human = True
-            reasons.append("El evento fuente pide revision humana.")
+            reasons.append("La accion de alto impacto necesita evidencia enlazada.")
+        elif evidence_requirement == "strong" and evidence_count <= 0 and "A" not in evidence_levels:
+            decision = "BLOCK" if not requirement.reversible or risk_level == "critical" else more_restrictive(decision, "ASK_HUMAN")
+            allowed = False
+            requires_human = True
+            reasons.append("La accion critica necesita evidencia fuerte antes de continuar.")
+
+        if source_requires_human:
+            if approval_id:
+                reasons.append(f"Revision humana aplicada: {approval_id}.")
+            else:
+                decision = more_restrictive(decision, "ASK_HUMAN")
+                allowed = False
+                requires_human = True
+                reasons.append("El evento fuente pide revision humana.")
+
+        if (risk_level == "critical" or not requirement.reversible) and not approval_id:
+            decision = more_restrictive(decision, "ASK_HUMAN")
+            allowed = False
+            requires_human = True
+            reasons.append("La accion critica requiere aprobacion humana para esta ejecucion.")
 
         if action_key == "accounting_confirmation" and "A" not in evidence_levels:
             decision = "BLOCK"
@@ -470,6 +551,9 @@ class TrustSafetyCore:
             required_level=requirement.required_level,
             permission=requirement.permission,
             reversible=requirement.reversible,
+            evidence_count=evidence_count,
+            evidence_levels=evidence_levels,
+            approval_id=approval_id,
             reasons=reasons,
             allowed_actions=requirement.allowed_when_limited,
             blocked_actions=requirement.blocked_when_denied,
@@ -492,6 +576,9 @@ class TrustSafetyCore:
             required_level=1,
             permission=None,
             reversible=True,
+            evidence_count=1,
+            evidence_levels=[],
+            approval_id="",
             reasons=[summary, "Las manos se pausan; ojos, memoria y cerebro siguen activos."],
             allowed_actions=["observe", "remember", "reason"],
             blocked_actions=["move_mouse", "type_text", "click_until_operator_idle"],
@@ -539,6 +626,7 @@ def run_trust_safety_once(
     state_file: Path,
     *,
     business_decision_events_file: Path | None = None,
+    approval_events_file: Path | None = None,
     input_arbiter_state_file: Path | None = None,
     permissions_file: Path | None = None,
     permissions: dict[str, Any] | None = None,
@@ -551,11 +639,13 @@ def run_trust_safety_once(
         decisions.extend(read_jsonl_events(business_decision_events_file, "decision_event", limit))
     actions = read_jsonl_events(action_events_file, "action_event", limit)
     domain_events = read_jsonl_events(domain_events_file, "", limit)
+    approvals_by_source = read_approval_events(approval_events_file, limit) if approval_events_file is not None else {}
     input_state = read_json(input_arbiter_state_file) if input_arbiter_state_file else {}
     loaded_permissions = permissions if permissions is not None else read_json(permissions_file)
     core = TrustSafetyCore(
         autonomy_level=autonomy_level,
         permissions=TrustSafetyPermissions.from_dict(loaded_permissions if isinstance(loaded_permissions, dict) else None),
+        approvals_by_source=approvals_by_source,
     )
     state = core.assess(
         dedupe_by(decisions, "decisionId"),
@@ -567,6 +657,7 @@ def run_trust_safety_once(
         "cognitiveDecisionEventsFile": str(cognitive_decision_events_file),
         "operatingDecisionEventsFile": str(operating_decision_events_file),
         "businessDecisionEventsFile": str(business_decision_events_file or ""),
+        "approvalEventsFile": str(approval_events_file or ""),
         "actionEventsFile": str(action_events_file),
         "domainEventsFile": str(domain_events_file),
         "inputArbiterStateFile": str(input_arbiter_state_file or ""),
@@ -656,6 +747,90 @@ def read_risk_level(event: dict[str, Any]) -> str:
 def evidence_levels_for(event: dict[str, Any]) -> list[str]:
     evidence = event.get("evidence") if isinstance(event.get("evidence"), list) else []
     return [clean_text(item.get("evidenceLevel")) for item in evidence if isinstance(item, dict) and clean_text(item.get("evidenceLevel"))]
+
+
+def count_evidence_references(event: dict[str, Any]) -> int:
+    evidence = event.get("evidence")
+    if isinstance(evidence, list):
+        return len([item for item in evidence if item])
+    if clean_text(evidence):
+        return 1
+    data = event.get("data") if isinstance(event.get("data"), dict) else {}
+    refs = data.get("evidence") if isinstance(data, dict) else None
+    if isinstance(refs, list):
+        return len([item for item in refs if item])
+    return 0
+
+
+def count_action_evidence(event: dict[str, Any]) -> int:
+    target = event.get("target") if isinstance(event.get("target"), dict) else {}
+    verification = event.get("verification") if isinstance(event.get("verification"), dict) else {}
+    count = count_evidence_references(event)
+    if bool(verification.get("verified")):
+        count += 1
+    for key in ("verificationPerceptionEventId", "interactionSourcePerceptionEventId", "sourceDecisionId"):
+        if clean_text(target.get(key)):
+            count += 1
+    return count
+
+
+def read_approval_events(path: Path | None, limit: int) -> dict[str, dict[str, Any]]:
+    if path is None or not path.exists():
+        return {}
+    approvals: dict[str, dict[str, Any]] = {}
+    for event in read_jsonl_events(path, "safety_approval_event", limit):
+        if clean_text(event.get("decision")).upper() not in {"APPROVE", "ALLOW"}:
+            continue
+        target_id = clean_text(event.get("targetSourceId")) or clean_text(event.get("sourceId"))
+        approval_id = clean_text(event.get("approvalId"))
+        if not target_id or not approval_id:
+            continue
+        if is_expired_approval(event):
+            continue
+        approvals[target_id] = event
+    return approvals
+
+
+def is_expired_approval(event: dict[str, Any]) -> bool:
+    expires_at = parse_dt(clean_text(event.get("expiresAt")))
+    if expires_at is not None:
+        return datetime.now(timezone.utc) > expires_at
+    created_at = parse_dt(clean_text(event.get("createdAt")))
+    if created_at is None:
+        return True
+    return datetime.now(timezone.utc) - created_at > timedelta(seconds=APPROVAL_TTL_SECONDS)
+
+
+def parse_dt(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def approval_for(approvals_by_source: dict[str, dict[str, Any]], source_id: str) -> dict[str, Any] | None:
+    return approvals_by_source.get(source_id)
+
+
+def summarize_input_arbiter(input_state: dict[str, Any]) -> dict[str, Any]:
+    phase = clean_text(input_state.get("phase"))
+    decision = clean_text(input_state.get("decision")) or ("PAUSE_FOR_OPERATOR" if bool(input_state.get("operatorHasPriority")) else "ALLOW")
+    lease = input_state.get("lease") if isinstance(input_state.get("lease"), dict) else {}
+    operator = input_state.get("operator") if isinstance(input_state.get("operator"), dict) else {}
+    return {
+        "status": clean_text(input_state.get("status")) or "missing",
+        "phase": phase or "unknown",
+        "decision": decision,
+        "activeOwner": clean_text(input_state.get("activeOwner")) or ("operator" if bool(input_state.get("operatorHasPriority")) else "unknown"),
+        "operatorHasPriority": bool(input_state.get("operatorHasPriority")),
+        "handsPausedOnly": bool(input_state.get("handsPausedOnly")),
+        "operatorIdleMs": safe_int(input_state.get("operatorIdleMs"), safe_int(operator.get("idleMs"), 0)),
+        "requiredIdleMs": safe_int(input_state.get("requiredIdleMs"), safe_int(operator.get("requiredIdleMs"), 0)),
+        "leaseId": clean_text(input_state.get("leaseId")) or clean_text(lease.get("leaseId")),
+        "summary": clean_text(input_state.get("summary")),
+    }
 
 
 def highest_risk(*levels: str) -> str:
@@ -769,6 +944,13 @@ def clamp(value: Any, default: float = 0.5) -> float:
     return max(0.0, min(1.0, number))
 
 
+def safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def resolve_runtime_path(value: str | Path) -> Path:
     path = Path(value).expanduser()
     if path.is_absolute():
@@ -781,6 +963,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cognitive-decisions", default="runtime/cognitive-decision-events.jsonl")
     parser.add_argument("--operating-decisions", default="runtime/decision-events.jsonl")
     parser.add_argument("--business-decisions", default="runtime/business-decision-events.jsonl")
+    parser.add_argument("--approvals", default="runtime/safety-approval-events.jsonl")
     parser.add_argument("--actions", default="runtime/action-events.jsonl")
     parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
     parser.add_argument("--input-arbiter-state", default="runtime/input-arbiter-state.json")
@@ -801,6 +984,7 @@ def main() -> int:
         resolve_runtime_path(args.domain_events),
         resolve_runtime_path(args.state_file),
         business_decision_events_file=resolve_runtime_path(args.business_decisions),
+        approval_events_file=resolve_runtime_path(args.approvals),
         input_arbiter_state_file=resolve_runtime_path(args.input_arbiter_state),
         permissions_file=resolve_runtime_path(args.permissions_file),
         autonomy_level=args.autonomy_level,

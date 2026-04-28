@@ -544,7 +544,7 @@ Pendiente para autonomia final:
 Estado:
 
 ```text
-SIGUIENTE ETAPA PENDIENTE
+CERRADA COMO BASE FINAL EN 0.8.14
 ```
 
 Objetivo:
@@ -561,12 +561,50 @@ Definicion de terminado:
 - toda accion riesgosa exige evidencia y confirmacion;
 - pruebas repetibles cubren propuestas de negocio, manos y control humano.
 
+Ya existe:
+
+- `docs/ARIADGSM_TRUST_SAFETY_INPUT_ARBITER_FINAL.md`
+- `docs/ARIADGSM_TRUST_SAFETY_CORE_DESIGN.md`
+- `desktop-agent/contracts/trust-safety-state.schema.json`
+- `desktop-agent/contracts/input-arbiter-state.schema.json`
+- `desktop-agent/contracts/safety-approval-event.schema.json`
+- `desktop-agent/ariadgsm_agent/trust_safety.py`
+- `desktop-agent/tests/trust_safety_core.py`
+- gate de `Hands` contra `trust-safety-state.json`;
+- `Input Arbiter` con lease, dueno activo, cooldown y continuidad de motores.
+
+Pendiente para autonomia final:
+
+- pantalla final para aprobar/revocar eventos `safety_approval_event`;
+- validacion prolongada con mouse/teclado real durante jornada completa;
+- telemetria cloud de aprobaciones cuando toque Etapa 14.
+
+### 6.12 Hands & Verification
+
+Estado:
+
+```text
+SIGUIENTE ETAPA PENDIENTE
+```
+
+Objetivo:
+
+Cerrar manos verificadas: abrir chats, hacer scroll, escribir borradores,
+operar herramientas y confirmar que la accion correcta ocurrio antes de seguir.
+
+Definicion de terminado:
+
+- Hands consume solo acciones autorizadas por Trust & Safety;
+- cada accion fisica tiene verificacion posterior;
+- abrir chat confirma canal, titulo y fila correcta;
+- escribir texto no envia sin aprobacion;
+- errores quedan explicados en estado humano y action events.
+
 ## 7. Bloques que NO pueden adelantarse
 
 Estos bloques son importantes, pero no deben sustituir el orden de la nueva
 etapa salvo que Bryams lo autorice:
 
-- Trust & Safety + Input Arbiter final.
 - Hands & Verification final.
 - Tool Registry.
 - Cloud Sync / ariadgsm.com.
@@ -575,10 +613,10 @@ etapa salvo que Bryams lo autorice:
 
 Motivo:
 
-Son necesarios para producto, pero si se hacen antes de cerrar `Trust & Safety
-+ Input Arbiter`, volvemos al patron de parches: el cerebro podria proponer
-bien, pero las manos no tendrian un contrato final de permiso, pausa y control
-humano.
+Son necesarios para producto, pero si se hacen antes de cerrar `Hands &
+Verification final`, volvemos al patron de parches: el cerebro podria proponer
+bien y seguridad podria autorizar bien, pero las manos no verifican cada
+resultado con la firmeza requerida.
 
 Excepcion:
 
@@ -618,26 +656,26 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0` a `10` quedan cerradas como base operativa, la siguiente
+Como las etapas `0` a `11` quedan cerradas como base operativa, la siguiente
 etapa pendiente del mapa maestro es:
 
 ```text
-Etapa 11: Trust & Safety + Input Arbiter
+Etapa 12: Hands & Verification
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_TRUST_SAFETY_INPUT_ARBITER_FINAL.md
+docs/ARIADGSM_HANDS_VERIFICATION_FINAL.md
 ```
 
 El entregable tecnico minimo posterior es:
 
 ```text
-contrato final de permisos y arbitraje
-lectura de decisiones Cognitive, Operating y Business Brain
-proteccion del control humano del mouse/teclado
-gates por nivel de autonomia
-acciones permitidas, limitadas, pausadas y bloqueadas
+contrato final de accion verificada
+consumo estricto de Trust & Safety
+apertura de chats con verificacion fuerte
+scroll y lectura historica con limites
+borradores sin envio automatico
 pruebas sin acciones reales peligrosas
 ```

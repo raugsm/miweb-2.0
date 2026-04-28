@@ -1,8 +1,8 @@
 # AriadGSM Trust & Safety Core Design
 
-Version objetivo: 0.8.8
+Version objetivo: 0.8.14
 Fecha: 2026-04-27
-Estado: diseno tecnico del bloque "Trust & Safety Core completo"
+Estado: base final de Etapa 11 "Trust & Safety + Input Arbiter"
 
 ## 1. Proposito
 
@@ -39,6 +39,15 @@ Este bloque se apoya en fuentes de gobernanza y seguridad de agentes:
 - Microsoft Responsible AI guidance: enfatiza supervision humana, auditoria,
   privacidad, seguridad, transparencia y responsabilidad.
   Fuente: https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/responsible-ai
+- Microsoft Human-AI Interaction Guidelines: recomienda mantener control humano,
+  mostrar limites, permitir correccion y notificar cambios.
+  Fuente: https://www.microsoft.com/en-us/research/articles/guidelines-for-human-ai-interaction-eighteen-best-practices-for-human-centered-ai-design/
+- Microsoft Win32 GetLastInputInfo y SendInput: el mouse/teclado sintetico debe
+  tratarse como recurso controlado, con deteccion de input reciente y limites de
+  integridad de Windows.
+  Fuentes:
+  https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getlastinputinfo
+  https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput
 
 Traduccion practica para AriadGSM:
 
@@ -67,6 +76,8 @@ Archivos principales:
 - `desktop-agent/contracts/trust-safety-state.schema.json`
 - `desktop-agent/runtime/trust-safety-state.json`
 - `desktop-agent/runtime/supervisor-state.json`
+- `desktop-agent/runtime/input-arbiter-state.json`
+- `desktop-agent/runtime/safety-approval-events.jsonl`
 
 Supervisor queda como cara compatible para la app, pero su decision sale del
 Trust & Safety Core.
@@ -178,6 +189,16 @@ vision/perception/memory/cognitive = true
 
 La IA no se apaga, solo no pelea el mouse.
 
+Desde 0.8.14, Input Arbiter publica un contrato mas estricto:
+
+- `activeOwner`: `ai`, `operator`, `none` o `unknown`;
+- `lease`: accion, vencimiento, TTL y razon;
+- `operator`: idle, cooldown y prioridad;
+- `continuation`: que motores siguen vivos mientras manos se pausan.
+
+Hands no puede ejecutar acciones fisicas si `trust-safety-state.json` no tiene
+`permissionGate.canHandsRun = true` vigente.
+
 ## 10. Criterio de terminado
 
 Este bloque queda completo cuando:
@@ -190,4 +211,3 @@ Este bloque queda completo cuando:
 - la app muestra Trust & Safety como motor de salud;
 - hay pruebas sin tocar clientes reales;
 - la version queda empaquetada y publicada.
-

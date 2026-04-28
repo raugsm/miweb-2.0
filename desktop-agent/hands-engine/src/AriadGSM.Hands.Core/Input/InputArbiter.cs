@@ -36,6 +36,19 @@ public sealed class InputArbiter
         var recentAiControl = _lastAiControlAt != DateTimeOffset.MinValue
             && now - _lastAiControlAt <= TimeSpan.FromMilliseconds(Math.Max(100, _options.AiControlLeaseMs));
 
+        if (_options.OperatorOverrideActive && !recentAiControl)
+        {
+            _cooldownUntil = now.AddMilliseconds(Math.Max(250, _options.OperatorCooldownMs));
+            var lease = InputLease.Blocked(
+                "operator_override",
+                "Control humano activado; la IA no toca mouse ni teclado.",
+                operatorIdleMs,
+                _options.OperatorIdleRequiredMs,
+                requiresInput);
+            WriteState(lease, plan, "operator_control");
+            return lease;
+        }
+
         if (now < _cooldownUntil && !recentAiControl)
         {
             var lease = InputLease.Blocked(
@@ -103,6 +116,18 @@ public sealed class InputArbiter
     {
         try
         {
+            var now = DateTimeOffset.UtcNow;
+            var isOperatorControl = !lease.Granted;
+            var activeOwner = phase.Equals("ai_control_released", StringComparison.OrdinalIgnoreCase)
+                || phase.Equals("ai_control_failed", StringComparison.OrdinalIgnoreCase)
+                    ? "none"
+                    : lease.Granted ? "ai" : "operator";
+            var leaseExpiresAt = lease.Granted
+                ? now.AddMilliseconds(Math.Max(100, _options.AiControlLeaseMs))
+                : now;
+            var cooldownUntil = isOperatorControl
+                ? now.AddMilliseconds(Math.Max(250, _options.OperatorCooldownMs))
+                : _cooldownUntil;
             var directory = Path.GetDirectoryName(_options.InputArbiterStateFile);
             if (!string.IsNullOrWhiteSpace(directory))
             {
@@ -111,10 +136,14 @@ public sealed class InputArbiter
 
             var state = new Dictionary<string, object?>
             {
+                ["contractVersion"] = "0.8.14",
                 ["status"] = lease.Granted ? "ok" : "attention",
                 ["engine"] = "ariadgsm_input_arbiter",
+                ["version"] = "0.8.14",
                 ["phase"] = phase,
-                ["updatedAt"] = DateTimeOffset.UtcNow,
+                ["decision"] = lease.Granted ? "ALLOW" : "PAUSE_FOR_OPERATOR",
+                ["activeOwner"] = activeOwner,
+                ["updatedAt"] = now,
                 ["leaseId"] = lease.LeaseId,
                 ["blockedActionId"] = plan.ActionId,
                 ["actionType"] = plan.ActionType,
@@ -122,11 +151,40 @@ public sealed class InputArbiter
                 ["conversationTitle"] = TargetString(plan, "conversationTitle") ?? TargetString(plan, "chatRowTitle"),
                 ["operatorIdleMs"] = lease.OperatorIdleMs,
                 ["requiredIdleMs"] = lease.RequiredIdleMs,
-                ["operatorHasPriority"] = !lease.Granted,
-                ["handsPausedOnly"] = !lease.Granted,
+                ["operatorHasPriority"] = isOperatorControl,
+                ["handsPausedOnly"] = isOperatorControl,
                 ["eyesContinue"] = true,
                 ["memoryContinue"] = true,
                 ["cognitiveContinue"] = true,
+                ["businessBrainContinue"] = true,
+                ["lease"] = new Dictionary<string, object?>
+                {
+                    ["leaseId"] = lease.LeaseId,
+                    ["granted"] = lease.Granted,
+                    ["requiresInput"] = lease.RequiresInput,
+                    ["issuedAt"] = now,
+                    ["expiresAt"] = leaseExpiresAt,
+                    ["ttlMs"] = lease.Granted ? Math.Max(100, _options.AiControlLeaseMs) : 0,
+                    ["actionId"] = plan.ActionId,
+                    ["actionType"] = plan.ActionType,
+                    ["reason"] = lease.Reason
+                },
+                ["operator"] = new Dictionary<string, object?>
+                {
+                    ["hasPriority"] = isOperatorControl,
+                    ["idleMs"] = lease.OperatorIdleMs,
+                    ["requiredIdleMs"] = lease.RequiredIdleMs,
+                    ["cooldownUntil"] = cooldownUntil,
+                    ["cooldownMs"] = isOperatorControl ? Math.Max(250, _options.OperatorCooldownMs) : 0
+                },
+                ["continuation"] = new Dictionary<string, object?>
+                {
+                    ["hands"] = !isOperatorControl,
+                    ["eyes"] = true,
+                    ["memory"] = true,
+                    ["cognitive"] = true,
+                    ["businessBrain"] = true
+                },
                 ["summary"] = lease.Reason
             };
             WriteTextAtomic(
@@ -150,16 +208,16 @@ public sealed class InputArbiter
             var lastInput = new LASTINPUTINFO { cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>() };
             if (!GetLastInputInfo(ref lastInput))
             {
-                return long.MaxValue;
+                return int.MaxValue - 1L;
             }
 
             var now = GetTickCount64();
             var idle = now >= lastInput.dwTime ? now - lastInput.dwTime : 0;
-            return idle > long.MaxValue ? long.MaxValue : (long)idle;
+            return idle >= int.MaxValue ? int.MaxValue - 1L : (long)idle;
         }
         catch
         {
-            return long.MaxValue;
+            return int.MaxValue - 1L;
         }
     }
 

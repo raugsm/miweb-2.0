@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/input-arbiter-state.schema.json",
+  "title": "AriadGSM Input Arbiter State",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "status",
+    "engine",
+    "version",
+    "phase",
+    "decision",
+    "activeOwner",
+    "updatedAt",
+    "leaseId",
+    "actionType",
+    "operatorIdleMs",
+    "requiredIdleMs",
+    "operatorHasPriority",
+    "handsPausedOnly",
+    "eyesContinue",
+    "memoryContinue",
+    "cognitiveContinue",
+    "businessBrainContinue",
+    "lease",
+    "operator",
+    "continuation",
+    "summary"
+  ],
+  "properties": {
+    "contractVersion": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "attention", "blocked", "error"] },
+    "engine": { "type": "string" },
+    "version": { "type": "string" },
+    "phase": { "type": "string" },
+    "decision": { "type": "string", "enum": ["ALLOW", "PAUSE_FOR_OPERATOR", "ASK_HUMAN", "BLOCK"] },
+    "activeOwner": { "type": "string", "enum": ["ai", "operator", "none", "unknown"] },
+    "updatedAt": { "type": ["string", "object"] },
+    "leaseId": { "type": "string" },
+    "blockedActionId": { "type": ["string", "null"] },
+    "actionType": { "type": "string" },
+    "channelId": { "type": ["string", "null"] },
+    "conversationTitle": { "type": ["string", "null"] },
+    "operatorIdleMs": { "type": "integer", "minimum": 0 },
+    "requiredIdleMs": { "type": "integer", "minimum": 0 },
+    "operatorHasPriority": { "type": "boolean" },
+    "handsPausedOnly": { "type": "boolean" },
+    "eyesContinue": { "type": "boolean" },
+    "memoryContinue": { "type": "boolean" },
+    "cognitiveContinue": { "type": "boolean" },
+    "businessBrainContinue": { "type": "boolean" },
+    "lease": {
+      "type": "object",
+      "required": ["leaseId", "granted", "requiresInput", "issuedAt", "expiresAt", "ttlMs", "actionId", "actionType", "reason"],
+      "properties": {
+        "leaseId": { "type": "string" },
+        "granted": { "type": "boolean" },
+        "requiresInput": { "type": "boolean" },
+        "issuedAt": { "type": ["string", "object"] },
+        "expiresAt": { "type": ["string", "object"] },
+        "ttlMs": { "type": "integer", "minimum": 0 },
+        "actionId": { "type": "string" },
+        "actionType": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "operator": {
+      "type": "object",
+      "required": ["hasPriority", "idleMs", "requiredIdleMs", "cooldownUntil", "cooldownMs"],
+      "properties": {
+        "hasPriority": { "type": "boolean" },
+        "idleMs": { "type": "integer", "minimum": 0 },
+        "requiredIdleMs": { "type": "integer", "minimum": 0 },
+        "cooldownUntil": { "type": ["string", "object"] },
+        "cooldownMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "continuation": {
+      "type": "object",
+      "required": ["hands", "eyes", "memory", "cognitive", "businessBrain"],
+      "properties": {
+        "hands": { "type": "boolean" },
+        "eyes": { "type": "boolean" },
+        "memory": { "type": "boolean" },
+        "cognitive": { "type": "boolean" },
+        "businessBrain": { "type": "boolean" }
+      }
+    },
+    "summary": { "type": "string" }
+  }
+}

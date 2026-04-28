@@ -317,6 +317,38 @@ def build_supervisor_stage(supervisor: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def build_trust_safety_stage(trust_safety: dict[str, Any]) -> dict[str, Any]:
+    summary = trust_safety.get("summary") if isinstance(trust_safety.get("summary"), dict) else {}
+    gate = trust_safety.get("permissionGate") if isinstance(trust_safety.get("permissionGate"), dict) else {}
+    decision = text(gate.get("decision"), "ASK_HUMAN")
+    status = normalize_status(trust_safety.get("status") if trust_safety else "attention")
+    if decision == "BLOCK":
+        status = "blocked"
+    elif decision in {"ASK_HUMAN", "PAUSE_FOR_OPERATOR", "ALLOW_WITH_LIMIT"}:
+        status = worst_status([status, "attention"])
+    detail = text(
+        gate.get("reason"),
+        f"Gate={decision}; humano={as_int(summary.get('requiresHumanConfirmation'))}; bloqueadas={as_int(summary.get('blocked'))}.",
+    )
+    return make_stage(
+        "trust_safety",
+        "AriadGSM Trust & Safety",
+        status,
+        detail,
+        {
+            "gateDecision": decision,
+            "canHandsRun": bool(gate.get("canHandsRun")),
+            "findings": as_int(summary.get("findings")),
+            "requiresHumanConfirmation": as_int(summary.get("requiresHumanConfirmation")),
+            "blocked": as_int(summary.get("blocked")),
+            "paused": as_int(summary.get("paused")),
+            "approvalsApplied": as_int(summary.get("approvalsApplied")),
+            "evidenceMissing": as_int(summary.get("evidenceMissing")),
+        },
+        ["trust-safety-state.json", "safety-approval-events.jsonl"],
+    )
+
+
 def build_hands_stage(hands: dict[str, Any]) -> dict[str, Any]:
     executed = as_int(hands.get("actionsExecuted"))
     verified = as_int(hands.get("actionsVerified"))
@@ -635,9 +667,10 @@ def step_status(values: list[str]) -> str:
 
 
 def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    supervisor = states["supervisor"]
+    supervisor = states.get("trust_safety") or states["supervisor"]
     input_arbiter = states["input_arbiter"]
     summary = supervisor.get("summary") if isinstance(supervisor.get("summary"), dict) else {}
+    gate = supervisor.get("permissionGate") if isinstance(supervisor.get("permissionGate"), dict) else {}
     operator_has_priority = bool(input_arbiter.get("operatorHasPriority"))
     input_phase = text(input_arbiter.get("phase"), "idle")
     critical = as_int(summary.get("critical"))
@@ -661,9 +694,9 @@ def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         reason = "Hay acciones que necesitan confirmacion humana."
         can_hands_run = False
     else:
-        decision = "ALLOW"
-        reason = "Permisos operativos suficientes para continuar el ciclo."
-        can_hands_run = True
+        decision = text(gate.get("decision"), "ALLOW")
+        reason = text(gate.get("reason"), "Permisos operativos suficientes para continuar el ciclo.")
+        can_hands_run = bool(gate.get("canHandsRun", decision in {"ALLOW", "ALLOW_WITH_LIMIT"}))
 
     return {
         "decision": decision,
@@ -677,6 +710,7 @@ def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "requiresHumanConfirmation": requires_human,
         "blockedActions": blocked,
         "criticalFindings": critical,
+        "trustSafetyGate": text(gate.get("decision"), decision),
     }
 
 
@@ -1106,6 +1140,7 @@ def run_autonomous_cycle_once(
         "accounting_core": read_json(runtime / "accounting-core-state.json"),
         "memory": read_json(runtime / "memory-state.json"),
         "business_brain": read_json(runtime / "business-brain-state.json"),
+        "trust_safety": read_json(runtime / "trust-safety-state.json"),
         "supervisor": read_json(runtime / "supervisor-state.json"),
         "hands": read_json(runtime / "hands-state.json"),
         "input_arbiter": read_json(runtime / "input-arbiter-state.json"),
@@ -1130,6 +1165,7 @@ def run_autonomous_cycle_once(
         build_accounting_core_stage(states["accounting_core"]),
         build_business_memory_stage(states["memory"], states["timeline"], states["cognitive"], states["operating"]),
         build_business_brain_stage(states["business_brain"]),
+        build_trust_safety_stage(states["trust_safety"]),
         build_verified_hands_stage(states["hands"], states["input_arbiter"]),
     ]
     gate = permission_gate(states)

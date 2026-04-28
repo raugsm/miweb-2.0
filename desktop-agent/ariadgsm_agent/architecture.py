@@ -31,8 +31,8 @@ MASTER_STAGES: tuple[Stage, ...] = (
     Stage(8, "Safe Eyes / Reader Core", "closed_reader_core_base", "reader_core"),
     Stage(9, "Living Memory", "closed_living_memory_base", "memory"),
     Stage(10, "Business Brain", "closed_business_brain_base", "business_reasoning"),
-    Stage(11, "Trust & Safety + Input Arbiter", "next_pending", "safety"),
-    Stage(12, "Hands & Verification", "advanced_base", "hands"),
+    Stage(11, "Trust & Safety + Input Arbiter", "closed_trust_safety_input_arbiter_final", "safety"),
+    Stage(12, "Hands & Verification", "next_pending", "hands"),
     Stage(13, "Tool Registry", "pending", "tools"),
     Stage(14, "Cloud Sync / ariadgsm.com", "partial", "cloud"),
     Stage(15, "Evaluation + Release", "pending_final", "release"),
@@ -52,6 +52,8 @@ LAYERS: tuple[Layer, ...] = (
     Layer("Channel Routing Brain", "Python", "Decide whether a case stays, transfers or merges across WhatsApp channels with evidence and approval gates.", "channel_routing_state"),
     Layer("Memory Core", "Python", "Store episodic, semantic, procedural, accounting, style and correction memories with evidence and uncertainty.", "living_memory_state"),
     Layer("Business Brain", "Python", "Use Living Memory, cases, routing and accounting evidence to propose business decisions without physical action.", "business_brain_state"),
+    Layer("Trust & Safety", "Python", "Evaluate Cognitive, Operating and Business Brain decisions, enforce approvals, evidence, autonomy and permission gates.", "trust_safety_state"),
+    Layer("Input Arbiter", "C#/.NET", "Own mouse and keyboard leases so the AI never fights the operator while eyes, memory and brain continue.", "input_arbiter_state"),
     Layer("Operating Core", "Python", "Track business state, cases, tasks, priorities and queues.", "decision_event"),
     Layer("Accounting Core", "Python", "Create payment, debt and refund records with evidence-first confirmation gates.", "accounting_core_state"),
     Layer("Cognitive Core", "Python", "Reason, plan, learn, ask for confirmation and choose the next action.", "decision_event"),
@@ -88,10 +90,13 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "business_brain_state",
     "autonomous_cycle_event",
     "human_feedback_event",
+    "safety_approval_event",
     "domain_event",
     "case_manager_state",
     "channel_routing_state",
     "accounting_core_state",
+    "input_arbiter_state",
+    "trust_safety_state",
 )
 
 

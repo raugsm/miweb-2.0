@@ -30,6 +30,7 @@ public sealed class HandsPipeline
     private readonly ActionEventWriter _writer;
     private readonly HandsCursorStore _cursorStore;
     private readonly InputArbiter _inputArbiter;
+    private readonly TrustSafetyGate _trustSafetyGate;
     private readonly CabinAuthorityGate _cabinAuthorityGate;
     private readonly HashSet<string> _processedDecisionKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _processedDecisionScopes = new(StringComparer.OrdinalIgnoreCase);
@@ -61,6 +62,7 @@ public sealed class HandsPipeline
         _writer = new ActionEventWriter(options.ActionEventsFile);
         _cursorStore = new HandsCursorStore(options.CursorFile);
         _inputArbiter = new InputArbiter(options);
+        _trustSafetyGate = new TrustSafetyGate(options);
         _cabinAuthorityGate = new CabinAuthorityGate(options);
     }
 
@@ -86,6 +88,15 @@ public sealed class HandsPipeline
             {
                 _idleCycles++;
                 return await WriteStateAsync(CreateState("idle", $"Orchestrator pauso las manos: {orchestrator.Reason}", string.Empty), cancellationToken).ConfigureAwait(false);
+            }
+
+            var trustGate = _trustSafetyGate.Evaluate();
+            if (!trustGate.HandsAllowed)
+            {
+                _idleCycles++;
+                return await WriteStateAsync(
+                    CreateState("idle", $"Trust & Safety pauso manos: {trustGate.Reason}", string.Empty),
+                    cancellationToken).ConfigureAwait(false);
             }
 
             foreach (var decision in decisions)
