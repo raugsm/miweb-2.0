@@ -1,12 +1,21 @@
 # AriadGSM Master Execution Roadmap
 
 Fecha: 2026-04-28
-Estado: autoridad maestra de etapas
+Estado: mapa de etapas subordinado a la arquitectura final
 
 ## Proposito
 
-Este documento fija el camino completo para construir `AriadGSM IA Local` como
-una IA operadora del negocio, no como un bot con reglas pegadas.
+Este documento fija el camino de entregables para construir `AriadGSM IA Local`
+como una IA operadora del negocio, no como un bot con reglas pegadas.
+
+La arquitectura madre vive en:
+
+```text
+docs/ARIADGSM_FINAL_AI_ARCHITECTURE.md
+```
+
+Si hay conflicto, la arquitectura de 8 capas manda. Las etapas de este roadmap
+quedan como historial y unidades de entrega dentro de esas 8 capas.
 
 Una etapa solo se considera cerrada cuando cumple tres condiciones:
 

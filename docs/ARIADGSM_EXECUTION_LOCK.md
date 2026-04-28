@@ -73,16 +73,31 @@ La IA debe comportarse como Bryams a nivel operativo:
 Orden de autoridad:
 
 1. `docs/ARIADGSM_EXECUTION_LOCK.md`
-2. `docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md`
-3. `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
-4. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
-5. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
-6. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
-7. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
-8. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
-9. Documentos tecnicos por motor dentro de `desktop-agent/`
+2. `docs/ARIADGSM_FINAL_AI_ARCHITECTURE.md`
+3. `docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md`
+4. `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
+5. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
+6. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
+7. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
+8. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
+9. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
+10. Documentos tecnicos por motor dentro de `desktop-agent/`
 
 Si hay conflicto, manda este archivo.
+
+`ARIADGSM_FINAL_AI_ARCHITECTURE.md` congela las 8 capas finales. Las 15 etapas
+de `ARIADGSM_MASTER_EXECUTION_ROADMAP.md` se mantienen como entregables e
+historial de construccion, pero no pueden crear capas nuevas ni cambiar la
+arquitectura madre.
+
+Toda recomendacion futura debe indicar:
+
+- capa afectada;
+- capas relacionadas;
+- fuentes externas revisadas cuando aplique;
+- contraste con el negocio AriadGSM;
+- por que no es parche;
+- siguiente pedido exacto recomendado.
 
 ## 5. Orden bloqueado de la nueva etapa
 
