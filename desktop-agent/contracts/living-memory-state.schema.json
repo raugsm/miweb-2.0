@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/living-memory-state.schema.json",
+  "title": "AriadGSM Living Memory State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "capability",
+    "version",
+    "updatedAt",
+    "contract",
+    "policy",
+    "sourceFiles",
+    "ingested",
+    "summary",
+    "livingMemory",
+    "latestLearned",
+    "uncertainties",
+    "corrections",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "attention", "error"] },
+    "engine": { "type": "string", "const": "ariadgsm_memory_core" },
+    "capability": { "type": "string", "const": "ariadgsm_living_memory" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "contract": { "type": "string", "const": "living_memory_state" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["memoryLayers", "truthStatuses", "confidenceRules", "evidenceFirst", "unsafeKnowledgeDegrades"],
+      "properties": {
+        "memoryLayers": {
+          "type": "array",
+          "minItems": 4,
+          "items": { "type": "string", "enum": ["episodic", "semantic", "procedural", "accounting", "style", "correction"] }
+        },
+        "truthStatuses": {
+          "type": "array",
+          "minItems": 4,
+          "items": { "type": "string" }
+        },
+        "confidenceRules": { "type": "object", "additionalProperties": true },
+        "evidenceFirst": { "type": "boolean" },
+        "unsafeKnowledgeDegrades": { "type": "boolean" }
+      }
+    },
+    "sourceFiles": { "type": "object", "additionalProperties": true },
+    "ingested": { "type": "object", "additionalProperties": true },
+    "summary": { "type": "object", "additionalProperties": true },
+    "livingMemory": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["totalItems", "byLayer", "byStatus", "confidence", "uncertainties", "degraded", "corrections"],
+      "properties": {
+        "totalItems": { "type": "integer", "minimum": 0 },
+        "byLayer": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["episodic", "semantic", "procedural", "accounting", "style", "correction"],
+          "properties": {
+            "episodic": { "type": "integer", "minimum": 0 },
+            "semantic": { "type": "integer", "minimum": 0 },
+            "procedural": { "type": "integer", "minimum": 0 },
+            "accounting": { "type": "integer", "minimum": 0 },
+            "style": { "type": "integer", "minimum": 0 },
+            "correction": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "byStatus": { "type": "object", "additionalProperties": true },
+        "confidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["high", "medium", "low"],
+          "properties": {
+            "high": { "type": "integer", "minimum": 0 },
+            "medium": { "type": "integer", "minimum": 0 },
+            "low": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "uncertainties": { "type": "integer", "minimum": 0 },
+        "degraded": { "type": "integer", "minimum": 0 },
+        "corrections": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "latestLearned": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/memoryItem" }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/memoryItem" }
+    },
+    "corrections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["correctionId", "summary"],
+        "properties": {
+          "correctionId": { "type": "string" },
+          "targetEventId": { "type": ["string", "null"] },
+          "summary": { "type": "string" },
+          "correction": { "type": ["string", "null"] },
+          "actorId": { "type": ["string", "null"] },
+          "createdAt": { "type": "string" }
+        }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queAprendi", "queDudo", "queCorrigioBryams", "queNecesito"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queAprendi": { "type": "array", "items": { "type": "string" } },
+        "queDudo": { "type": "array", "items": { "type": "string" } },
+        "queCorrigioBryams": { "type": "array", "items": { "type": "string" } },
+        "queNecesito": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "memoryItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["memoryId", "type", "status", "summary", "confidence", "sourceKey"],
+      "properties": {
+        "memoryId": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "summary": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sourceKey": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  }
+}

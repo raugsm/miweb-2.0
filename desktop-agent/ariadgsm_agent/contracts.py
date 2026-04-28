@@ -22,6 +22,7 @@ CONTRACT_FILES: dict[str, str] = {
     "action_event": "action-event.schema.json",
     "accounting_event": "accounting-event.schema.json",
     "learning_event": "learning-event.schema.json",
+    "living_memory_state": "living-memory-state.schema.json",
     "autonomous_cycle_event": "autonomous-cycle-event.schema.json",
     "human_feedback_event": "human-feedback-event.schema.json",
     "domain_event": "domain-event-envelope.schema.json",
@@ -477,6 +478,89 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
         "summary": "La frase 'cuanto vale' indica pregunta de precio.",
         "confidence": 0.9,
         "appliesTo": ["price_request"],
+    },
+    "living_memory_state": {
+        "status": "ok",
+        "engine": "ariadgsm_memory_core",
+        "capability": "ariadgsm_living_memory",
+        "version": "0.8.12",
+        "updatedAt": utc_now(),
+        "contract": "living_memory_state",
+        "policy": {
+            "memoryLayers": ["episodic", "semantic", "procedural", "accounting", "style", "correction"],
+            "truthStatuses": ["fact", "hypothesis", "uncertain", "procedure", "correction", "deprecated", "conflict"],
+            "confidenceRules": {
+                "fact": ">=0.75 y sin revision requerida",
+                "hypothesis": "0.45-0.74 o evidencia parcial",
+                "uncertain": "<0.45 o requiere revision",
+                "deprecated": "conocimiento corregido o degradado por Bryams",
+            },
+            "evidenceFirst": True,
+            "unsafeKnowledgeDegrades": True,
+        },
+        "sourceFiles": {
+            "conversationEvents": "desktop-agent/runtime/timeline-events.jsonl",
+            "learningEvents": "desktop-agent/runtime/learning-events.jsonl",
+            "accountingEvents": "desktop-agent/runtime/accounting-events.jsonl",
+            "domainEvents": "desktop-agent/runtime/domain-events.jsonl",
+            "humanFeedbackEvents": "desktop-agent/runtime/human-feedback-events.jsonl",
+        },
+        "ingested": {"events": 1, "livingItems": 3, "uncertain": 1, "corrections": 1},
+        "summary": {"livingMemoryItems": 3, "memoryCorrections": 1, "memoryMessages": 1},
+        "livingMemory": {
+            "totalItems": 3,
+            "byLayer": {
+                "episodic": 1,
+                "semantic": 1,
+                "procedural": 0,
+                "accounting": 0,
+                "style": 0,
+                "correction": 1,
+            },
+            "byStatus": {"fact": 1, "hypothesis": 1, "correction": 1},
+            "confidence": {"high": 2, "medium": 1, "low": 0},
+            "uncertainties": 1,
+            "degraded": 0,
+            "corrections": 1,
+        },
+        "latestLearned": [
+            {
+                "memoryId": "mem-sample-1",
+                "type": "semantic",
+                "status": "fact",
+                "summary": "La frase 'cuanto vale' indica pregunta de precio.",
+                "confidence": 0.9,
+                "sourceKey": "learning-sample-1",
+                "updatedAt": utc_now(),
+            }
+        ],
+        "uncertainties": [
+            {
+                "memoryId": "mem-sample-2",
+                "type": "accounting",
+                "status": "hypothesis",
+                "summary": "Pago pendiente de comprobante.",
+                "confidence": 0.62,
+                "sourceKey": "accounting-sample-1",
+            }
+        ],
+        "corrections": [
+            {
+                "correctionId": "human-feedback-sample-1",
+                "targetEventId": "accounting-sample-1",
+                "summary": "El pago aun no esta confirmado.",
+                "correction": "Mantener como borrador hasta ver comprobante.",
+                "actorId": "bryams",
+                "createdAt": utc_now(),
+            }
+        ],
+        "humanReport": {
+            "headline": "Estoy convirtiendo lecturas en memoria viva",
+            "queAprendi": ["semantic: 'cuanto vale' indica pregunta de precio."],
+            "queDudo": ["accounting: pago pendiente de comprobante."],
+            "queCorrigioBryams": ["El pago aun no esta confirmado -> Mantener como borrador."],
+            "queNecesito": ["Confirmar memorias marcadas como duda antes de contabilidad."],
+        },
     },
     "autonomous_cycle_event": {
         "eventType": "autonomous_cycle_event",

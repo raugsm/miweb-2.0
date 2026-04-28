@@ -1,8 +1,8 @@
 {
-  "version": "0.8.11",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.11.zip",
-  "sha256": "e5adb92934829411f8d2bf192fefed1febb832323b70baa176f16a71836f5b61",
+  "version": "0.8.12",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.12.zip",
+  "sha256": "070c542512dd70d21167c5fe63931c329f7a5722214f3f78ff2fb41eb551968a",
   "autoApply": true,
-  "notes": "Version 0.8.11 closes Safe Eyes / Reader Core as a base: visible-message contract, reader-core state, WhatsApp-only identity gate, structured-source priority, OCR fallback, source disagreement report, and integration before Timeline.",
-  "publishedAt": "2026-04-28T03:07:57Z"
+  "notes": "Version 0.8.12 closes Living Memory as a base: living-memory contract, episodic/semantic/procedural/accounting/style/correction layers, evidence-first uncertainty, human feedback ingestion, unsafe knowledge degradation, and human-readable learning report.",
+  "publishedAt": "2026-04-28T03:25:08Z"
 }

@@ -461,7 +461,7 @@ Pendiente para autonomia final:
 Estado:
 
 ```text
-SIGUIENTE ETAPA PENDIENTE
+CERRADA COMO BASE OPERATIVA EN 0.8.12
 ```
 
 Objetivo:
@@ -484,12 +484,50 @@ Definicion de terminado:
 - explica que aprendio y de donde;
 - tiene pruebas repetibles con eventos del Reader Core.
 
+Ya existe:
+
+- `docs/ARIADGSM_LIVING_MEMORY_DESIGN.md`
+- `desktop-agent/contracts/living-memory-state.schema.json`
+- memoria viva integrada en `desktop-agent/ariadgsm_agent/memory.py`
+- `desktop-agent/tests/living_memory.py`
+- ingestion de `conversation_event`, `learning_event`, `accounting_event`,
+  `domain_event` y `human_feedback_event`.
+
+Pendiente para autonomia final:
+
+- que Business Brain consulte esta memoria antes de cotizar, priorizar o
+  proponer respuestas;
+- medicion prolongada con datos reales;
+- recuperacion semantica/vectorial futura cuando crezca el volumen.
+
+### 6.10 Business Brain
+
+Estado:
+
+```text
+SIGUIENTE ETAPA PENDIENTE
+```
+
+Objetivo:
+
+Crear el cerebro de negocio que use Living Memory para razonar sobre clientes,
+servicios GSM, precios, paises, proveedores, herramientas, riesgos, mercado,
+contabilidad y estilo AriadGSM.
+
+Definicion de terminado:
+
+- existe documento de diseno;
+- consulta Living Memory con evidencia;
+- separa decision de negocio de accion fisica;
+- propone respuestas, cotizaciones y derivaciones con incertidumbre explicita;
+- no envia ni ejecuta acciones de riesgo sin Trust & Safety;
+- tiene pruebas sin WhatsApps reales ni herramientas GSM reales.
+
 ## 7. Bloques que NO pueden adelantarse
 
 Estos bloques son importantes, pero no deben sustituir el orden de la nueva
 etapa salvo que Bryams lo autorice:
 
-- Living Memory.
 - Business Brain.
 - Trust & Safety + Input Arbiter final.
 - Hands & Verification final.
@@ -500,9 +538,9 @@ etapa salvo que Bryams lo autorice:
 
 Motivo:
 
-Son necesarios para producto, pero si se hacen antes de cerrar `Safe Eyes /
-Reader Core`, volvemos al patron de parches: la IA razonaria sobre lecturas
-incompletas o ruido de pantalla.
+Son necesarios para producto, pero si se hacen antes de cerrar `Business Brain`,
+volvemos al patron de parches: la IA guardaria memoria sin tener un cerebro de
+negocio que la use con contexto, evidencia e incertidumbre.
 
 Excepcion:
 
@@ -542,27 +580,26 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0` a `8` quedan cerradas como base operativa, la siguiente
+Como las etapas `0` a `9` quedan cerradas como base operativa, la siguiente
 etapa pendiente del mapa maestro es:
 
 ```text
-Etapa 9: Living Memory
+Etapa 10: Business Brain
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_LIVING_MEMORY_DESIGN.md
+docs/ARIADGSM_BUSINESS_BRAIN_DESIGN.md
 ```
 
 El entregable tecnico minimo posterior es:
 
 ```text
-contrato de memoria viva
-memoria episodica, semantica, procedimental y contable separadas
-ingesta desde Reader Core, Timeline, Domain Events, Case Manager y Accounting
-aprendizaje desde correcciones humanas
-degradacion de conocimiento inseguro
-reporte humano de que aprendio, que duda y que necesita corregir
+contrato de salida del Business Brain
+consulta de Living Memory con evidencia
+modelo mental de clientes, precios, servicios, paises y proveedores
+razonamiento con incertidumbre y riesgos
+propuesta de respuesta, cotizacion o derivacion sin enviar automaticamente
 pruebas sin sesiones reales ni acciones externas
 ```

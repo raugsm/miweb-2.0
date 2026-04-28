@@ -224,7 +224,14 @@ Debe cerrar:
 Memoria episodica, semantica, procedimental y contable. Lo que aprendio, lo que
 duda y lo que corriges.
 
-Estado actual: `siguiente etapa pendiente`.
+Estado actual: `cerrada como base operativa en 0.8.12`.
+
+Existe:
+
+- `docs/ARIADGSM_LIVING_MEMORY_DESIGN.md`
+- `desktop-agent/contracts/living-memory-state.schema.json`
+- memoria viva integrada en `desktop-agent/ariadgsm_agent/memory.py`
+- `desktop-agent/tests/living_memory.py`
 
 Debe cerrar:
 
@@ -233,12 +240,17 @@ Debe cerrar:
 - olvidar o degradar conocimiento inseguro;
 - explicar que aprendio y de donde.
 
+Pendiente para autonomia final:
+
+- que Business Brain use esta memoria para razonar y decidir;
+- recuperacion semantica/vectorial cuando crezca el volumen real.
+
 ### Etapa 10: Business Brain
 
 El cerebro de negocio: clientes, precios, servicios, mercado, proveedores,
 herramientas, riesgos y estilo AriadGSM.
 
-Estado actual: `parcial`.
+Estado actual: `siguiente etapa pendiente`.
 
 Debe cerrar:
 

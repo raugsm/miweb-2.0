@@ -5,6 +5,7 @@ import hashlib
 import json
 import sqlite3
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,10 @@ from .text import clean_text, looks_like_browser_ui_title, text_hash
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
+VERSION = "0.8.12"
+
+LIVING_MEMORY_LAYERS = ("episodic", "semantic", "procedural", "accounting", "style", "correction")
+UNCERTAIN_STATUSES = ("hypothesis", "uncertain", "conflict", "deprecated")
 
 
 def utc_now() -> str:
@@ -217,6 +222,46 @@ class MemoryStore:
             create index if not exists idx_memory_domain_events_case on memory_domain_events(case_id);
             create index if not exists idx_memory_domain_events_type on memory_domain_events(event_type);
 
+            create table if not exists living_memory_items (
+              memory_id text primary key,
+              memory_type text not null,
+              truth_status text not null,
+              source_key text not null,
+              source_event_type text not null,
+              conversation_id text,
+              case_id text,
+              customer_id text,
+              title text,
+              summary text not null,
+              confidence real not null,
+              evidence_json text not null,
+              tags_json text not null,
+              review_required integer not null default 0,
+              created_at text not null,
+              updated_at text not null
+            );
+            create index if not exists idx_living_memory_type on living_memory_items(memory_type);
+            create index if not exists idx_living_memory_truth on living_memory_items(truth_status);
+            create index if not exists idx_living_memory_source on living_memory_items(source_key);
+            create index if not exists idx_living_memory_conversation on living_memory_items(conversation_id);
+            create index if not exists idx_living_memory_case on living_memory_items(case_id);
+            create table if not exists memory_corrections (
+              correction_id text primary key,
+              source_key text not null,
+              target_event_id text,
+              target_event_type text,
+              conversation_id text,
+              case_id text,
+              customer_id text,
+              summary text not null,
+              correction text,
+              confidence real not null,
+              actor_id text,
+              created_at text not null
+            );
+            create index if not exists idx_memory_corrections_target on memory_corrections(target_event_id);
+            create index if not exists idx_memory_corrections_conversation on memory_corrections(conversation_id);
+
             -- Legacy tables used by DesktopAgentService. Kept for compatibility.
             create table if not exists observations (
               observation_key text primary key,
@@ -270,10 +315,169 @@ class MemoryStore:
             (source_key, event_type, now),
         )
 
+    def _memory_type_from_signal(self, kind: str) -> str:
+        normalized = kind.lower()
+        if normalized in {"payment", "paid", "debt", "deuda", "amount", "currency", "refund", "price_quote"}:
+            return "accounting"
+        if normalized in {"slang", "language_hint", "tone", "customer_style", "reply_style"}:
+            return "style"
+        return "semantic"
+
+    def _memory_type_from_learning(self, learning_type: str) -> str:
+        normalized = learning_type.lower()
+        if normalized in {"procedure", "failure"}:
+            return "procedural"
+        if normalized == "accounting":
+            return "accounting"
+        if normalized == "correction":
+            return "correction"
+        if normalized == "slang":
+            return "style"
+        return "semantic"
+
+    def _memory_type_from_domain_event(self, event_type: str) -> str:
+        normalized = event_type.lower()
+        if normalized.startswith(("payment", "debt", "refund", "quote", "accounting")):
+            return "accounting"
+        if normalized.startswith(("humancorrection", "operatornote")):
+            return "correction"
+        if normalized.startswith(("learning", "memory", "procedure", "tool")):
+            return "procedural"
+        if normalized.startswith(("customer", "service", "price", "market", "provider")):
+            return "semantic"
+        return "episodic"
+
+    def _truth_status(self, confidence: float, review_required: bool = False, preferred: str = "fact") -> str:
+        if preferred in {"procedure", "correction", "deprecated", "conflict"}:
+            return preferred
+        if review_required or confidence < 0.45:
+            return "uncertain"
+        if confidence < 0.75:
+            return "hypothesis"
+        return preferred
+
+    def _save_living_memory(
+        self,
+        *,
+        memory_type: str,
+        truth_status: str,
+        source_key: str,
+        source_event_type: str,
+        summary: str,
+        confidence: float,
+        conversation_id: str = "",
+        case_id: str = "",
+        customer_id: str = "",
+        title: str = "",
+        evidence: list[dict[str, Any]] | None = None,
+        tags: list[str] | None = None,
+        review_required: bool = False,
+        now: str | None = None,
+    ) -> int:
+        now = now or utc_now()
+        normalized_type = memory_type if memory_type in LIVING_MEMORY_LAYERS else "semantic"
+        safe_summary = clean_text(summary)
+        if not safe_summary:
+            return 0
+        dedupe_base = "|".join(
+            [
+                normalized_type,
+                source_key,
+                source_event_type,
+                clean_text(conversation_id),
+                clean_text(case_id),
+                clean_text(customer_id),
+                safe_summary[:220],
+            ]
+        )
+        memory_id = f"mem-{stable_hash(dedupe_base)}"
+        before = self.conn.execute(
+            "select 1 from living_memory_items where memory_id = ? limit 1",
+            (memory_id,),
+        ).fetchone()
+        self.conn.execute(
+            """
+            insert into living_memory_items (
+              memory_id, memory_type, truth_status, source_key, source_event_type,
+              conversation_id, case_id, customer_id, title, summary, confidence,
+              evidence_json, tags_json, review_required, created_at, updated_at
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            on conflict(memory_id) do update set
+              truth_status = excluded.truth_status,
+              confidence = case
+                when excluded.confidence > living_memory_items.confidence then excluded.confidence
+                else living_memory_items.confidence
+              end,
+              evidence_json = excluded.evidence_json,
+              tags_json = excluded.tags_json,
+              review_required = case
+                when excluded.review_required = 1 then 1
+                else living_memory_items.review_required
+              end,
+              updated_at = excluded.updated_at
+            """,
+            (
+                memory_id,
+                normalized_type,
+                truth_status,
+                clean_text(source_key),
+                clean_text(source_event_type),
+                clean_text(conversation_id),
+                clean_text(case_id),
+                clean_text(customer_id),
+                clean_text(title),
+                safe_summary,
+                max(0.0, min(1.0, confidence)),
+                json.dumps(evidence or [], ensure_ascii=False, separators=(",", ":")),
+                json.dumps(tags or [], ensure_ascii=False, separators=(",", ":")),
+                1 if review_required else 0,
+                now,
+                now,
+            ),
+        )
+        return 1 if before is None else 0
+
+    def _degrade_living_memory_for_target(self, target_event_id: str, now: str) -> int:
+        target = clean_text(target_event_id)
+        if not target:
+            return 0
+        cursor = self.conn.execute(
+            """
+            update living_memory_items
+            set truth_status = 'deprecated',
+                confidence = case when confidence > 0.35 then 0.35 else confidence end,
+                review_required = 1,
+                updated_at = ?
+            where source_key = ? or memory_id = ?
+            """,
+            (now, target, target),
+        )
+        return int(cursor.rowcount or 0)
+
+    def _empty_ingest_result(self, **extra: int) -> dict[str, int]:
+        base = {
+            "events": 0,
+            "duplicates": 0,
+            "conversations": 0,
+            "messages": 0,
+            "signals": 0,
+            "livingItems": 0,
+            "episodic": 0,
+            "semantic": 0,
+            "procedural": 0,
+            "accountingMemory": 0,
+            "style": 0,
+            "corrections": 0,
+            "uncertain": 0,
+            "degraded": 0,
+        }
+        base.update(extra)
+        return base
+
     def ingest_conversation(self, event: dict[str, Any]) -> dict[str, int]:
         source_key = event_key(event, ("conversationEventId",), "conversation")
         if self.has_processed_event(source_key):
-            return {"events": 0, "duplicates": 1, "conversations": 0, "messages": 0, "signals": 0}
+            return self._empty_ingest_result(duplicates=1)
 
         now = utc_now()
         conversation_id = clean_text(event.get("conversationId") or source_key)
@@ -281,16 +485,22 @@ class MemoryStore:
         title = clean_text(event.get("conversationTitle") or conversation_id)
         source = clean_text(event.get("source") or "unknown")
         messages = [message for message in event.get("messages") or [] if isinstance(message, dict)]
+        quality = event.get("quality") if isinstance(event.get("quality"), dict) else {}
+        event_confidence = safe_float(quality.get("identityConfidence"), 0.78)
+        event_review_required = quality.get("isReliable") is False or event_confidence < 0.7
         if looks_like_browser_ui_title(title):
             with self.conn:
                 self.mark_processed(source_key, "conversation_event_rejected_ui_title", now)
-            return {"events": 0, "duplicates": 0, "conversations": 0, "messages": 0, "signals": 0, "rejected": 1}
+            return self._empty_ingest_result(rejected=1)
 
         countries: set[str] = set()
         services: set[str] = set()
         languages: set[str] = set()
         new_messages = 0
         new_signals = 0
+        new_living = 0
+        living_counts: Counter[str] = Counter()
+        uncertain = 0
 
         with self.conn:
             existing = self.conn.execute(
@@ -313,6 +523,7 @@ class MemoryStore:
                 if not text:
                     continue
                 msg_id = message_key(conversation_id, message, index)
+                msg_confidence = safe_float(message.get("confidence"), event_confidence)
                 signals = [signal for signal in message.get("signals") or [] if isinstance(signal, dict)]
                 before = self.conn.execute(
                     "select 1 from memory_messages where message_id = ? limit 1",
@@ -335,7 +546,7 @@ class MemoryStore:
                         clean_text(message.get("sentAt")),
                         text,
                         text_hash(text),
-                        safe_float(message.get("confidence"), 0.0),
+                        msg_confidence,
                         source_key,
                         json.dumps(signals, ensure_ascii=False, separators=(",", ":")),
                         now,
@@ -370,8 +581,68 @@ class MemoryStore:
                     )
                     if signal_before is None:
                         new_signals += 1
+                    memory_type = self._memory_type_from_signal(kind)
+                    review_required = event_review_required or confidence < 0.65
+                    truth_status = self._truth_status(confidence, review_required)
+                    memory_summary = f"{title}: senal {kind}={value or 'detectada'} en mensaje '{text[:120]}'."
+                    created = self._save_living_memory(
+                        memory_type=memory_type,
+                        truth_status=truth_status,
+                        source_key=source_key,
+                        source_event_type="conversation_signal",
+                        conversation_id=conversation_id,
+                        title=title,
+                        summary=memory_summary,
+                        confidence=confidence,
+                        evidence=[
+                            {
+                                "source": "conversation_event",
+                                "conversationEventId": source_key,
+                                "messageId": msg_id,
+                                "signalKind": kind,
+                                "signalValue": value,
+                                "textHash": text_hash(text),
+                            }
+                        ],
+                        tags=[kind, value, channel_id],
+                        review_required=review_required,
+                        now=now,
+                    )
+                    if created:
+                        new_living += created
+                        living_counts[memory_type] += created
+                        if truth_status in UNCERTAIN_STATUSES or review_required:
+                            uncertain += created
 
             self._merge_conversation_profile(conversation_id, channel_id, title, source, countries, services, languages, new_messages, now)
+            if messages:
+                event_truth = self._truth_status(event_confidence, event_review_required)
+                created = self._save_living_memory(
+                    memory_type="episodic",
+                    truth_status=event_truth,
+                    source_key=source_key,
+                    source_event_type="conversation_event",
+                    conversation_id=conversation_id,
+                    title=title,
+                    summary=f"{title}: se observaron {len(messages)} mensaje(s) en {channel_id} desde {source}.",
+                    confidence=event_confidence,
+                    evidence=[
+                        {
+                            "source": "conversation_event",
+                            "conversationEventId": source_key,
+                            "messageIds": [message_key(conversation_id, msg, idx) for idx, msg in enumerate(messages) if isinstance(msg, dict)],
+                            "timeline": event.get("timeline") if isinstance(event.get("timeline"), dict) else {},
+                        }
+                    ],
+                    tags=["conversation", source, channel_id],
+                    review_required=event_review_required,
+                    now=now,
+                )
+                if created:
+                    new_living += created
+                    living_counts["episodic"] += created
+                    if event_truth in UNCERTAIN_STATUSES or event_review_required:
+                        uncertain += created
             self.mark_processed(source_key, "conversation_event", now)
 
         return {
@@ -380,6 +651,14 @@ class MemoryStore:
             "conversations": 1 if existing is None else 0,
             "messages": new_messages,
             "signals": new_signals,
+            "livingItems": new_living,
+            "episodic": living_counts["episodic"],
+            "semantic": living_counts["semantic"],
+            "procedural": living_counts["procedural"],
+            "accountingMemory": living_counts["accounting"],
+            "style": living_counts["style"],
+            "corrections": living_counts["correction"],
+            "uncertain": uncertain,
         }
 
     def _merge_conversation_profile(
@@ -471,7 +750,7 @@ class MemoryStore:
     def ingest_learning(self, event: dict[str, Any]) -> dict[str, int]:
         source_key = event_key(event, ("learningId",), "learning")
         if self.has_processed_event(source_key):
-            return {"events": 0, "duplicates": 1, "learning": 0, "knowledge": 0}
+            return {"events": 0, "duplicates": 1, "learning": 0, "knowledge": 0, "livingItems": 0}
 
         now = utc_now()
         after = event.get("after") if isinstance(event.get("after"), dict) else {}
@@ -483,6 +762,11 @@ class MemoryStore:
         applies_to = event.get("appliesTo") if isinstance(event.get("appliesTo"), list) else []
         knowledge_id = f"knowledge-{stable_hash('|'.join([learning_type, conversation_id, summary]))}"
         new_knowledge = 0
+        memory_type = self._memory_type_from_learning(learning_type)
+        preferred_status = "procedure" if memory_type == "procedural" else ("correction" if memory_type == "correction" else "fact")
+        review_required = confidence < 0.65
+        truth_status = self._truth_status(confidence, review_required, preferred_status)
+        new_living = 0
 
         with self.conn:
             self.conn.execute(
@@ -533,6 +817,28 @@ class MemoryStore:
             )
             if before is None:
                 new_knowledge = 1
+            created = self._save_living_memory(
+                memory_type=memory_type,
+                truth_status=truth_status,
+                source_key=source_key,
+                source_event_type="learning_event",
+                conversation_id=conversation_id,
+                title=clean_text(after.get("conversationTitle")) or learning_type,
+                summary=summary,
+                confidence=confidence,
+                evidence=[
+                    {
+                        "source": "learning_event",
+                        "learningId": source_key,
+                        "learningType": learning_type,
+                        "appliesTo": applies_to,
+                    }
+                ],
+                tags=[learning_type, *[clean_text(item) for item in applies_to if clean_text(item)]],
+                review_required=review_required,
+                now=now,
+            )
+            new_living += created
             if conversation_id:
                 self.conn.execute(
                     """
@@ -543,15 +849,37 @@ class MemoryStore:
                     (now, conversation_id),
                 )
             self.mark_processed(source_key, "learning_event", now)
-        return {"events": 1, "duplicates": 0, "learning": 1, "knowledge": new_knowledge}
+        return {
+            "events": 1,
+            "duplicates": 0,
+            "learning": 1,
+            "knowledge": new_knowledge,
+            "livingItems": new_living,
+            "semantic": new_living if memory_type == "semantic" else 0,
+            "procedural": new_living if memory_type == "procedural" else 0,
+            "accountingMemory": new_living if memory_type == "accounting" else 0,
+            "style": new_living if memory_type == "style" else 0,
+            "corrections": new_living if memory_type == "correction" else 0,
+            "uncertain": new_living if truth_status in UNCERTAIN_STATUSES or review_required else 0,
+        }
 
     def ingest_accounting(self, event: dict[str, Any]) -> dict[str, int]:
         source_key = event_key(event, ("accountingId",), "accounting")
         if self.has_processed_event(source_key):
-            return {"events": 0, "duplicates": 1, "accounting": 0}
+            return {"events": 0, "duplicates": 1, "accounting": 0, "livingItems": 0}
 
         now = utc_now()
         conversation_id = clean_text(event.get("conversationId"))
+        status = clean_text(event.get("status"))
+        confidence = safe_float(event.get("confidence"), 0.0)
+        review_required = status != "confirmed" or confidence < 0.8
+        truth_status = "fact" if status == "confirmed" and confidence >= 0.8 else "hypothesis"
+        kind = clean_text(event.get("kind") or "unknown")
+        amount = event.get("amount")
+        currency = clean_text(event.get("currency"))
+        client_name = clean_text(event.get("clientName"))
+        accounting_summary = f"{client_name or conversation_id}: {kind} {amount if amount is not None else ''} {currency} estado={status}."
+        new_living = 0
         with self.conn:
             self.conn.execute(
                 """
@@ -564,15 +892,36 @@ class MemoryStore:
                     source_key,
                     source_key,
                     conversation_id,
-                    clean_text(event.get("clientName")),
-                    clean_text(event.get("kind")),
+                    client_name,
+                    kind,
                     safe_float(event.get("amount"), 0.0) if event.get("amount") is not None else None,
-                    clean_text(event.get("currency")),
-                    clean_text(event.get("status")),
-                    safe_float(event.get("confidence"), 0.0),
+                    currency,
+                    status,
+                    confidence,
                     json.dumps(event, ensure_ascii=False, separators=(",", ":")),
                     clean_text(event.get("createdAt") or now),
                 ),
+            )
+            new_living += self._save_living_memory(
+                memory_type="accounting",
+                truth_status=truth_status,
+                source_key=source_key,
+                source_event_type="accounting_event",
+                conversation_id=conversation_id,
+                title=client_name or conversation_id or "contabilidad",
+                summary=accounting_summary,
+                confidence=confidence,
+                evidence=[
+                    {
+                        "source": "accounting_event",
+                        "accountingId": source_key,
+                        "status": status,
+                        "evidence": event.get("evidence") if isinstance(event.get("evidence"), list) else [],
+                    }
+                ],
+                tags=[kind, status, currency],
+                review_required=review_required,
+                now=now,
             )
             if conversation_id:
                 self.conn.execute(
@@ -584,15 +933,22 @@ class MemoryStore:
                     (now, conversation_id),
                 )
             self.mark_processed(source_key, "accounting_event", now)
-        return {"events": 1, "duplicates": 0, "accounting": 1}
+        return {
+            "events": 1,
+            "duplicates": 0,
+            "accounting": 1,
+            "livingItems": new_living,
+            "accountingMemory": new_living,
+            "uncertain": new_living if review_required else 0,
+        }
 
     def ingest_domain_event(self, event: dict[str, Any]) -> dict[str, int]:
         event_id = clean_text(event.get("eventId"))
         if not event_id or not clean_text(event.get("sourceDomain")):
-            return {"events": 0, "duplicates": 0, "domainEvents": 0, "domainKnowledge": 0}
+            return {"events": 0, "duplicates": 0, "domainEvents": 0, "domainKnowledge": 0, "livingItems": 0}
         source_key = event_key(event, ("eventId",), "domain")
         if self.has_processed_event(source_key):
-            return {"events": 0, "duplicates": 1, "domainEvents": 0, "domainKnowledge": 0}
+            return {"events": 0, "duplicates": 1, "domainEvents": 0, "domainKnowledge": 0, "livingItems": 0}
 
         now = utc_now()
         event_type = clean_text(event.get("eventType"))
@@ -605,6 +961,12 @@ class MemoryStore:
         channel_id = clean_text(event.get("channelId")) or "unknown"
         title = clean_text(data.get("conversationTitle")) or conversation_id
         knowledge_created = 0
+        domain_confidence = safe_float(event.get("confidence"), 0.0)
+        review_required = bool(event.get("requiresHumanReview")) or clean_text(risk.get("riskLevel")) in {"high", "critical"} or domain_confidence < 0.7
+        memory_type = self._memory_type_from_domain_event(event_type)
+        preferred_status = "correction" if memory_type == "correction" else ("procedure" if memory_type == "procedural" else "fact")
+        truth_status = self._truth_status(domain_confidence, review_required, preferred_status)
+        new_living = 0
 
         with self.conn:
             self.conn.execute(
@@ -625,7 +987,7 @@ class MemoryStore:
                     clean_text(event.get("customerId")),
                     clean_text(risk.get("riskLevel")),
                     1 if event.get("requiresHumanReview") else 0,
-                    safe_float(event.get("confidence"), 0.0),
+                    domain_confidence,
                     summary,
                     json.dumps(event, ensure_ascii=False, separators=(",", ":")),
                     clean_text(event.get("createdAt")) or now,
@@ -729,8 +1091,125 @@ class MemoryStore:
                     (now, conversation_id),
                 )
 
+            new_living = self._save_living_memory(
+                memory_type=memory_type,
+                truth_status=truth_status,
+                source_key=source_key,
+                source_event_type="domain_event",
+                conversation_id=clean_text(event.get("conversationId")) or conversation_id,
+                case_id=clean_text(event.get("caseId")),
+                customer_id=clean_text(event.get("customerId")),
+                title=title or event_type,
+                summary=summary or event_type,
+                confidence=domain_confidence,
+                evidence=[
+                    {
+                        "source": "domain_event",
+                        "eventId": event_id,
+                        "eventType": event_type,
+                        "sourceDomain": clean_text(event.get("sourceDomain")),
+                        "evidence": evidence,
+                    }
+                ],
+                tags=[event_type, clean_text(event.get("sourceDomain")), clean_text(risk.get("riskLevel"))],
+                review_required=review_required,
+                now=now,
+            )
             self.mark_processed(source_key, "domain_event", now)
-        return {"events": 1, "duplicates": 0, "domainEvents": 1, "domainKnowledge": knowledge_created}
+        return {
+            "events": 1,
+            "duplicates": 0,
+            "domainEvents": 1,
+            "domainKnowledge": knowledge_created,
+            "livingItems": new_living,
+            "episodic": new_living if memory_type == "episodic" else 0,
+            "semantic": new_living if memory_type == "semantic" else 0,
+            "procedural": new_living if memory_type == "procedural" else 0,
+            "accountingMemory": new_living if memory_type == "accounting" else 0,
+            "style": new_living if memory_type == "style" else 0,
+            "corrections": new_living if memory_type == "correction" else 0,
+            "uncertain": new_living if truth_status in UNCERTAIN_STATUSES or review_required else 0,
+        }
+
+    def ingest_human_feedback(self, event: dict[str, Any]) -> dict[str, int]:
+        source_key = event_key(event, ("feedbackId",), "human-feedback")
+        if self.has_processed_event(source_key):
+            return {"events": 0, "duplicates": 1, "humanFeedback": 0, "corrections": 0, "livingItems": 0, "degraded": 0}
+
+        now = utc_now()
+        feedback_kind = clean_text(event.get("feedbackKind") or "note")
+        target_event_id = clean_text(event.get("targetEventId"))
+        summary = clean_text(event.get("summary"))
+        correction = clean_text(event.get("correction"))
+        confidence = safe_float(event.get("confidence"), 1.0)
+        actor = event.get("actor") if isinstance(event.get("actor"), dict) else {}
+        conversation_id = clean_text(event.get("conversationId"))
+        case_id = clean_text(event.get("caseId"))
+        customer_id = clean_text(event.get("customerId"))
+        degraded = 0
+        new_living = 0
+
+        with self.conn:
+            self.conn.execute(
+                """
+                insert or ignore into memory_corrections (
+                  correction_id, source_key, target_event_id, target_event_type,
+                  conversation_id, case_id, customer_id, summary, correction,
+                  confidence, actor_id, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source_key,
+                    source_key,
+                    target_event_id,
+                    clean_text(event.get("targetEventType")),
+                    conversation_id,
+                    case_id,
+                    customer_id,
+                    summary,
+                    correction,
+                    confidence,
+                    clean_text(actor.get("id")),
+                    clean_text(event.get("createdAt") or now),
+                ),
+            )
+            if feedback_kind in {"correction", "approval_rejected", "operator_override"}:
+                degraded = self._degrade_living_memory_for_target(target_event_id, now)
+            new_living = self._save_living_memory(
+                memory_type="correction",
+                truth_status="correction",
+                source_key=source_key,
+                source_event_type="human_feedback_event",
+                conversation_id=conversation_id,
+                case_id=case_id,
+                customer_id=customer_id,
+                title=feedback_kind,
+                summary=correction or summary,
+                confidence=confidence,
+                evidence=[
+                    {
+                        "source": "human_feedback_event",
+                        "feedbackId": source_key,
+                        "feedbackKind": feedback_kind,
+                        "targetEventId": target_event_id,
+                        "targetEventType": clean_text(event.get("targetEventType")),
+                    }
+                ],
+                tags=[feedback_kind, clean_text(event.get("targetEventType"))],
+                review_required=bool(event.get("requiresFollowUp")),
+                now=now,
+            )
+            self.mark_processed(source_key, "human_feedback_event", now)
+
+        return {
+            "events": 1,
+            "duplicates": 0,
+            "humanFeedback": 1,
+            "corrections": new_living,
+            "livingItems": new_living,
+            "degraded": degraded,
+            "uncertain": new_living if bool(event.get("requiresFollowUp")) else 0,
+        }
 
     def customer_profile(self, conversation_id: str) -> dict[str, Any] | None:
         row = self.conn.execute(
@@ -783,6 +1262,135 @@ class MemoryStore:
             ).fetchall()
         ]
 
+    def living_memory_summary(self) -> dict[str, Any]:
+        def scalar(sql: str) -> int:
+            row = self.conn.execute(sql).fetchone()
+            return int(row[0] if row else 0)
+
+        by_layer = {layer: 0 for layer in LIVING_MEMORY_LAYERS}
+        for row in self.conn.execute(
+            "select memory_type, count(*) as count from living_memory_items group by memory_type"
+        ).fetchall():
+            by_layer[row["memory_type"]] = int(row["count"])
+
+        by_status: dict[str, int] = {}
+        for row in self.conn.execute(
+            "select truth_status, count(*) as count from living_memory_items group by truth_status"
+        ).fetchall():
+            by_status[row["truth_status"]] = int(row["count"])
+
+        confidence = {
+            "high": scalar("select count(*) from living_memory_items where confidence >= 0.80"),
+            "medium": scalar("select count(*) from living_memory_items where confidence >= 0.55 and confidence < 0.80"),
+            "low": scalar("select count(*) from living_memory_items where confidence < 0.55"),
+        }
+        uncertainties = scalar(
+            """
+            select count(*) from living_memory_items
+            where review_required = 1
+               or truth_status in ('hypothesis', 'uncertain', 'conflict', 'deprecated')
+            """
+        )
+        return {
+            "totalItems": scalar("select count(*) from living_memory_items"),
+            "byLayer": by_layer,
+            "byStatus": by_status,
+            "confidence": confidence,
+            "uncertainties": uncertainties,
+            "degraded": scalar("select count(*) from living_memory_items where truth_status = 'deprecated'"),
+            "corrections": scalar("select count(*) from memory_corrections"),
+        }
+
+    def latest_living_items(self, limit: int = 8) -> list[dict[str, Any]]:
+        return [
+            {
+                "memoryId": row["memory_id"],
+                "type": row["memory_type"],
+                "status": row["truth_status"],
+                "summary": row["summary"],
+                "confidence": row["confidence"],
+                "sourceKey": row["source_key"],
+                "updatedAt": row["updated_at"],
+            }
+            for row in self.conn.execute(
+                """
+                select memory_id, memory_type, truth_status, summary, confidence, source_key, updated_at
+                from living_memory_items
+                order by updated_at desc
+                limit ?
+                """,
+                (max(1, limit),),
+            ).fetchall()
+        ]
+
+    def latest_uncertainties(self, limit: int = 8) -> list[dict[str, Any]]:
+        return [
+            {
+                "memoryId": row["memory_id"],
+                "type": row["memory_type"],
+                "status": row["truth_status"],
+                "summary": row["summary"],
+                "confidence": row["confidence"],
+                "sourceKey": row["source_key"],
+            }
+            for row in self.conn.execute(
+                """
+                select memory_id, memory_type, truth_status, summary, confidence, source_key
+                from living_memory_items
+                where review_required = 1
+                   or truth_status in ('hypothesis', 'uncertain', 'conflict', 'deprecated')
+                order by updated_at desc
+                limit ?
+                """,
+                (max(1, limit),),
+            ).fetchall()
+        ]
+
+    def latest_corrections(self, limit: int = 8) -> list[dict[str, Any]]:
+        return [
+            {
+                "correctionId": row["correction_id"],
+                "targetEventId": row["target_event_id"],
+                "summary": row["summary"],
+                "correction": row["correction"],
+                "actorId": row["actor_id"],
+                "createdAt": row["created_at"],
+            }
+            for row in self.conn.execute(
+                """
+                select correction_id, target_event_id, summary, correction, actor_id, created_at
+                from memory_corrections
+                order by created_at desc
+                limit ?
+                """,
+                (max(1, limit),),
+            ).fetchall()
+        ]
+
+    def human_report(self) -> dict[str, Any]:
+        latest = self.latest_living_items(6)
+        uncertainties = self.latest_uncertainties(6)
+        corrections = self.latest_corrections(6)
+        learned = [
+            f"{item['type']}: {item['summary']} (confianza {item['confidence']:.2f}, fuente {item['sourceKey']})"
+            for item in latest
+        ]
+        doubt_lines = [
+            f"{item['type']}: {item['summary']} (estado {item['status']}, confianza {item['confidence']:.2f})"
+            for item in uncertainties
+        ]
+        correction_lines = [
+            f"{item['summary']} -> {item['correction'] or 'sin texto extra'}"
+            for item in corrections
+        ]
+        return {
+            "headline": "Estoy convirtiendo lecturas en memoria viva",
+            "queAprendi": learned,
+            "queDudo": doubt_lines,
+            "queCorrigioBryams": correction_lines,
+            "queNecesito": ["Confirmar memorias marcadas como duda antes de usarlas para contabilidad o manos."],
+        }
+
     def summary(self) -> dict[str, Any]:
         def scalar(sql: str) -> int:
             row = self.conn.execute(sql).fetchone()
@@ -817,6 +1425,8 @@ class MemoryStore:
             "accountingEvents": scalar("select count(*) from memory_accounting_events"),
             "domainEvents": scalar("select count(*) from memory_domain_events"),
             "knowledgeItems": scalar("select count(*) from memory_knowledge"),
+            "livingMemoryItems": scalar("select count(*) from living_memory_items"),
+            "memoryCorrections": scalar("select count(*) from memory_corrections"),
             "observations": scalar("select count(*) from observations"),
             "latestDecision": dict(latest_decision) if latest_decision else (dict(legacy_latest) if legacy_latest else None),
             "db": str(self.db_path),
@@ -921,6 +1531,7 @@ def run_memory_once(
     db_path: Path,
     limit: int = 500,
     domain_events_file: Path | None = None,
+    human_feedback_events_file: Path | None = None,
 ) -> dict[str, Any]:
     store = MemoryStore(db_path)
     ingested: dict[str, int] = {
@@ -935,6 +1546,16 @@ def run_memory_once(
         "accounting": 0,
         "domainEvents": 0,
         "domainKnowledge": 0,
+        "humanFeedback": 0,
+        "livingItems": 0,
+        "episodic": 0,
+        "semantic": 0,
+        "procedural": 0,
+        "accountingMemory": 0,
+        "style": 0,
+        "corrections": 0,
+        "uncertain": 0,
+        "degraded": 0,
     }
     try:
         if domain_events_file is not None:
@@ -950,19 +1571,52 @@ def run_memory_once(
             add_counts(ingested, store.ingest_learning(event))
         for event in read_jsonl_events(accounting_events_file, "accounting_event", limit):
             add_counts(ingested, store.ingest_accounting(event))
+        if human_feedback_events_file is not None:
+            for event in read_jsonl_events(human_feedback_events_file, "human_feedback_event", limit):
+                add_counts(ingested, store.ingest_human_feedback(event))
 
         state = {
             "status": "ok",
             "engine": "ariadgsm_memory_core",
+            "capability": "ariadgsm_living_memory",
+            "version": VERSION,
             "updatedAt": utc_now(),
+            "contract": "living_memory_state",
             "conversationEventsFile": str(conversation_events_file),
             "cognitiveDecisionEventsFile": str(cognitive_decision_events_file),
             "operatingDecisionEventsFile": str(operating_decision_events_file),
             "learningEventsFile": str(learning_events_file),
             "accountingEventsFile": str(accounting_events_file),
             "domainEventsFile": str(domain_events_file) if domain_events_file is not None else None,
+            "humanFeedbackEventsFile": str(human_feedback_events_file) if human_feedback_events_file is not None else None,
+            "policy": {
+                "memoryLayers": list(LIVING_MEMORY_LAYERS),
+                "truthStatuses": ["fact", "hypothesis", "uncertain", "procedure", "correction", "deprecated", "conflict"],
+                "confidenceRules": {
+                    "fact": ">=0.75 y sin revision requerida",
+                    "hypothesis": "0.45-0.74 o evidencia parcial",
+                    "uncertain": "<0.45 o requiere revision",
+                    "deprecated": "conocimiento corregido o degradado por Bryams",
+                },
+                "evidenceFirst": True,
+                "unsafeKnowledgeDegrades": True,
+            },
+            "sourceFiles": {
+                "conversationEvents": str(conversation_events_file),
+                "cognitiveDecisionEvents": str(cognitive_decision_events_file),
+                "operatingDecisionEvents": str(operating_decision_events_file),
+                "learningEvents": str(learning_events_file),
+                "accountingEvents": str(accounting_events_file),
+                "domainEvents": str(domain_events_file) if domain_events_file is not None else None,
+                "humanFeedbackEvents": str(human_feedback_events_file) if human_feedback_events_file is not None else None,
+            },
             "ingested": ingested,
             "summary": store.summary(),
+            "livingMemory": store.living_memory_summary(),
+            "latestLearned": store.latest_living_items(12),
+            "uncertainties": store.latest_uncertainties(12),
+            "corrections": store.latest_corrections(12),
+            "humanReport": store.human_report(),
         }
         append_state(state_file, state)
         return state
@@ -978,6 +1632,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-events", default="runtime/learning-events.jsonl")
     parser.add_argument("--accounting-events", default="runtime/accounting-events.jsonl")
     parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
+    parser.add_argument("--human-feedback-events", default="runtime/human-feedback-events.jsonl")
     parser.add_argument("--state-file", default="runtime/memory-state.json")
     parser.add_argument("--db", default="runtime/memory-core.sqlite")
     parser.add_argument("--limit", type=int, default=500)
@@ -1001,6 +1656,7 @@ def main() -> int:
         resolve_runtime_path(args.db),
         limit=args.limit,
         domain_events_file=resolve_runtime_path(args.domain_events),
+        human_feedback_events_file=resolve_runtime_path(args.human_feedback_events),
     )
     if args.json:
         print(json.dumps(state, ensure_ascii=False, indent=2))
