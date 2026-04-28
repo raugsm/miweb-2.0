@@ -1081,6 +1081,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--autonomous-cycle-events", default="runtime/autonomous-cycle-events.jsonl")
     parser.add_argument("--human-feedback-events", default="runtime/human-feedback-events.jsonl")
     parser.add_argument("--case-events", default="runtime/case-events.jsonl")
+    parser.add_argument("--route-events", default="runtime/route-events.jsonl")
     parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
     parser.add_argument("--state-file", default="runtime/domain-events-state.json")
     parser.add_argument("--db", default="runtime/domain-events.sqlite")
@@ -1108,6 +1109,7 @@ def main() -> int:
         resolve_runtime_path(args.autonomous_cycle_events),
         resolve_runtime_path(args.human_feedback_events),
         resolve_runtime_path(args.case_events),
+        resolve_runtime_path(args.route_events),
     ]
     state = run_domain_events_once(
         source_files,

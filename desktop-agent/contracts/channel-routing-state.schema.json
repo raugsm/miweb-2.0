@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/channel-routing-state.schema.json",
+  "title": "AriadGSM Channel Routing State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "caseManagerDb",
+    "routeEventsFile",
+    "db",
+    "policy",
+    "ingested",
+    "summary",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked"] },
+    "engine": { "type": "string", "const": "ariadgsm_channel_routing_brain" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "caseManagerDb": { "type": "string", "minLength": 1 },
+    "routeEventsFile": { "type": "string", "minLength": 1 },
+    "db": { "type": "string", "minLength": 1 },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "channels"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "channels": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "ingested": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cases", "duplicates", "skipped", "decisions", "routeEvents"],
+      "properties": {
+        "cases": { "type": "integer", "minimum": 0 },
+        "duplicates": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "decisions": { "type": "integer", "minimum": 0 },
+        "routeEvents": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "casesRead",
+        "routeDecisions",
+        "proposedRoutes",
+        "approvedRoutes",
+        "rejectedRoutes",
+        "needsHuman",
+        "duplicateGroups",
+        "crossChannelCandidates",
+        "currentChannelOk",
+        "emittedRouteEvents"
+      ],
+      "properties": {
+        "casesRead": { "type": "integer", "minimum": 0 },
+        "routeDecisions": { "type": "integer", "minimum": 0 },
+        "proposedRoutes": { "type": "integer", "minimum": 0 },
+        "approvedRoutes": { "type": "integer", "minimum": 0 },
+        "rejectedRoutes": { "type": "integer", "minimum": 0 },
+        "needsHuman": { "type": "integer", "minimum": 0 },
+        "duplicateGroups": { "type": "integer", "minimum": 0 },
+        "crossChannelCandidates": { "type": "integer", "minimum": 0 },
+        "currentChannelOk": { "type": "integer", "minimum": 0 },
+        "emittedRouteEvents": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["quePaso", "rutasPropuestas", "rutasAprobadas", "necesitanBryams", "riesgos"],
+      "properties": {
+        "quePaso": { "type": "string" },
+        "rutasPropuestas": { "type": "array" },
+        "rutasAprobadas": { "type": "array" },
+        "necesitanBryams": { "type": "array" },
+        "riesgos": { "type": "array" }
+      }
+    }
+  }
+}

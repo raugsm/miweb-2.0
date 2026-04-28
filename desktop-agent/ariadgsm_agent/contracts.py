@@ -24,6 +24,7 @@ CONTRACT_FILES: dict[str, str] = {
     "human_feedback_event": "human-feedback-event.schema.json",
     "domain_event": "domain-event-envelope.schema.json",
     "case_manager_state": "case-manager-state.schema.json",
+    "channel_routing_state": "channel-routing-state.schema.json",
 }
 
 
@@ -512,6 +513,49 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "necesitanBryams": [{"caseId": "case-sample-1", "reason": "Precio o pago requiere validacion humana."}],
             "proximasAcciones": [{"caseId": "case-sample-1", "action": "Revisar evidencia y responder."}],
             "riesgos": ["No confirmar pagos sin evidencia fuerte."],
+        },
+    },
+    "channel_routing_state": {
+        "status": "attention",
+        "engine": "ariadgsm_channel_routing_brain",
+        "version": "0.8.4",
+        "updatedAt": utc_now(),
+        "caseManagerDb": "desktop-agent/runtime/case-manager.sqlite",
+        "routeEventsFile": "desktop-agent/runtime/route-events.jsonl",
+        "db": "desktop-agent/runtime/channel-routing.sqlite",
+        "policy": {
+            "version": "ariadgsm-channel-policy-0.8.4",
+            "channels": {
+                "wa-1": {"role": "general_intake"},
+                "wa-2": {"role": "sales_accounting"},
+                "wa-3": {"role": "technical_services"},
+            },
+        },
+        "ingested": {
+            "cases": 2,
+            "duplicates": 0,
+            "skipped": 0,
+            "decisions": 2,
+            "routeEvents": 2,
+        },
+        "summary": {
+            "casesRead": 2,
+            "routeDecisions": 2,
+            "proposedRoutes": 1,
+            "approvedRoutes": 1,
+            "rejectedRoutes": 0,
+            "needsHuman": 1,
+            "duplicateGroups": 1,
+            "crossChannelCandidates": 1,
+            "currentChannelOk": 1,
+            "emittedRouteEvents": 2,
+        },
+        "humanReport": {
+            "quePaso": "Channel Routing analizo 2 casos y propuso 1 ruta entre WhatsApps.",
+            "rutasPropuestas": [{"caseId": "case-sample-1", "targetChannelId": "wa-3"}],
+            "rutasAprobadas": [{"caseId": "case-sample-2", "targetChannelId": "wa-2"}],
+            "necesitanBryams": [{"caseId": "case-sample-1", "reason": "Cruza canales."}],
+            "riesgos": ["No mover contexto entre WhatsApps sin confirmacion humana."],
         },
     },
 }

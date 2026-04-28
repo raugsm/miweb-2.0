@@ -502,6 +502,38 @@ def build_case_manager_stage(case_manager: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def build_channel_routing_stage(channel_routing: dict[str, Any]) -> dict[str, Any]:
+    summary = channel_routing.get("summary") if isinstance(channel_routing.get("summary"), dict) else {}
+    proposed = as_int(summary.get("proposedRoutes"))
+    approved = as_int(summary.get("approvedRoutes"))
+    needs_human = as_int(summary.get("needsHuman"))
+    duplicates = as_int(summary.get("duplicateGroups"))
+    status = normalize_status(channel_routing.get("status") if channel_routing else "attention")
+    if needs_human > 0 or proposed > 0:
+        status = worst_status([status, "attention"])
+    detail = text(
+        nested(channel_routing, "humanReport", "quePaso"),
+        f"Rutas propuestas={proposed}; aprobadas={approved}; duplicados={duplicates}; humano={needs_human}.",
+    )
+    return make_stage(
+        "channel_routing",
+        "AriadGSM Channel Routing Brain",
+        status,
+        detail,
+        {
+            "casesRead": as_int(summary.get("casesRead")),
+            "proposedRoutes": proposed,
+            "approvedRoutes": approved,
+            "rejectedRoutes": as_int(summary.get("rejectedRoutes")),
+            "needsHuman": needs_human,
+            "duplicateGroups": duplicates,
+            "crossChannelCandidates": as_int(summary.get("crossChannelCandidates")),
+            "emittedRouteEvents": as_int(summary.get("emittedRouteEvents")),
+        },
+        ["channel-routing-state.json", "channel-routing.sqlite", "route-events.jsonl"],
+    )
+
+
 def make_step(
     step_id: str,
     name: str,
@@ -590,12 +622,14 @@ def build_operating_steps(
     cognitive = states["cognitive"]
     operating = states["operating"]
     case_manager = states["case_manager"]
+    channel_routing = states["channel_routing"]
     memory = states["memory"]
 
     timeline_ingested = timeline.get("ingested") if isinstance(timeline.get("ingested"), dict) else {}
     cognitive_summary = cognitive.get("summary") if isinstance(cognitive.get("summary"), dict) else {}
     operating_summary = operating.get("summary") if isinstance(operating.get("summary"), dict) else {}
     case_summary = case_manager.get("summary") if isinstance(case_manager.get("summary"), dict) else {}
+    route_summary = channel_routing.get("summary") if isinstance(channel_routing.get("summary"), dict) else {}
     memory_summary = memory.get("summary") if isinstance(memory.get("summary"), dict) else {}
     supervisor_summary = supervisor.get("summary") if isinstance(supervisor.get("summary"), dict) else {}
 
@@ -604,6 +638,7 @@ def build_operating_steps(
     decisions = as_int(cognitive_summary.get("decisions"))
     cases = as_int(operating_summary.get("cases"))
     case_manager_cases = as_int(case_summary.get("openCases"))
+    route_decisions = as_int(route_summary.get("routeDecisions"))
     actions_written = as_int(hands_stage.get("metrics", {}).get("actionsWritten"))
     actions_executed = as_int(hands_stage.get("metrics", {}).get("actionsExecuted"))
     actions_verified = as_int(hands_stage.get("metrics", {}).get("actionsVerified"))
@@ -613,7 +648,7 @@ def build_operating_steps(
 
     observe_status = normalize_status(reader.get("status"))
     understand_status = step_status([observe_status, "ok" if messages > 0 and timelines > 0 else "attention"])
-    plan_status = "ok" if decisions > 0 or cases > 0 or case_manager_cases > 0 else "attention"
+    plan_status = "ok" if decisions > 0 or cases > 0 or case_manager_cases > 0 or route_decisions > 0 else "attention"
     if observe_status == "blocked":
         plan_status = "blocked"
 
@@ -951,6 +986,7 @@ def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[d
     decisions = as_int(nested(stage_map.get("business_memory", {}), "metrics", "decisions"))
     learning = as_int(nested(stage_map.get("business_memory", {}), "metrics", "learningEvents"))
     accounting = as_int(nested(stage_map.get("business_memory", {}), "metrics", "accountingEvents"))
+    routes = as_int(nested(stage_map.get("channel_routing", {}), "metrics", "proposedRoutes"))
     executed = as_int(nested(stage_map.get("verified_hands", {}), "metrics", "actionsExecuted"))
     label = {"ok": "estable", "attention": "con avisos", "blocked": "bloqueado"}[status]
     gate_decision = text(gate.get("decision"), "ALLOW")
@@ -958,7 +994,7 @@ def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[d
     return (
         f"Ciclo autonomo {label}: WhatsApp {perceived}/{expected}, "
         f"mensajes={messages}, decisiones={decisions}, aprendizaje={learning}, "
-        f"contabilidad={accounting}, acciones={executed}, gate={gate_decision}, siguiente={next_step}."
+        f"contabilidad={accounting}, rutas={routes}, acciones={executed}, gate={gate_decision}, siguiente={next_step}."
     )
 
 
@@ -986,6 +1022,7 @@ def run_autonomous_cycle_once(
         "cognitive": read_json(runtime / "cognitive-state.json"),
         "operating": read_json(runtime / "operating-state.json"),
         "case_manager": read_json(runtime / "case-manager-state.json"),
+        "channel_routing": read_json(runtime / "channel-routing-state.json"),
         "memory": read_json(runtime / "memory-state.json"),
         "supervisor": read_json(runtime / "supervisor-state.json"),
         "hands": read_json(runtime / "hands-state.json"),
@@ -1006,6 +1043,7 @@ def run_autonomous_cycle_once(
         build_input_arbiter_stage(states["input_arbiter"]),
         build_reader_core_stage(states),
         build_case_manager_stage(states["case_manager"]),
+        build_channel_routing_stage(states["channel_routing"]),
         build_business_memory_stage(states["memory"], states["timeline"], states["cognitive"], states["operating"]),
         build_verified_hands_stage(states["hands"], states["input_arbiter"]),
     ]

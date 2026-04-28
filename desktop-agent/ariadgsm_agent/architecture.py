@@ -19,6 +19,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("Timeline Engine", "Python", "Unify live and historical messages into one deduplicated conversation timeline.", "conversation_event"),
     Layer("Domain Event Contracts", "Python", "Translate engine events into validated business events with evidence, risk, privacy and traceability.", "domain_event"),
     Layer("Case Manager", "Python", "Project validated domain events into durable customer/business cases with audit and next actions.", "case_manager_state"),
+    Layer("Channel Routing Brain", "Python", "Decide whether a case stays, transfers or merges across WhatsApp channels with evidence and approval gates.", "channel_routing_state"),
     Layer("Memory Core", "Python", "Store clients, facts, procedures, slang, failures and conversation memory.", "learning_event"),
     Layer("Operating Core", "Python", "Track business state, cases, tasks, priorities and queues.", "decision_event"),
     Layer("Accounting Core", "Python", "Create payment, debt and quote records with evidence and confidence.", "accounting_event"),
@@ -53,6 +54,7 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "human_feedback_event",
     "domain_event",
     "case_manager_state",
+    "channel_routing_state",
 )
 
 

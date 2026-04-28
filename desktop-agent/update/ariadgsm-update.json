@@ -1,8 +1,8 @@
 {
-  "version": "0.8.3",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.3.zip",
-  "sha256": "c7af93014522b3ff9605be97a6b0b911edf9f3dc722bdc91c40cf6c911167110",
+  "version": "0.8.4",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.4.zip",
+  "sha256": "49291ed33f13ab897be693d5091b4133611755eda6ad8459830becf99d4ada28",
   "autoApply": true,
-  "notes": "Version 0.8.3 closes Case Manager: domain events become durable business cases, case-manager-state contract, SQLite case projection, case-events stream, human report, and runtime ordering before Memory.",
-  "publishedAt": "2026-04-28T00:45:00Z"
+  "notes": "Version 0.8.4 closes Channel Routing Brain: cases now produce channel route decisions, proposed/approved/rejected route events, human review for cross-channel moves, route-events stream, routing state contract, and runtime ordering before Memory.",
+  "publishedAt": "2026-04-28T00:58:34Z"
 }

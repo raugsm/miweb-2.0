@@ -242,7 +242,7 @@ Pendiente para considerarlo producto final:
 Estado:
 
 ```text
-NO CERRADO / PARCIAL EN CHANNEL RESOLUTION
+CERRADO COMO CHANNEL ROUTING BRAIN OPERATIVO 0.8.4
 ```
 
 Objetivo:
@@ -272,6 +272,20 @@ Definicion de terminado:
 - la ruta explica motivo y confianza;
 - no depende solo de posicion en pantalla;
 - se prueba cliente cruzando canales.
+
+Ya existe:
+
+- `docs/ARIADGSM_CHANNEL_ROUTING_BRAIN_DESIGN.md`
+- `desktop-agent/contracts/channel-routing-state.schema.json`
+- `desktop-agent/ariadgsm_agent/channel_routing.py`
+- `desktop-agent/tests/channel_routing.py`
+- integracion de Channel Routing entre Case Manager, Domain Events, Memory y Autonomous Cycle;
+- integracion de estado `Channel Routing` en `AgentRuntime.cs`.
+
+Pendiente para considerarlo producto final:
+
+- ninguno dentro de este bloque; Accounting Core debe usar casos y rutas para
+  registrar pagos/deudas con evidencia antes de confirmar contabilidad.
 
 ### 6.5 Accounting Core evidence-first
 
@@ -371,25 +385,25 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como `Product Foundation`, `Domain Event Contracts` y `Case Manager` quedan
-cerrados, y `Autonomous Cycle Orchestrator` ya esta implementado como ciclo
-central, el siguiente bloque activo es:
+Como `Product Foundation`, `Domain Event Contracts`, `Case Manager` y
+`Channel Routing Brain` quedan cerrados, y `Autonomous Cycle Orchestrator` ya
+esta implementado como ciclo central, el siguiente bloque activo es:
 
 ```text
-Channel Routing Brain
+Accounting Core evidence-first
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_CHANNEL_ROUTING_BRAIN_DESIGN.md
+docs/ARIADGSM_ACCOUNTING_CORE_EVIDENCE_FIRST_DESIGN.md
 ```
 
 Y el entregable tecnico minimo posterior es:
 
 ```text
-desktop-agent/ariadgsm_agent/channel_routing.py
-desktop-agent/contracts/domain-event-registry.json
-desktop-agent/tests/channel_routing.py
-integracion con Case Manager / Domain Events / Autonomous Cycle
+desktop-agent/ariadgsm_agent/accounting_evidence.py
+desktop-agent/contracts/accounting-core-state.schema.json
+desktop-agent/tests/accounting_core_evidence.py
+integracion con Case Manager / Domain Events / Channel Routing / Autonomous Cycle
 ```

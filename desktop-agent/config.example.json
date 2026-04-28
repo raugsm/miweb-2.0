@@ -51,6 +51,15 @@
     "db": "./desktop-agent/runtime/case-manager.sqlite",
     "limit": 500
   },
+  "channelRoutingCore": {
+    "caseManagerDb": "./desktop-agent/runtime/case-manager.sqlite",
+    "routeEventsFile": "./desktop-agent/runtime/route-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/channel-routing-state.json",
+    "reportFile": "./desktop-agent/runtime/channel-routing-report.json",
+    "db": "./desktop-agent/runtime/channel-routing.sqlite",
+    "policyFile": "./desktop-agent/runtime/channel-routing-policy.json",
+    "limit": 500
+  },
   "domainEventCore": {
     "visionEventsFile": "./desktop-agent/runtime/vision-events.jsonl",
     "perceptionEventsFile": "./desktop-agent/runtime/perception-events.jsonl",
@@ -64,6 +73,7 @@
     "autonomousCycleEventsFile": "./desktop-agent/runtime/autonomous-cycle-events.jsonl",
     "humanFeedbackEventsFile": "./desktop-agent/runtime/human-feedback-events.jsonl",
     "caseEventsFile": "./desktop-agent/runtime/case-events.jsonl",
+    "routeEventsFile": "./desktop-agent/runtime/route-events.jsonl",
     "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
     "stateFile": "./desktop-agent/runtime/domain-events-state.json",
     "db": "./desktop-agent/runtime/domain-events.sqlite",
