@@ -76,38 +76,49 @@ Como se traduce a AriadGSM:
 El orden de autoridad queda:
 
 1. `docs/ARIADGSM_EXECUTION_LOCK.md`
-2. `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
-3. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
-4. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
-5. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
-6. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
-7. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
-8. documentos tecnicos por motor
+2. `docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md`
+3. `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
+4. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
+5. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
+6. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
+7. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
+8. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
+9. documentos tecnicos por motor
 
 Si hay conflicto, primero manda `Execution Lock`; esta Etapa 0 define la base
 que `Execution Lock` debe respetar.
 
 ## 5. Etapas maestras
 
-Las etapas quedan ordenadas asi:
+Las etapas maestras quedan ordenadas asi:
 
 ```text
-0. Product Foundation
+0. Execution Lock
 1. Domain Event Contracts
 2. Autonomous Cycle Orchestrator
 3. Case Manager
 4. Channel Routing Brain
 5. Accounting Core evidence-first
-6. Product Shell y cabina humana
-7. Ojos definitivos y manos verificadas
-8. Memory / Learning / Self-Improvement
-9. Tool Registry GSM y operacion avanzada
-10. Cloud Sync / ariadgsm.com / reportes
-11. Evaluation, release y rollback
+6. Product Shell
+7. Cabin Authority
+8. Safe Eyes / Reader Core
+9. Living Memory
+10. Business Brain
+11. Trust & Safety + Input Arbiter
+12. Hands & Verification
+13. Tool Registry
+14. Cloud Sync / ariadgsm.com
+15. Evaluation + Release
 ```
 
 Execution Lock puede activar un bloque dentro de estas etapas, pero no puede
 borrar la Etapa 0.
+
+La version explicada y viva de este mapa se mantiene en:
+
+```text
+docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md
+```
 
 ## 6. Definicion de terminado de Etapa 0
 
@@ -189,4 +200,3 @@ Se que contratos existen.
 Se que version esta corriendo.
 Se que no debo declarar autonomia final sin pruebas.
 ```
-

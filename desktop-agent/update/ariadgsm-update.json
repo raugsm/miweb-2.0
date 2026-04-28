@@ -1,8 +1,8 @@
 {
-  "version": "0.8.9",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.9.zip",
-  "sha256": "69b8c6702399f5646ffb05ccc5d2b536ffd95e63cd071d527f5c2e0c9013458a",
+  "version": "0.8.10",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.10.zip",
+  "sha256": "ec484e7ad635f2c30353aac4ae5b604be2fc70a43971ee0e5ff3f651144f60ed",
   "autoApply": true,
-  "notes": "Version 0.8.9 closes Product Shell visual final: operator-friendly interface, visible version, human states for cabina/memory/accounting/safety/hands, monotonic WhatsApp setup progress, actionable errors, and no auto-minimize when warnings remain.",
-  "publishedAt": "2026-04-28T02:31:24Z"
+  "notes": "Version 0.8.10 aligns Execution Lock with the 16-stage master roadmap, blocks premature updater/release work, and sets Safe Eyes / Reader Core as the next pending stage.",
+  "publishedAt": "2026-04-28T02:50:43Z"
 }

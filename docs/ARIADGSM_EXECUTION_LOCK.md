@@ -73,34 +73,51 @@ La IA debe comportarse como Bryams a nivel operativo:
 Orden de autoridad:
 
 1. `docs/ARIADGSM_EXECUTION_LOCK.md`
-2. `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
-3. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
-4. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
-5. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
-6. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
-7. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
-8. Documentos tecnicos por motor dentro de `desktop-agent/`
+2. `docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md`
+3. `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
+4. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
+5. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
+6. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
+7. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
+8. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
+9. Documentos tecnicos por motor dentro de `desktop-agent/`
 
 Si hay conflicto, manda este archivo.
 
 ## 5. Orden bloqueado de la nueva etapa
 
-Este es el orden que Bryams marco y queda bloqueado:
+Este es el orden maestro que Bryams marco y queda bloqueado:
 
 ```text
-0. Product Foundation
+0. Execution Lock
 1. Domain Event Contracts
 2. Autonomous Cycle Orchestrator
 3. Case Manager
 4. Channel Routing Brain
 5. Accounting Core evidence-first
+6. Product Shell
+7. Cabin Authority
+8. Safe Eyes / Reader Core
+9. Living Memory
+10. Business Brain
+11. Trust & Safety + Input Arbiter
+12. Hands & Verification
+13. Tool Registry
+14. Cloud Sync / ariadgsm.com
+15. Evaluation + Release
 ```
 
 Ningun bloque posterior puede reemplazar este orden sin aprobacion.
 
+La version explicada del mapa vive en:
+
+```text
+docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md
+```
+
 ## 6. Estado actual de los bloques
 
-### 6.0 Product Foundation
+### 6.0 Execution Lock / Product Foundation
 
 Estado:
 
@@ -346,22 +363,103 @@ Pendiente para considerarlo producto final:
   seguridad visual, interfaz final y manos sin volver a mezclarlo con la
   columna mental del negocio.
 
+### 6.6 Product Shell
+
+Estado:
+
+```text
+CERRADO COMO SHELL OPERATIVO 0.8.9
+```
+
+Objetivo:
+
+Login, pantalla clara, estado humano, version visible, progreso real y actividad
+entendible para Bryams.
+
+Ya existe:
+
+- `docs/ARIADGSM_PRODUCT_SHELL_FINAL_DESIGN.md`
+- `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/MainForm.cs`
+- `desktop-agent/tests/product_shell_visual_final.py`
+
+Pendiente para considerarlo autonomia final:
+
+- ninguno dentro de esta etapa; las pantallas futuras deben seguir este lenguaje
+  humano y no volver a exponer tablas tecnicas como experiencia principal.
+
+### 6.7 Cabin Authority
+
+Estado:
+
+```text
+CERRADO COMO AUTORIDAD DE CABINA 0.8.6
+```
+
+Objetivo:
+
+Alistar Edge, Chrome y Firefox sin cerrar ventanas, sin abrir WhatsApp instalado,
+con identidad wa-1/wa-2/wa-3 y estado claro antes de encender IA.
+
+Ya existe:
+
+- `docs/ARIADGSM_CABIN_AUTHORITY_FINAL_DESIGN.md`
+- `desktop-agent/contracts/cabin-authority-state.schema.json`
+- `desktop-agent/tests/cabin_authority_final.py`
+
+Pendiente para considerarlo autonomia final:
+
+- validacion viva prolongada en la PC de Bryams;
+- integracion con `Safe Eyes / Reader Core` para confirmar lectura util real, no
+  solo ventana visible.
+
+### 6.8 Safe Eyes / Reader Core
+
+Estado:
+
+```text
+SIGUIENTE ETAPA PENDIENTE
+```
+
+Objetivo:
+
+Lectura robusta de WhatsApp Web como objetos reales:
+
+- identidad positiva de WhatsApp Web;
+- canal por navegador, no por coordenada;
+- mensaje, chat, remitente, hora, direccion y confianza;
+- DOM/accesibilidad/UI Automation primero;
+- OCR solo como respaldo;
+- evidencia auditable;
+- errores humanos cuando no pueda leer.
+
+Definicion de terminado:
+
+- existe documento de diseno;
+- existe contrato de salida del Reader Core;
+- existe implementacion integrada al ciclo;
+- existe comparacion de fuente estructurada vs OCR;
+- existe prueba sin sesiones reales;
+- la siguiente etapa `Living Memory` recibe mensajes reales y no ruido.
+
 ## 7. Bloques que NO pueden adelantarse
 
 Estos bloques son importantes, pero no deben sustituir el orden de la nueva
 etapa salvo que Bryams lo autorice:
 
-- Product Shell visual final.
-- Cabin Authority final.
-- Trust & Safety Core completo.
-- Hands Engine avanzado.
+- Living Memory.
+- Business Brain.
+- Trust & Safety + Input Arbiter final.
+- Hands & Verification final.
+- Tool Registry.
+- Cloud Sync / ariadgsm.com.
 - Updater final.
-- Cloud Sync final.
+- Evaluation + Release.
 
 Motivo:
 
-Son necesarios para producto, pero si se hacen antes de cerrar la columna mental
-del negocio, volvemos al patron de parches.
+Son necesarios para producto, pero si se hacen antes de cerrar `Safe Eyes /
+Reader Core`, volvemos al patron de parches: la IA razonaria sobre lecturas
+incompletas o ruido de pantalla.
 
 Excepcion:
 
@@ -401,149 +499,27 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como `Product Foundation`, `Domain Event Contracts`, `Case Manager`,
-`Channel Routing Brain` y `Accounting Core evidence-first` quedan cerrados, la
-columna mental inicial del negocio queda completa.
-
-El bloque recomendado para producto final ya cerrado en `0.8.6` es:
+Como las etapas `0` a `7` quedan cerradas como base operativa, la siguiente
+etapa pendiente del mapa maestro es:
 
 ```text
-Cabin Authority final
+Etapa 8: Safe Eyes / Reader Core
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_CABIN_AUTHORITY_FINAL_DESIGN.md
+docs/ARIADGSM_SAFE_EYES_READER_CORE_DESIGN.md
 ```
 
-Y el entregable tecnico minimo posterior es:
+El entregable tecnico minimo posterior es:
 
 ```text
-alistamiento determinista de Edge/Chrome/Firefox
-verificacion de 3 WhatsApps visibles sin cerrar ventanas del usuario
-estado visible para Bryams antes de Encender IA
-pruebas sin mover/cerrar sesiones reales
-```
-
-Queda cerrado con:
-
-- `docs/ARIADGSM_CABIN_AUTHORITY_FINAL_DESIGN.md`
-- `desktop-agent/contracts/cabin-authority-state.schema.json`
-- selector de pestanas seguro solo `TabItem`
-- apertura por ejecutable exacto de Edge/Chrome/Firefox
-- perfil fijo desactivado por defecto
-- prueba `desktop-agent/tests/cabin_authority_final.py`
-
-El bloque recomendado para producto final ya cerrado en `0.8.7` es:
-
-```text
-Hands Engine avanzado + accion sobre chat verificada
-```
-
-El entregable documental minimo es:
-
-```text
-docs/ARIADGSM_HANDS_ENGINE_ADVANCED_DESIGN.md
-```
-
-Y el entregable tecnico minimo posterior es:
-
-```text
-abrir chat visible con confirmacion de chat correcto
-ceder mouse al operador sin apagar ojos ni memoria
-verificar accion por percepcion antes de continuar
-reportar fallo accionable en lenguaje humano
-pruebas sin depender de sesiones reales
-```
-
-Queda cerrado con:
-
-- `docs/ARIADGSM_HANDS_ENGINE_ADVANCED_DESIGN.md`
-- `desktop-agent/tests/hands_engine_advanced.py`
-- `SendInput` en Hands para mouse en vez de `mouse_event`
-- verificacion fresca de Perception antes de continuar despues de `open_chat`
-- fallo `failed` y suspension de acciones dependientes si el chat visible no
-  coincide con el esperado
-- Input Arbiter con cesion de mouse al operador sin apagar ojos, memoria ni
-  cognicion
-- pruebas C# de verificacion correcta, chat equivocado y prioridad humana
-
-El bloque recomendado para producto final ya cerrado en `0.8.8` es:
-
-```text
-Trust & Safety Core completo
-```
-
-El entregable documental minimo es:
-
-```text
-docs/ARIADGSM_TRUST_SAFETY_CORE_DESIGN.md
-```
-
-Y el entregable tecnico minimo posterior es:
-
-```text
-politica central de niveles de autonomia
-matriz de riesgo por accion de negocio
-permisos explicitos para enviar mensajes, tocar herramientas y registrar pagos
-bloqueo verificable de acciones irreversibles
-reporte humano de por que una accion fue permitida, pausada o bloqueada
-pruebas sin ejecutar acciones reales sobre clientes
-```
-
-Queda cerrado con:
-
-- `docs/ARIADGSM_TRUST_SAFETY_CORE_DESIGN.md`
-- `desktop-agent/ariadgsm_agent/trust_safety.py`
-- `desktop-agent/contracts/trust-safety-state.schema.json`
-- `desktop-agent/tests/trust_safety_core.py`
-- politica central de autonomia 1 a 6
-- matriz de riesgo por capacidad operativa
-- permisos explicitos para mensajes, herramientas, contabilidad y rutas
-- bloqueo de acciones irreversibles sin permiso/evidencia
-- Supervisor compatible consumiendo Trust & Safety
-- estado visible `trust-safety-state.json` en la app
-
-El siguiente bloque recomendado para producto final es:
-
-```text
-Product Shell visual final
-```
-
-El entregable documental minimo es:
-
-```text
-docs/ARIADGSM_PRODUCT_SHELL_FINAL_DESIGN.md
-```
-
-Y el entregable tecnico minimo posterior es:
-
-```text
-interfaz menos tecnica y mas operativa para Bryams
-estado humano de IA, seguridad, cabina, memoria y manos
-inicio manual claro despues de login
-progreso real para alistar WhatsApps
-errores accionables sin cajas tecnicas largas
-pruebas visuales sin mover sesiones reales
-```
-
-Queda cerrado con:
-
-- `docs/ARIADGSM_PRODUCT_SHELL_FINAL_DESIGN.md`
-- `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/MainForm.cs`
-- `desktop-agent/tests/product_shell_visual_final.py`
-- login con inicio manual explicito
-- version visible en cabina
-- progreso de alistamiento monotono de 0 a 100
-- estado humano por areas: cabina, ojos, cerebro/memoria, contabilidad,
-  seguridad, manos, nube/panel
-- Trust & Safety visible en tarjetas y salud operativa
-- errores accionables sin tabla tecnica larga
-- la app solo se minimiza si no hay errores ni avisos visibles
-
-El siguiente bloque recomendado para producto final es:
-
-```text
-Updater final
+lector estructurado para WhatsApp Web en Edge/Chrome/Firefox
+contrato de mensaje visible con fuente, confianza y evidencia
+DOM/accesibilidad/UI Automation como fuente primaria cuando exista
+OCR como respaldo, no como fuente unica
+comparacion de fuentes y reporte de desacuerdo
+integracion al ciclo autonomo antes de Case Manager/Memory
+pruebas sin sesiones reales ni movimiento de mouse
 ```

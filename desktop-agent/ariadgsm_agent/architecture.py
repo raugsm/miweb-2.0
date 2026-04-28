@@ -4,11 +4,39 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class Stage:
+    number: int
+    name: str
+    status: str
+    next_gate: str
+
+
+@dataclass(frozen=True)
 class Layer:
     name: str
     owner: str
     responsibility: str
     output_contract: str
+
+
+MASTER_STAGES: tuple[Stage, ...] = (
+    Stage(0, "Execution Lock", "base_closed_continuous_alignment", "governance"),
+    Stage(1, "Domain Event Contracts", "closed_operational_contract", "events"),
+    Stage(2, "Autonomous Cycle Orchestrator", "implemented_central_cycle_base", "cycle"),
+    Stage(3, "Case Manager", "closed_operational_base", "cases"),
+    Stage(4, "Channel Routing Brain", "closed_operational_base", "routing"),
+    Stage(5, "Accounting Core evidence-first", "closed_evidence_first_base", "accounting"),
+    Stage(6, "Product Shell", "closed_operational_shell", "operator_experience"),
+    Stage(7, "Cabin Authority", "closed_cabin_authority", "workspace"),
+    Stage(8, "Safe Eyes / Reader Core", "next_pending", "reader_core"),
+    Stage(9, "Living Memory", "partial", "memory"),
+    Stage(10, "Business Brain", "partial", "business_reasoning"),
+    Stage(11, "Trust & Safety + Input Arbiter", "advanced_base", "safety"),
+    Stage(12, "Hands & Verification", "advanced_base", "hands"),
+    Stage(13, "Tool Registry", "pending", "tools"),
+    Stage(14, "Cloud Sync / ariadgsm.com", "partial", "cloud"),
+    Stage(15, "Evaluation + Release", "pending_final", "release"),
+)
 
 
 LAYERS: tuple[Layer, ...] = (
@@ -70,4 +98,16 @@ def describe_pipeline() -> list[dict[str, str]]:
             "outputContract": layer.output_contract,
         }
         for layer in LAYERS
+    ]
+
+
+def describe_master_stages() -> list[dict[str, str | int]]:
+    return [
+        {
+            "number": stage.number,
+            "name": stage.name,
+            "status": stage.status,
+            "nextGate": stage.next_gate,
+        }
+        for stage in MASTER_STAGES
     ]
