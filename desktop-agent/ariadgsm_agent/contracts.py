@@ -19,6 +19,7 @@ CONTRACT_FILES: dict[str, str] = {
     "perception_event": "perception-event.schema.json",
     "visible_message": "visible-message.schema.json",
     "reader_core_state": "reader-core-state.schema.json",
+    "window_reality_state": "window-reality-state.schema.json",
     "conversation_event": "conversation-event.schema.json",
     "decision_event": "decision-event.schema.json",
     "action_event": "action-event.schema.json",
@@ -299,7 +300,7 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
     "runtime_governor_state": {
         "status": "ok",
         "engine": "ariadgsm_runtime_governor",
-        "version": "0.9.0",
+        "version": "0.9.1",
         "updatedAt": utc_now(),
         "contract": "runtime_governor_state",
         "policy": {
@@ -399,7 +400,7 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
     "evaluation_release_state": {
         "status": "ok",
         "engine": "ariadgsm_evaluation_release",
-        "version": "0.9.0",
+        "version": "0.9.1",
         "updatedAt": utc_now(),
         "contract": "evaluation_release_state",
         "stage": "15",
@@ -664,6 +665,83 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "queRechace": [],
             "queNecesitoDeBryams": [],
             "riesgos": ["OCR es respaldo de menor confianza."],
+        },
+    },
+    "window_reality_state": {
+        "status": "attention",
+        "engine": "ariadgsm_window_reality_resolver",
+        "version": "0.9.1",
+        "updatedAt": utc_now(),
+        "contract": "window_reality_state",
+        "policy": {
+            "evidenceFusion": [
+                "structural_windows",
+                "visual_geometry",
+                "semantic_reader_core",
+                "freshness_ttl",
+                "actionability_input_hands",
+            ],
+            "freshness": {
+                "cabinReadinessMaxAgeMs": 45000,
+                "readerCoreMaxAgeMs": 90000,
+                "inputArbiterMaxAgeMs": 30000,
+                "handsMaxAgeMs": 60000,
+            },
+            "actionability": {
+                "operatorHasPriority": True,
+                "doNotActOnCoveredWindow": True,
+                "allowReadWhenSemanticFreshButVisualConflicted": True,
+            },
+        },
+        "inputs": [
+            {"file": "cabin-readiness.json", "freshness": {"status": "fresh", "ageMs": 200, "maxAgeMs": 45000, "fresh": True}},
+            {"file": "reader-core-state.json", "freshness": {"status": "fresh", "ageMs": 300, "maxAgeMs": 90000, "fresh": True}},
+            {"file": "input-arbiter-state.json", "freshness": {"status": "fresh", "ageMs": 150, "maxAgeMs": 30000, "fresh": True}},
+            {"file": "hands-state.json", "freshness": {"status": "fresh", "ageMs": 250, "maxAgeMs": 60000, "fresh": True}},
+        ],
+        "summary": {
+            "expectedChannels": 3,
+            "operationalChannels": 2,
+            "readyChannels": 2,
+            "conflictedChannels": 1,
+            "requiresHumanChannels": 1,
+            "staleInputs": 0,
+            "handsMayActChannels": 1,
+        },
+        "channels": [
+            {
+                "channelId": "wa-1",
+                "status": "READY",
+                "confidence": 0.9,
+                "isOperational": True,
+                "requiresHuman": False,
+                "handsMayAct": True,
+                "decision": {
+                    "reason": "Ventana, pantalla y lectura no se contradicen.",
+                    "accepted": True,
+                    "actionPolicy": "read_and_act",
+                },
+                "signals": [
+                    {"kind": "structural", "status": "ok", "confidence": 0.9, "detail": "Windows encontro el navegador asignado.", "evidence": ["msedge WhatsApp"]},
+                    {"kind": "visual", "status": "ok", "confidence": 0.8, "detail": "La zona visual corresponde a WhatsApp.", "evidence": ["WhatsApp - Edge"]},
+                    {"kind": "semantic", "status": "ok", "confidence": 0.88, "detail": "Reader Core vio mensajes.", "evidence": ["Hola"]},
+                    {"kind": "actionability", "status": "ok", "confidence": 0.72, "detail": "Hands puede actuar con permiso.", "evidence": []},
+                    {"kind": "freshness", "status": "ok", "confidence": 0.85, "detail": "La evidencia esta fresca.", "evidence": []},
+                ],
+                "evidence": {
+                    "detail": "WhatsApp Web visible y utilizable.",
+                    "rawStatus": "READY",
+                    "sourceEvidence": ["msedge WhatsApp"],
+                },
+            }
+        ],
+        "humanReport": {
+            "headline": "Cabina verificable",
+            "queEstaPasando": ["Fusione ventana, pantalla, Reader Core, frescura e input."],
+            "queAcepte": ["wa-1: READY (90%)"],
+            "queDude": ["wa-2: COVERED_CONFIRMED - ventana cubierta"],
+            "queNecesitoDeBryams": ["wa-2: liberar zona cubierta"],
+            "riesgos": ["No permito manos si la ventana esta cubierta."],
         },
     },
     "conversation_event": {

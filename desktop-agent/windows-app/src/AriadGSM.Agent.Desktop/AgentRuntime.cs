@@ -42,6 +42,7 @@ internal sealed partial class AgentRuntime : IDisposable
     private readonly string _activeVersionFile;
     private readonly string _agentSupervisorStateFile;
     private readonly string _cabinReadinessFile;
+    private readonly string _windowRealityStateFile;
     private readonly string _cabinManagerStateFile;
     private readonly string _cabinChannelRegistryFile;
     private readonly string _statusBusStateFile;
@@ -72,6 +73,7 @@ internal sealed partial class AgentRuntime : IDisposable
         _activeVersionFile = Path.Combine(_runtimeDir, "active-version.json");
         _agentSupervisorStateFile = Path.Combine(_runtimeDir, "agent-supervisor-state.json");
         _cabinReadinessFile = Path.Combine(_runtimeDir, "cabin-readiness.json");
+        _windowRealityStateFile = Path.Combine(_runtimeDir, "window-reality-state.json");
         _cabinManagerStateFile = Path.Combine(_runtimeDir, "cabin-manager-state.json");
         _cabinChannelRegistryFile = Path.Combine(_runtimeDir, "cabin-channel-registry.json");
         _statusBusStateFile = Path.Combine(_runtimeDir, "status-bus-state.json");
@@ -301,6 +303,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Vision", "vision-health.json", "Vision"),
             StateHealth("Perception", "perception-health.json", "Perception"),
             StateHealth("Reader Core", "reader-core-state.json", "PythonCoreLoop"),
+            StateHealth("Reality Resolver", "window-reality-state.json", "PythonCoreLoop"),
             StateHealth("Interaction", "interaction-state.json", "Interaction"),
             StateHealth("Orchestrator", "orchestrator-state.json", "Orchestrator"),
             StateHealth("Timeline", "timeline-state.json", "PythonCoreLoop"),
@@ -381,6 +384,7 @@ internal sealed partial class AgentRuntime : IDisposable
         using var runtimeGovernor = ReadJsonStatus("runtime-governor-state.json");
         using var perception = ReadJsonStatus("perception-health.json");
         using var readerCore = ReadJsonStatus("reader-core-state.json");
+        using var windowReality = ReadJsonStatus("window-reality-state.json");
         using var interaction = ReadJsonStatus("interaction-state.json");
         using var orchestrator = ReadJsonStatus("orchestrator-state.json");
         using var timeline = ReadJsonStatus("timeline-state.json");
@@ -424,6 +428,7 @@ internal sealed partial class AgentRuntime : IDisposable
             $"WhatsApps: {(whatsappSummary.Length == 0 ? "sin revision" : string.Join(" | ", whatsappSummary))}",
             $"Vision: capturas={Number(vision, "framesCaptured", "eventsWritten")} | ventanas={Number(vision, "visibleWindowCount")} | intervalo={Number(vision, "captureIntervalMs")}ms",
             $"Reader Core: nuevos={NestedNumber(readerCore, "ingested", "newMessages")} | rechazados={NestedNumber(readerCore, "ingested", "rejected")} | desacuerdos={NestedNumber(readerCore, "summary", "latestRunDisagreements")} | OCR={NestedNumber(readerCore, "summary", "ocrFallbackMessages")}",
+            $"Reality Resolver: {Text(windowReality, "status")} | operables={NestedNumber(windowReality, "summary", "operationalChannels")}/{NestedNumber(windowReality, "summary", "expectedChannels")} | conflictos={NestedNumber(windowReality, "summary", "conflictedChannels")} | viejo={NestedNumber(windowReality, "summary", "staleInputs")}",
             $"Perception OCR: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
             $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
             $"Orchestrator: fase={Text(orchestrator, "phase")} | {Text(orchestrator, "summary")}",
@@ -1311,6 +1316,190 @@ internal sealed partial class AgentRuntime : IDisposable
                 }).ToArray()
             };
             WriteAllTextAtomicShared(_cabinReadinessFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+            WriteWindowRealityProjection(status, readiness);
+        }
+        catch
+        {
+        }
+    }
+
+    private void WriteWindowRealityProjection(string status, IReadOnlyList<ChannelReadiness> readiness)
+    {
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var channels = readiness.Select(item =>
+            {
+                var rawStatus = item.Status;
+                var channelStatus = item.IsReady
+                    ? "READY_PENDING_SEMANTIC"
+                    : rawStatus.Equals("COVERED_BY_WINDOW", StringComparison.OrdinalIgnoreCase)
+                        ? "COVERED_CONFIRMED"
+                        : item.RequiresHuman
+                            ? "HUMAN_REQUIRED"
+                            : "MISSING_OR_WRONG_SESSION";
+                var isOperational = item.IsReady;
+                return new Dictionary<string, object?>
+                {
+                    ["channelId"] = item.ChannelId,
+                    ["status"] = channelStatus,
+                    ["confidence"] = item.IsReady ? 0.72 : 0.42,
+                    ["isOperational"] = isOperational,
+                    ["requiresHuman"] = item.RequiresHuman,
+                    ["handsMayAct"] = false,
+                    ["decision"] = new Dictionary<string, object?>
+                    {
+                        ["reason"] = item.IsReady
+                            ? "Cabina confirma ventana WhatsApp; Reader Core debe aportar semantica antes de manos."
+                            : item.Detail,
+                        ["accepted"] = isOperational,
+                        ["actionPolicy"] = isOperational ? "read_only_pending_resolver" : "hold"
+                    },
+                    ["signals"] = new[]
+                    {
+                        new Dictionary<string, object?>
+                        {
+                            ["kind"] = "structural",
+                            ["status"] = item.IsReady ? "ok" : item.RequiresHuman ? "needs_human" : "unknown",
+                            ["confidence"] = item.IsReady ? 0.9 : 0.35,
+                            ["detail"] = item.Detail,
+                            ["evidence"] = item.Evidence.Take(6).ToArray()
+                        },
+                        new Dictionary<string, object?>
+                        {
+                            ["kind"] = "visual",
+                            ["status"] = item.IsReady ? "ok" : rawStatus.Equals("COVERED_BY_WINDOW", StringComparison.OrdinalIgnoreCase) ? "conflict" : "unknown",
+                            ["confidence"] = item.IsReady ? 0.72 : 0.35,
+                            ["detail"] = item.Window is null ? "Sin ventana asociada." : "Ventana asociada por Win32/DWM.",
+                            ["evidence"] = item.Window is null ? Array.Empty<string>() : new[] { item.Window.Title }
+                        },
+                        new Dictionary<string, object?>
+                        {
+                            ["kind"] = "semantic",
+                            ["status"] = "unknown",
+                            ["confidence"] = 0.25,
+                            ["detail"] = "Reader Core aun no ha fusionado mensajes para este ciclo.",
+                            ["evidence"] = Array.Empty<string>()
+                        },
+                        new Dictionary<string, object?>
+                        {
+                            ["kind"] = "actionability",
+                            ["status"] = "unknown",
+                            ["confidence"] = 0.35,
+                            ["detail"] = "Input Arbiter y Hands validaran permisos antes de actuar.",
+                            ["evidence"] = Array.Empty<string>()
+                        },
+                        new Dictionary<string, object?>
+                        {
+                            ["kind"] = "freshness",
+                            ["status"] = "partial",
+                            ["confidence"] = 0.55,
+                            ["detail"] = "Proyeccion inmediata de Cabin Authority; falta resolver Python.",
+                            ["evidence"] = Array.Empty<string>()
+                        }
+                    },
+                    ["evidence"] = new Dictionary<string, object?>
+                    {
+                        ["detail"] = item.Detail,
+                        ["rawStatus"] = rawStatus,
+                        ["sourceEvidence"] = item.Evidence.Take(6).ToArray(),
+                        ["window"] = SerializeCabinWindow(item.Window)
+                    }
+                };
+            }).ToArray();
+
+            var operational = readiness.Count(item => item.IsReady);
+            var conflicted = readiness.Count(item => item.Status.Equals("COVERED_BY_WINDOW", StringComparison.OrdinalIgnoreCase));
+            var requiresHuman = readiness.Count(item => item.RequiresHuman);
+            var stateStatus = operational == readiness.Count && requiresHuman == 0 && status.Equals("ready", StringComparison.OrdinalIgnoreCase)
+                ? "attention"
+                : operational > 0
+                    ? "attention"
+                    : "blocked";
+            var state = new Dictionary<string, object?>
+            {
+                ["status"] = stateStatus,
+                ["engine"] = "ariadgsm_window_reality_resolver",
+                ["version"] = CurrentVersion,
+                ["updatedAt"] = now,
+                ["contract"] = "window_reality_state",
+                ["policy"] = new Dictionary<string, object?>
+                {
+                    ["evidenceFusion"] = new[]
+                    {
+                        "structural_windows",
+                        "visual_geometry",
+                        "semantic_reader_core",
+                        "freshness_ttl",
+                        "actionability_input_hands"
+                    },
+                    ["freshness"] = new Dictionary<string, object?>
+                    {
+                        ["cabinReadinessMaxAgeMs"] = 45000,
+                        ["readerCoreMaxAgeMs"] = 90000,
+                        ["inputArbiterMaxAgeMs"] = 30000,
+                        ["handsMaxAgeMs"] = 60000
+                    },
+                    ["actionability"] = new Dictionary<string, object?>
+                    {
+                        ["operatorHasPriority"] = true,
+                        ["doNotActOnCoveredWindow"] = true,
+                        ["allowReadWhenSemanticFreshButVisualConflicted"] = true
+                    }
+                },
+                ["inputs"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["file"] = "cabin-readiness.json",
+                        ["freshness"] = new Dictionary<string, object?> { ["status"] = "fresh", ["ageMs"] = 0, ["maxAgeMs"] = 45000, ["fresh"] = true }
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["file"] = "reader-core-state.json",
+                        ["freshness"] = new Dictionary<string, object?> { ["status"] = "unknown", ["ageMs"] = null, ["maxAgeMs"] = 90000, ["fresh"] = false }
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["file"] = "input-arbiter-state.json",
+                        ["freshness"] = new Dictionary<string, object?> { ["status"] = "unknown", ["ageMs"] = null, ["maxAgeMs"] = 30000, ["fresh"] = false }
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["file"] = "hands-state.json",
+                        ["freshness"] = new Dictionary<string, object?> { ["status"] = "unknown", ["ageMs"] = null, ["maxAgeMs"] = 60000, ["fresh"] = false }
+                    }
+                },
+                ["summary"] = new Dictionary<string, object?>
+                {
+                    ["expectedChannels"] = readiness.Count,
+                    ["operationalChannels"] = operational,
+                    ["readyChannels"] = operational,
+                    ["conflictedChannels"] = conflicted,
+                    ["requiresHumanChannels"] = requiresHuman,
+                    ["staleInputs"] = 0,
+                    ["handsMayActChannels"] = 0
+                },
+                ["channels"] = channels,
+                ["humanReport"] = new Dictionary<string, object?>
+                {
+                    ["headline"] = "Cabina proyectada, falta resolver lectura",
+                    ["queEstaPasando"] = new[]
+                    {
+                        $"Cabin Authority vio {operational}/{readiness.Count} canales estructuralmente operables.",
+                        "Window Reality Resolver Python reemplazara esta proyeccion al iniciar motores."
+                    },
+                    ["queAcepte"] = readiness.Where(item => item.IsReady).Select(item => $"{item.ChannelId}: READY_PENDING_SEMANTIC").ToArray(),
+                    ["queDude"] = readiness.Where(item => !item.IsReady).Select(item => $"{item.ChannelId}: {item.Status} - {item.Detail}").ToArray(),
+                    ["queNecesitoDeBryams"] = readiness.Where(item => item.RequiresHuman).Select(item => $"{item.ChannelId}: {item.Detail}").DefaultIfEmpty("No necesito ayuda inmediata.").ToArray(),
+                    ["riesgos"] = new[]
+                    {
+                        "Esta es una proyeccion estructural; no habilita manos por si sola.",
+                        "Reader Core, Input Arbiter y Hands deben confirmar antes de actuar."
+                    }
+                }
+            };
+            WriteAllTextAtomicShared(_windowRealityStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch
         {
@@ -1957,6 +2146,7 @@ internal sealed partial class AgentRuntime : IDisposable
             ("DomainContracts", "ariadgsm_agent.domain_contracts", new[] { "--json" }),
             ("AutonomousCycleStart", "ariadgsm_agent.autonomous_cycle", new[] { "--trigger", "start", "--json" }),
             ("ReaderCore", "ariadgsm_agent.reader_core", new[] { "--json" }),
+            ("WindowReality", "ariadgsm_agent.window_reality", new[] { "--json" }),
             ("Timeline", "ariadgsm_agent.timeline", new[] { "--json" }),
             ("Cognitive", "ariadgsm_agent.cognitive", new[] { "--autonomy-level", "3", "--json" }),
             ("Operating", "ariadgsm_agent.operating", new[] { "--autonomy-level", "3", "--json" }),

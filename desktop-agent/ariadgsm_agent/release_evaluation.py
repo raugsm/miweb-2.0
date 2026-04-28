@@ -14,7 +14,7 @@ from .contracts import CONTRACT_FILES, sample_event, validate_contract
 from .runtime_governor import build_runtime_governor_state
 
 
-VERSION = "0.9.0"
+VERSION = "0.9.1"
 ENGINE = "ariadgsm_evaluation_release"
 CONTRACT = "evaluation_release_state"
 GATE_NAMES = {
@@ -159,6 +159,7 @@ def gate_evaluation_harness(repo_root: Path, runtime_dir: Path) -> dict[str, Any
         "docs/ARIADGSM_EXECUTION_LOCK.md",
         "docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md",
         "docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md",
+        "docs/ARIADGSM_WINDOW_REALITY_RESOLVER_FINAL.md",
     ]
     missing_docs = [path for path in required_docs if not (repo_root / path).exists()]
     failures.extend([f"missing:{path}" for path in missing_docs])

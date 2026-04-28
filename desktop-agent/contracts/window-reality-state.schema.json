@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/window-reality-state.schema.json",
+  "title": "AriadGSM Window Reality Resolver State",
+  "type": "object",
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "contract",
+    "policy",
+    "inputs",
+    "summary",
+    "channels",
+    "humanReport"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "attention", "blocked", "idle"]
+    },
+    "engine": {
+      "type": "string",
+      "const": "ariadgsm_window_reality_resolver"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updatedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract": {
+      "type": "string",
+      "const": "window_reality_state"
+    },
+    "policy": {
+      "type": "object",
+      "required": ["evidenceFusion", "freshness", "actionability"],
+      "additionalProperties": true,
+      "properties": {
+        "evidenceFusion": {
+          "type": "array",
+          "minItems": 5,
+          "items": {"type": "string"}
+        },
+        "freshness": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "actionability": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["file", "freshness"],
+        "additionalProperties": true,
+        "properties": {
+          "file": {"type": "string", "minLength": 1},
+          "freshness": {
+            "type": "object",
+            "required": ["status", "maxAgeMs", "fresh"],
+            "additionalProperties": true,
+            "properties": {
+              "status": {"type": "string"},
+              "ageMs": {"type": ["integer", "null"]},
+              "maxAgeMs": {"type": "integer"},
+              "fresh": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "expectedChannels",
+        "operationalChannels",
+        "readyChannels",
+        "conflictedChannels",
+        "requiresHumanChannels",
+        "staleInputs",
+        "handsMayActChannels"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "expectedChannels": {"type": "integer", "minimum": 0},
+        "operationalChannels": {"type": "integer", "minimum": 0},
+        "readyChannels": {"type": "integer", "minimum": 0},
+        "conflictedChannels": {"type": "integer", "minimum": 0},
+        "requiresHumanChannels": {"type": "integer", "minimum": 0},
+        "staleInputs": {"type": "integer", "minimum": 0},
+        "handsMayActChannels": {"type": "integer", "minimum": 0}
+      }
+    },
+    "channels": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "channelId",
+          "status",
+          "confidence",
+          "isOperational",
+          "requiresHuman",
+          "handsMayAct",
+          "decision",
+          "signals",
+          "evidence"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "channelId": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "minLength": 1},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "isOperational": {"type": "boolean"},
+          "requiresHuman": {"type": "boolean"},
+          "handsMayAct": {"type": "boolean"},
+          "decision": {
+            "type": "object",
+            "required": ["reason", "accepted", "actionPolicy"],
+            "additionalProperties": true,
+            "properties": {
+              "reason": {"type": "string"},
+              "accepted": {"type": "boolean"},
+              "actionPolicy": {"type": "string"}
+            }
+          },
+          "signals": {
+            "type": "array",
+            "minItems": 5,
+            "items": {
+              "type": "object",
+              "required": ["kind", "status", "confidence", "detail", "evidence"],
+              "additionalProperties": true,
+              "properties": {
+                "kind": {"type": "string"},
+                "status": {"type": "string"},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "detail": {"type": "string"},
+                "evidence": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                }
+              }
+            }
+          },
+          "evidence": {
+            "type": "object",
+            "required": ["detail", "rawStatus", "sourceEvidence"],
+            "additionalProperties": true,
+            "properties": {
+              "detail": {"type": "string"},
+              "rawStatus": {"type": "string"},
+              "sourceEvidence": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "required": [
+        "headline",
+        "queEstaPasando",
+        "queAcepte",
+        "queDude",
+        "queNecesitoDeBryams",
+        "riesgos"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "headline": {"type": "string"},
+        "queEstaPasando": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "queAcepte": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "queDude": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "queNecesitoDeBryams": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "riesgos": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

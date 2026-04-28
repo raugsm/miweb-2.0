@@ -496,6 +496,37 @@ Pendiente para autonomia final:
 - validacion prolongada con sesiones reales de Edge, Chrome y Firefox;
 - metricas de latencia mensaje nuevo -> evento de negocio.
 
+### 6.8.5 Window Reality Resolver
+
+Estado:
+
+```text
+CERRADA COMO CAPA TRANSVERSAL EN 0.9.1
+```
+
+Objetivo:
+
+Resolver la diferencia entre lo que Windows cree, lo que la pantalla muestra y
+lo que la IA puede leer u operar. Ningun WhatsApp queda listo por una sola
+senal: se fusiona identidad estructural, geometria visual, lectura semantica,
+frescura y accionabilidad.
+
+Existe:
+
+- `docs/ARIADGSM_WINDOW_REALITY_RESOLVER_FINAL.md`
+- `desktop-agent/contracts/window-reality-state.schema.json`
+- `desktop-agent/ariadgsm_agent/window_reality.py`
+- `desktop-agent/tests/window_reality_resolver.py`
+- integracion con `AgentRuntime.cs`, Runtime Kernel y Autonomous Cycle
+
+Impacto en etapas:
+
+- Etapa 7: Cabin Authority publica proyeccion estructural inmediata.
+- Etapa 8: Reader Core aporta evidencia semantica.
+- Etapa 11: Trust & Safety bloquea manos si no hay realidad operable.
+- Etapa 12: Hands solo actua si `handsMayAct=true`.
+- Etapa 15: Evaluation + Release valida contrato, documento y paquete.
+
 ### 6.9 Living Memory
 
 Estado:
@@ -749,7 +780,7 @@ Pendiente para autonomia final:
 Estado:
 
 ```text
-CERRADA COMO RELEASE CANDIDATE EN 0.9.0
+CERRADA COMO RELEASE CANDIDATE EN 0.9.1
 ```
 
 Objetivo:
@@ -776,7 +807,9 @@ Existe:
 - `docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md`
 - `desktop-agent/contracts/runtime-governor-state.schema.json`
 - `desktop-agent/contracts/evaluation-release-state.schema.json`
+- `desktop-agent/contracts/window-reality-state.schema.json`
 - `desktop-agent/ariadgsm_agent/runtime_governor.py`
+- `desktop-agent/ariadgsm_agent/window_reality.py`
 - `desktop-agent/ariadgsm_agent/release_evaluation.py`
 - `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
 - `desktop-agent/tests/evaluation_release.py`
@@ -846,17 +879,17 @@ siguiente accion no es otra etapa de construccion: es validar el release
 candidate en la PC real.
 
 ```text
-Release Candidate 0.9.0: prueba real supervisada de cabina completa
+Release Candidate 0.9.1: prueba real supervisada de cabina completa
 ```
 
 Alcance:
 
 ```text
-arrancar app desde paquete 0.9.0
+arrancar app desde paquete 0.9.1
 iniciar sesion
 alistar Edge=wa-1, Chrome=wa-2, Firefox=wa-3 sin cerrar ventanas
 encender IA
-observar lectura, razonamiento, permisos, manos y sincronizacion
+observar Window Reality Resolver, lectura, razonamiento, permisos, manos y sincronizacion
 revisar Evaluation Release, Runtime Kernel y Runtime Governor
 aceptar o rechazar el release candidate con evidencia
 ```

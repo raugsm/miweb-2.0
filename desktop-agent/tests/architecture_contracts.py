@@ -372,6 +372,10 @@ def main() -> int:
             ),
             encoding="utf-8",
         )
+        (root / "window-reality-state.json").write_text(
+            json.dumps(sample_event("window_reality_state"), ensure_ascii=False),
+            encoding="utf-8",
+        )
         (root / "case-manager-state.json").write_text(
             json.dumps(sample_event("case_manager_state"), ensure_ascii=False),
             encoding="utf-8",
@@ -400,7 +404,8 @@ def main() -> int:
         )
         assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
         assert cycle_state["status"] in {"ok", "attention", "blocked"}
-        assert len(cycle_state["stages"]) == 12
+        assert len(cycle_state["stages"]) == 13
+        assert any(stage["stageId"] == "window_reality" for stage in cycle_state["stages"])
         assert any(stage["stageId"] == "business_brain" for stage in cycle_state["stages"])
         assert any(stage["stageId"] == "tool_registry" for stage in cycle_state["stages"])
         assert any(stage["stageId"] == "trust_safety" for stage in cycle_state["stages"])

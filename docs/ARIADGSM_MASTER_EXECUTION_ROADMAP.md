@@ -212,8 +212,8 @@ Existe:
 Pendiente para autonomia final:
 
 - validacion viva prolongada en la PC de Bryams;
-- integracion con Reader Core para confirmar no solo ventana lista, sino lectura
-  util real.
+- Window Reality Resolver confirma no solo ventana lista, sino lectura util,
+  frescura y capacidad real de accion.
 
 ### Etapa 8: Safe Eyes / Reader Core
 
@@ -232,6 +232,15 @@ Existe:
 
 Quedo integrado antes de Timeline para que Case Manager, Accounting, Memory y
 Business Brain reciban mensajes con fuente, confianza y evidencia.
+
+Window Reality Resolver quedo cerrado en 0.9.1 como capa transversal entre
+Etapa 7, Etapa 8, Etapa 11, Etapa 12 y Etapa 15:
+
+- documento `docs/ARIADGSM_WINDOW_REALITY_RESOLVER_FINAL.md`;
+- contrato `desktop-agent/contracts/window-reality-state.schema.json`;
+- motor `desktop-agent/ariadgsm_agent/window_reality.py`;
+- prueba `desktop-agent/tests/window_reality_resolver.py`;
+- integracion con app Windows, Runtime Kernel, Autonomous Cycle y Evaluation.
 
 Debe cerrar:
 
@@ -391,14 +400,17 @@ Quedo cerrado:
 
 Pruebas, metricas, instalador, updater, rollback, versiones y entrega estable.
 
-Estado actual: `cerrada como release candidate en 0.9.0`.
+Estado actual: `cerrada como release candidate en 0.9.1`.
 
 Existe:
 
 - `docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md`
+- `docs/ARIADGSM_WINDOW_REALITY_RESOLVER_FINAL.md`
 - `desktop-agent/contracts/runtime-governor-state.schema.json`
 - `desktop-agent/contracts/evaluation-release-state.schema.json`
+- `desktop-agent/contracts/window-reality-state.schema.json`
 - `desktop-agent/ariadgsm_agent/runtime_governor.py`
+- `desktop-agent/ariadgsm_agent/window_reality.py`
 - `desktop-agent/ariadgsm_agent/release_evaluation.py`
 - `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
 - `desktop-agent/tests/evaluation_release.py`
@@ -413,6 +425,7 @@ Quedo cerrado:
 - trace grading local para explicar fallos;
 - validacion de manifest, paquete, SHA256 y rollback;
 - long-run simulado de release;
+- Window Reality Resolver validado por contrato y eval local;
 - release candidate empaquetado y versionado.
 
 Pendiente fuera de construccion:
@@ -427,7 +440,7 @@ paso ya no es crear otra arquitectura, sino validar el candidato en una prueba
 real supervisada:
 
 ```text
-Release Candidate 0.9.0: prueba real supervisada de cabina completa
+Release Candidate 0.9.1: prueba real supervisada de cabina completa
 ```
 
 No se debe saltar a ejecucion real no supervisada de herramientas GSM sin pasar

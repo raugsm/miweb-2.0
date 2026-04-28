@@ -484,6 +484,57 @@ def build_reader_core_stage(states: dict[str, dict[str, Any]]) -> dict[str, Any]
     return stage
 
 
+def build_window_reality_stage(window_reality: dict[str, Any]) -> dict[str, Any]:
+    if not window_reality:
+        return make_stage(
+            "window_reality",
+            "AriadGSM Window Reality Resolver",
+            "attention",
+            "Reality Resolver aun no publico consenso; se requiere ciclo de resolver antes de permitir manos.",
+            {
+                "expectedChannels": 3,
+                "operationalChannels": 0,
+                "readyChannels": 0,
+                "conflictedChannels": 0,
+                "requiresHumanChannels": 0,
+                "staleInputs": 0,
+                "handsMayActChannels": 0,
+            },
+            ["window-reality-state.json"],
+        )
+    summary = window_reality.get("summary") if isinstance(window_reality.get("summary"), dict) else {}
+    human = window_reality.get("humanReport") if isinstance(window_reality.get("humanReport"), dict) else {}
+    status = normalize_status(window_reality.get("status") if window_reality else "attention")
+    operational = as_int(summary.get("operationalChannels"))
+    expected = as_int(summary.get("expectedChannels"), 3)
+    conflicted = as_int(summary.get("conflictedChannels"))
+    stale = as_int(summary.get("staleInputs"))
+    if expected and operational <= 0:
+        status = "blocked"
+    elif conflicted > 0 or stale > 0:
+        status = worst_status([status, "attention"])
+    detail = text(
+        human.get("headline") if isinstance(human, dict) else "",
+        f"Realidad de ventanas: operables={operational}/{expected}; conflictos={conflicted}; estados viejos={stale}.",
+    )
+    return make_stage(
+        "window_reality",
+        "AriadGSM Window Reality Resolver",
+        status,
+        detail,
+        {
+            "expectedChannels": expected,
+            "operationalChannels": operational,
+            "readyChannels": as_int(summary.get("readyChannels")),
+            "conflictedChannels": conflicted,
+            "requiresHumanChannels": as_int(summary.get("requiresHumanChannels")),
+            "staleInputs": stale,
+            "handsMayActChannels": as_int(summary.get("handsMayActChannels")),
+        },
+        ["window-reality-state.json", "cabin-readiness.json", "reader-core-state.json", "input-arbiter-state.json", "hands-state.json"],
+    )
+
+
 def build_verified_hands_stage(hands: dict[str, Any], input_arbiter: dict[str, Any]) -> dict[str, Any]:
     stage = build_hands_stage(hands)
     stage["stageId"] = "verified_hands"
@@ -710,17 +761,25 @@ def step_status(values: list[str]) -> str:
 def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     supervisor = states.get("trust_safety") or states["supervisor"]
     input_arbiter = states["input_arbiter"]
+    window_reality = states.get("window_reality", {})
     summary = supervisor.get("summary") if isinstance(supervisor.get("summary"), dict) else {}
     gate = supervisor.get("permissionGate") if isinstance(supervisor.get("permissionGate"), dict) else {}
+    reality_summary = window_reality.get("summary") if isinstance(window_reality.get("summary"), dict) else {}
     operator_has_priority = bool(input_arbiter.get("operatorHasPriority"))
     input_phase = text(input_arbiter.get("phase"), "idle")
     critical = as_int(summary.get("critical"))
     blocked = as_int(summary.get("blocked"))
     requires_human = as_int(summary.get("requiresHumanConfirmation"))
+    operational_channels = as_int(reality_summary.get("operationalChannels"))
+    reality_status = normalize_status(window_reality.get("status") if window_reality else "attention")
 
     if operator_has_priority or input_phase in {"operator_control", "operator_cooldown"}:
         decision = "PAUSE_FOR_OPERATOR"
         reason = text(input_arbiter.get("summary"), "Bryams tiene prioridad de mouse/teclado.")
+        can_hands_run = False
+    elif window_reality and (reality_status == "blocked" or operational_channels <= 0):
+        decision = "BLOCK"
+        reason = "Window Reality Resolver no encontro ningun WhatsApp operable con evidencia fresca."
         can_hands_run = False
     elif critical > 0:
         decision = "BLOCK"
@@ -748,6 +807,8 @@ def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "canLearn": decision != "BLOCK",
         "operatorHasPriority": operator_has_priority,
         "inputPhase": input_phase,
+        "windowRealityStatus": reality_status,
+        "windowRealityOperationalChannels": operational_channels,
         "requiresHumanConfirmation": requires_human,
         "blockedActions": blocked,
         "criticalFindings": critical,
@@ -762,6 +823,7 @@ def build_operating_steps(
 ) -> list[dict[str, Any]]:
     stage_map = {stage["stageId"]: stage for stage in stages}
     reader = stage_map.get("reader_core", {})
+    reality = stage_map.get("window_reality", {})
     memory_stage = stage_map.get("business_memory", {})
     hands_stage = stage_map.get("verified_hands", {})
     supervisor = states["supervisor"]
@@ -804,7 +866,7 @@ def build_operating_steps(
     accounting = as_int(memory_summary.get("accountingEvents"))
     memory_messages = as_int(memory_summary.get("memoryMessages"))
 
-    observe_status = normalize_status(reader.get("status"))
+    observe_status = step_status([normalize_status(reader.get("status")), normalize_status(reality.get("status"))])
     understand_status = step_status([observe_status, "ok" if messages > 0 and timelines > 0 else "attention"])
     plan_status = "ok" if decisions > 0 or cases > 0 or case_manager_cases > 0 or route_decisions > 0 or accounting_records > 0 or business_recommendations > 0 or tool_plans > 0 else "attention"
     if observe_status == "blocked":
@@ -1144,6 +1206,8 @@ def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[d
     stage_map = {stage["stageId"]: stage for stage in stages}
     expected = as_int(nested(stage_map.get("reader_core", {}), "metrics", "expectedChannels"), 3)
     perceived = as_int(nested(stage_map.get("reader_core", {}), "metrics", "perceptionChannels"))
+    reality_operational = as_int(nested(stage_map.get("window_reality", {}), "metrics", "operationalChannels"))
+    reality_conflicts = as_int(nested(stage_map.get("window_reality", {}), "metrics", "conflictedChannels"))
     messages = as_int(nested(stage_map.get("business_memory", {}), "metrics", "timelineMessages"))
     decisions = as_int(nested(stage_map.get("business_memory", {}), "metrics", "decisions"))
     learning = as_int(nested(stage_map.get("business_memory", {}), "metrics", "learningEvents"))
@@ -1156,7 +1220,7 @@ def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[d
     gate_decision = text(gate.get("decision"), "ALLOW")
     next_step = next((step["name"] for step in steps if step.get("status") != "ok"), "observar de nuevo")
     return (
-        f"Ciclo autonomo {label}: WhatsApp {perceived}/{expected}, "
+        f"Ciclo autonomo {label}: WhatsApp {perceived}/{expected}, realidad={reality_operational}/{expected}, conflictos={reality_conflicts}, "
         f"mensajes={messages}, decisiones={decisions}, aprendizaje={learning}, "
         f"contabilidad={accounting}, confirmados={accounting_confirmed}, rutas={routes}, herramientas={tool_plans}, acciones={executed}, gate={gate_decision}, siguiente={next_step}."
     )
@@ -1204,11 +1268,13 @@ def run_autonomous_cycle_once(
         "cabin_authority": read_json(runtime / "cabin-authority-state.json"),
         "workspace_guardian": read_json(runtime / "workspace-guardian-state.json"),
         "cabin": read_json(runtime / "cabin-readiness.json"),
+        "window_reality": read_json(runtime / "window-reality-state.json"),
     }
 
     stages = [
         build_life_controller_stage(states["life"], states["agent_supervisor"], states["update"]),
         build_workspace_guardian_stage(states["workspace_setup"], states["cabin_manager"], states["workspace_guardian"], states["cabin_authority"], states["cabin"], states["orchestrator"]),
+        build_window_reality_stage(states["window_reality"]),
         build_input_arbiter_stage(states["input_arbiter"]),
         build_reader_core_stage(states),
         build_case_manager_stage(states["case_manager"]),

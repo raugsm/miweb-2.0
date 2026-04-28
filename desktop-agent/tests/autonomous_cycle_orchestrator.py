@@ -247,6 +247,27 @@ def seed_runtime(root: Path, *, operator_control: bool = False, critical: bool =
     )
     write_json(root / "workspace-guardian-state.json", {"status": "ok", "summary": "Cabina bajo control."})
     write_json(root / "cabin-readiness.json", {"status": "ok", "summary": "Cabina lista."})
+    window_reality_state = sample_event("window_reality_state")
+    window_reality_state["status"] = "ok"
+    window_reality_state["summary"]["expectedChannels"] = 3
+    window_reality_state["summary"]["operationalChannels"] = 3
+    window_reality_state["summary"]["readyChannels"] = 3
+    window_reality_state["summary"]["conflictedChannels"] = 0
+    window_reality_state["summary"]["requiresHumanChannels"] = 0
+    window_reality_state["summary"]["staleInputs"] = 0
+    window_reality_state["summary"]["handsMayActChannels"] = 0 if operator_control else 3
+    window_reality_state["channels"] = [
+        {
+            **window_reality_state["channels"][0],
+            "channelId": channel_id,
+            "status": "READY_OPERATOR_BUSY" if operator_control else "READY",
+            "isOperational": True,
+            "requiresHuman": False,
+            "handsMayAct": not operator_control,
+        }
+        for channel_id in ("wa-1", "wa-2", "wa-3")
+    ]
+    write_json(root / "window-reality-state.json", window_reality_state)
 
 
 def latest_jsonl(path: Path) -> dict:

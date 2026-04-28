@@ -1,7 +1,7 @@
 # AriadGSM Evaluation + Release Final
 
 Fecha: 2026-04-28
-Version objetivo: 0.9.0
+Version objetivo: 0.9.1
 Etapa Execution Lock: 15
 Estado: release candidate
 
@@ -118,11 +118,14 @@ El release candidate queda listo cuando:
 
 - `desktop-agent/contracts/runtime-governor-state.schema.json`
 - `desktop-agent/contracts/evaluation-release-state.schema.json`
+- `desktop-agent/contracts/window-reality-state.schema.json`
 - `desktop-agent/ariadgsm_agent/runtime_governor.py`
+- `desktop-agent/ariadgsm_agent/window_reality.py`
 - `desktop-agent/ariadgsm_agent/release_evaluation.py`
 - `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
+- `desktop-agent/tests/window_reality_resolver.py`
 - `desktop-agent/tests/evaluation_release.py`
-- paquete `AriadGSMAgent-0.9.0.zip`
+- paquete `AriadGSMAgent-0.9.1.zip`
 
 ## 5. Definicion de terminado
 
