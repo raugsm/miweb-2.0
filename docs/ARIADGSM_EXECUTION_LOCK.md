@@ -744,19 +744,64 @@ Pendiente para autonomia final:
 - consolidar metricas OpenTelemetry;
 - cerrar instalador, updater, rollback y release estable.
 
+### 6.15 Evaluation + Release
+
+Estado:
+
+```text
+CERRADA COMO RELEASE CANDIDATE EN 0.9.0
+```
+
+Objetivo:
+
+Cerrar pruebas, metricas, ownership de procesos, checkpoints, instalador,
+updater, rollback, versionado y paquete para que AriadGSM IA Local pueda pasar
+a prueba real supervisada sin volver al patron de parches.
+
+Definicion de terminado:
+
+- Runtime Governor controla solo procesos propios AriadGSM;
+- Edge, Chrome, Firefox, WhatsApp, Codex y sesiones humanas quedan fuera de
+  ownership;
+- Windows Job Object se usa como barrera contra workers propios huerfanos;
+- existen checkpoints durables;
+- Evaluation Harness valida contratos y escenarios de negocio;
+- Trace Grading resume logs y fallos como evidencia calificable;
+- Updater valida version, paquete, SHA256 y rollback;
+- Long-run simulado pasa;
+- Release Candidate queda empaquetado y versionado.
+
+Existe:
+
+- `docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md`
+- `desktop-agent/contracts/runtime-governor-state.schema.json`
+- `desktop-agent/contracts/evaluation-release-state.schema.json`
+- `desktop-agent/ariadgsm_agent/runtime_governor.py`
+- `desktop-agent/ariadgsm_agent/release_evaluation.py`
+- `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
+- `desktop-agent/tests/evaluation_release.py`
+
+Pendiente fuera de construccion:
+
+- prueba real supervisada de cabina completa;
+- corrida larga real con los 3 WhatsApps antes de declarar estable productivo.
+
 ## 7. Bloques que NO pueden adelantarse
 
-Estos bloques son importantes, pero no deben sustituir el orden de la nueva
-etapa salvo que Bryams lo autorice:
+La construccion de etapas queda cerrada como release candidate. Lo que no puede
+adelantarse ahora es:
 
-- Updater final.
-- Evaluation + Release.
+- ejecucion real no supervisada de herramientas GSM;
+- envio automatico de respuestas sin permiso;
+- declarar produccion estable sin prueba real supervisada;
+- abrir nuevas etapas por intuicion sin cambiar Execution Lock.
 
 Motivo:
 
-Son necesarios para producto, pero si se hacen antes de cerrar el bloque activo
-volvemos al patron de parches. Cloud Sync ya quedo cerrado como base final; el
-bloque activo ahora es Evaluation + Release.
+El producto ya tiene columna vertebral de IA operadora, pero un release
+candidate debe demostrar en la PC real que ojos, memoria, manos, seguridad,
+cloud sync y release trabajan juntos sin cerrar navegadores ni pelear con el
+operador.
 
 Excepcion:
 
@@ -796,26 +841,30 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0`, `0.5` y `1` a `14` quedan cerradas como base operativa, la
-siguiente etapa pendiente del mapa maestro es:
+Como las etapas `0`, `0.5` y `1` a `15` quedan cerradas como base operativa, la
+siguiente accion no es otra etapa de construccion: es validar el release
+candidate en la PC real.
 
 ```text
-Etapa 15: Evaluation + Release
+Release Candidate 0.9.0: prueba real supervisada de cabina completa
 ```
 
-El entregable documental minimo es:
+Alcance:
 
 ```text
-docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md
+arrancar app desde paquete 0.9.0
+iniciar sesion
+alistar Edge=wa-1, Chrome=wa-2, Firefox=wa-3 sin cerrar ventanas
+encender IA
+observar lectura, razonamiento, permisos, manos y sincronizacion
+revisar Evaluation Release, Runtime Kernel y Runtime Governor
+aceptar o rechazar el release candidate con evidencia
 ```
 
-El entregable tecnico minimo posterior es:
+Que no se debe hacer aqui:
 
 ```text
-metricas de lectura, decision, accion y aprendizaje
-pruebas largas de estabilidad
-instalador final
-updater final
-rollback seguro
-release estable
+inventar una etapa nueva
+parchar un fallo puntual sin revisar la traza de release
+habilitar acciones GSM reales sin aprobacion humana
 ```

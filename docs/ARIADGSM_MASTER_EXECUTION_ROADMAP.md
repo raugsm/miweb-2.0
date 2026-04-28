@@ -391,24 +391,45 @@ Quedo cerrado:
 
 Pruebas, metricas, instalador, updater, rollback, versiones y entrega estable.
 
-Estado actual: `siguiente etapa pendiente`.
+Estado actual: `cerrada como release candidate en 0.9.0`.
 
-Debe cerrar:
+Existe:
 
-- metricas de lectura, decision, accion y aprendizaje;
-- instalador;
-- updater final;
-- rollback;
-- pruebas largas;
-- release estable.
+- `docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md`
+- `desktop-agent/contracts/runtime-governor-state.schema.json`
+- `desktop-agent/contracts/evaluation-release-state.schema.json`
+- `desktop-agent/ariadgsm_agent/runtime_governor.py`
+- `desktop-agent/ariadgsm_agent/release_evaluation.py`
+- `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
+- `desktop-agent/tests/evaluation_release.py`
+
+Quedo cerrado:
+
+- Runtime Governor con ownership de procesos AriadGSM;
+- politica explicita: no cerrar Edge, Chrome ni Firefox;
+- Windows Job Object como barrera contra workers propios huerfanos;
+- checkpoints durables para reanudar estado;
+- evaluation harness local para contratos y escenarios de negocio;
+- trace grading local para explicar fallos;
+- validacion de manifest, paquete, SHA256 y rollback;
+- long-run simulado de release;
+- release candidate empaquetado y versionado.
+
+Pendiente fuera de construccion:
+
+- prueba real supervisada con los 3 WhatsApps abiertos en la PC de Bryams;
+- corrida larga real de jornada completa antes de llamar estable a produccion.
 
 ## Orden bloqueado actual
 
-La proxima etapa pendiente es:
+La etapa de construccion queda cerrada como release candidate. El siguiente
+paso ya no es crear otra arquitectura, sino validar el candidato en una prueba
+real supervisada:
 
 ```text
-Etapa 15: Evaluation + Release
+Release Candidate 0.9.0: prueba real supervisada de cabina completa
 ```
 
-No se debe saltar a ejecucion real de herramientas GSM sin cerrar pruebas,
-metricas, instalador, updater, rollback y release estable.
+No se debe saltar a ejecucion real no supervisada de herramientas GSM sin pasar
+primero por esta prueba real, revisar trazas, confirmar rollback y aceptar el
+release candidate.

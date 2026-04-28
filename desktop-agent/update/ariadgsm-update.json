@@ -1,8 +1,8 @@
 {
-  "version": "0.8.18",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.18.zip",
-  "sha256": "550a54b1b3c6e4fcb3be5deeae3f4d63a935e20e867825a8208e30e46c466060",
+  "version": "0.9.0",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.0.zip",
+  "sha256": "b31f5ed39ea730f3c5b89ff6bb435ccbd534fe7bf1c482b127ddbaf29622555b",
   "autoApply": true,
-  "notes": "Version 0.8.18 closes Cloud Sync / ariadgsm.com: local runtime state, WhatsApp checkpoints, useful messages and review items now sync as idempotent structured events; no raw frames, screenshots or secrets are uploaded.",
-  "publishedAt": "2026-04-28T15:35:50Z"
+  "notes": "Version 0.9.0 closes Evaluation + Release as release candidate: Runtime Governor owns only AriadGSM processes, durable checkpoints, local evals, trace grading, updater validation, rollback checks, long-run gate and packaged RC are now in place.",
+  "publishedAt": "2026-04-28T16:12:54Z"
 }

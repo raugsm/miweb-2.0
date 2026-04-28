@@ -7,13 +7,14 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "0.8.18"
+VERSION = "0.9.0"
 ENGINE = "ariadgsm_runtime_kernel"
 CONTRACT = "runtime_kernel_state"
 
 
 ENGINE_FILES: tuple[tuple[str, str, str, str], ...] = (
     ("vision", "Vision", "worker", "vision-health.json"),
+    ("runtime_governor", "Runtime Governor", "control", "runtime-governor-state.json"),
     ("perception", "Perception", "worker", "perception-health.json"),
     ("interaction", "Interaction", "worker", "interaction-state.json"),
     ("orchestrator", "Orchestrator", "worker", "orchestrator-state.json"),

@@ -133,6 +133,7 @@ internal sealed partial class AgentRuntime : IDisposable
         Directory.CreateDirectory(_runtimeDir);
         WriteLog("Starting AriadGSM Agent without PowerShell.");
         StopExternalWorkerProcesses();
+        StartRuntimeGovernor();
         lock (_gate)
         {
             _desiredRunning = true;
@@ -232,6 +233,7 @@ internal sealed partial class AgentRuntime : IDisposable
             _workerSpecs.Clear();
         }
 
+        StopRuntimeGovernor(reason);
         WriteSupervisorState("stopped", $"Agent stopped: {reason}.");
         WriteLifeState("stopped", "engines_stopped", $"IA local detenida: {reason}.", reason);
     }
@@ -295,6 +297,7 @@ internal sealed partial class AgentRuntime : IDisposable
         var items = new List<HealthItem>
         {
             RuntimeKernelHealth(),
+            StateHealth("Runtime Governor", "runtime-governor-state.json", "LifeController"),
             StateHealth("Vision", "vision-health.json", "Vision"),
             StateHealth("Perception", "perception-health.json", "Perception"),
             StateHealth("Reader Core", "reader-core-state.json", "PythonCoreLoop"),
@@ -310,6 +313,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Business Brain", "business-brain-state.json", "PythonCoreLoop"),
             StateHealth("Tool Registry", "tool-registry-state.json", "PythonCoreLoop"),
             StateHealth("Cloud Sync", "cloud-sync-state.json", "PythonCoreLoop"),
+            StateHealth("Evaluation + Release", "evaluation-release-state.json", "PythonCoreLoop"),
             StateHealth("Domain Events", "domain-events-state.json", "PythonCoreLoop"),
             StateHealth("Trust & Safety", "trust-safety-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
@@ -374,6 +378,7 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         using var vision = ReadJsonStatus("vision-health.json");
         using var runtimeKernel = ReadJsonStatus("runtime-kernel-state.json");
+        using var runtimeGovernor = ReadJsonStatus("runtime-governor-state.json");
         using var perception = ReadJsonStatus("perception-health.json");
         using var readerCore = ReadJsonStatus("reader-core-state.json");
         using var interaction = ReadJsonStatus("interaction-state.json");
@@ -414,6 +419,7 @@ internal sealed partial class AgentRuntime : IDisposable
         {
             "Esta zona resume el trabajo real. Los JSON y trazas largas quedan en Logs tecnicos.",
             $"Runtime Kernel: {Text(runtimeKernel, "status")} | {RuntimeKernelAuthorityText(runtimeKernel)}",
+            $"Runtime Governor: {Text(runtimeGovernor, "status")} | propios vivos={NestedNumber(runtimeGovernor, "summary", "runningOwned")} | apagado verificado={NestedBool(runtimeGovernor, "summary", "verifiedStopped")}",
             $"Modo: {(IsRunning ? "trabajando" : "detenido")} | Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
             $"WhatsApps: {(whatsappSummary.Length == 0 ? "sin revision" : string.Join(" | ", whatsappSummary))}",
             $"Vision: capturas={Number(vision, "framesCaptured", "eventsWritten")} | ventanas={Number(vision, "visibleWindowCount")} | intervalo={Number(vision, "captureIntervalMs")}ms",
@@ -1968,8 +1974,10 @@ internal sealed partial class AgentRuntime : IDisposable
             ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" }),
             ("AutonomousCycle", "ariadgsm_agent.autonomous_cycle", new[] { "--json" }),
             ("DomainEventsAfterCycle", "ariadgsm_agent.domain_events", new[] { "--json" }),
+            ("RuntimeGovernor", "ariadgsm_agent.runtime_governor", new[] { "--desired-running", "--json" }),
             ("RuntimeKernel", "ariadgsm_agent.runtime_kernel", new[] { "--json" }),
-            ("CloudSync", "ariadgsm_agent.cloud_sync", new[] { "--json" })
+            ("CloudSync", "ariadgsm_agent.cloud_sync", new[] { "--json" }),
+            ("EvaluationRelease", "ariadgsm_agent.release_evaluation", new[] { "--version", CurrentVersion, "--json" })
         };
 
         foreach (var (name, module, args) in modules)
@@ -1990,6 +1998,7 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         var process = CreateProcess(name, fileName, arguments, workingDirectory, environment);
         process.Start();
+        RegisterOwnedProcess(name, process, "support");
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         lock (_gate)
@@ -2004,6 +2013,7 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         var process = CreateProcess(spec.Name, spec.FileName, spec.Arguments, spec.WorkingDirectory, null);
         process.Start();
+        RegisterOwnedProcess(spec.Name, process, "worker");
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         lock (_gate)
@@ -2082,6 +2092,7 @@ internal sealed partial class AgentRuntime : IDisposable
         };
         process.Exited += (_, _) =>
         {
+            MarkOwnedProcessStopped(process.Id);
             var exitCode = SafeExitCode(process);
             WriteLogNoThrow(_stopping
                 ? $"{name} stopped by shutdown."
@@ -2260,9 +2271,21 @@ internal sealed partial class AgentRuntime : IDisposable
         {
             if (!item.Process.HasExited)
             {
-                item.Process.Kill(entireProcessTree: true);
-                item.Process.WaitForExit(3000);
-                WriteLog($"{item.Name} killed.");
+                if (item.Process.CloseMainWindow())
+                {
+                    item.Process.WaitForExit(1200);
+                }
+
+                if (!item.Process.HasExited)
+                {
+                    item.Process.Kill(entireProcessTree: true);
+                    item.Process.WaitForExit(3000);
+                    WriteLog($"{item.Name} force-stopped by Runtime Governor.");
+                }
+                else
+                {
+                    WriteLog($"{item.Name} stopped gracefully.");
+                }
             }
         }
         catch (Exception exception)
@@ -2271,6 +2294,7 @@ internal sealed partial class AgentRuntime : IDisposable
         }
         finally
         {
+            MarkOwnedProcessStopped(item.Process.Id);
             item.Process.Dispose();
         }
     }
@@ -3127,6 +3151,28 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         return TryNumber(child, names)?.ToString() ?? "0";
+    }
+
+    private static string NestedBool(JsonDocument? document, string objectName, params string[] names)
+    {
+        if (document is null
+            || document.RootElement.ValueKind != JsonValueKind.Object
+            || !document.RootElement.TryGetProperty(objectName, out var child)
+            || child.ValueKind != JsonValueKind.Object)
+        {
+            return "no";
+        }
+
+        foreach (var name in names)
+        {
+            if (child.TryGetProperty(name, out var value)
+                && (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False))
+            {
+                return value.GetBoolean() ? "si" : "no";
+            }
+        }
+
+        return "no";
     }
 
     private static bool LooksLikeRawJson(string line)

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/runtime-governor-state.schema.json",
+  "title": "AriadGSM Runtime Governor State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "contract",
+    "policy",
+    "ownedProcesses",
+    "summary",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "attention", "blocked", "error", "idle"] },
+    "engine": { "type": "string", "const": "ariadgsm_runtime_governor" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "contract": { "type": "string", "const": "runtime_governor_state" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["windowsJobObject", "killBrowsers", "gracefulShutdownFirst", "forceKillOwnedOnly"],
+      "properties": {
+        "windowsJobObject": { "type": "boolean" },
+        "killBrowsers": { "type": "boolean" },
+        "gracefulShutdownFirst": { "type": "boolean" },
+        "forceKillOwnedOnly": { "type": "boolean" }
+      }
+    },
+    "ownedProcesses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["name", "pid", "role", "owned", "running"],
+        "properties": {
+          "name": { "type": "string" },
+          "pid": { "type": "integer", "minimum": 0 },
+          "role": { "type": "string" },
+          "owned": { "type": "boolean" },
+          "running": { "type": "boolean" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["ownedTotal", "runningOwned", "orphanedOwned", "forcedStops", "verifiedStopped"],
+      "properties": {
+        "ownedTotal": { "type": "integer", "minimum": 0 },
+        "runningOwned": { "type": "integer", "minimum": 0 },
+        "orphanedOwned": { "type": "integer", "minimum": 0 },
+        "forcedStops": { "type": "integer", "minimum": 0 },
+        "verifiedStopped": { "type": "boolean" }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queEstaPasando", "riesgos"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queEstaPasando": { "type": "array", "items": { "type": "string" } },
+        "riesgos": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

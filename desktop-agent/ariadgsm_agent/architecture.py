@@ -36,13 +36,14 @@ MASTER_STAGES: tuple[Stage, ...] = (
     Stage("12", "Hands & Verification", "closed_hands_verification_final", "hands"),
     Stage("13", "Tool Registry", "closed_tool_registry_final", "tools"),
     Stage("14", "Cloud Sync / ariadgsm.com", "closed_cloud_sync_final", "cloud"),
-    Stage("15", "Evaluation + Release", "next_pending", "release"),
+    Stage("15", "Evaluation + Release", "closed_release_candidate", "release_candidate"),
 )
 
 
 LAYERS: tuple[Layer, ...] = (
     Layer("Stage 0 Product Foundation", "Python + Docs", "Validate product foundation, execution lock, versioning and release readiness.", "stage_zero_readiness"),
     Layer("Runtime Kernel", "C#/.NET + Python", "Own the single operational truth for lifecycle, incidents, recovery and human state before cloud sync.", "runtime_kernel_state"),
+    Layer("Runtime Governor", "C#/.NET + Python", "Own process lifetime, Windows Job Object grouping, process ownership, shutdown verification and desired-vs-real reconciliation.", "runtime_governor_state"),
     Layer("Domain Contract Governance", "Python", "Validate domain event registry, adapter coverage, human corrections and event-first memory readiness.", "domain_contracts_final_readiness"),
     Layer("Cabin Authority", "C#/.NET", "Own Edge/Chrome/Firefox WhatsApp preparation, window authority and safe browser launch without closing operator sessions.", "cabin_authority_state"),
     Layer("Vision Engine", "C#/.NET", "Live desktop capture, change detection and temporary local visual evidence.", "vision_event"),
@@ -56,6 +57,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("Business Brain", "Python", "Use Living Memory, cases, routing and accounting evidence to propose business decisions without physical action.", "business_brain_state"),
     Layer("Tool Registry", "Python", "Resolve GSM capabilities into registered tools, risk, inputs, outputs, verifiers and fallback plans without direct execution.", "tool_registry_state"),
     Layer("Cloud Sync", "Python + Node/Railway", "Publish only understood business events and health reports to ariadgsm.com with idempotency, bounded retries, local ledger and no raw screen uploads.", "cloud_sync_state"),
+    Layer("Evaluation + Release", "Python + .NET", "Run release gates for runtime ownership, durable checkpoints, evals, observability, updater rollback, long-run simulation and release candidate packaging.", "evaluation_release_state"),
     Layer("Trust & Safety", "Python", "Evaluate Cognitive, Operating and Business Brain decisions, enforce approvals, evidence, autonomy and permission gates.", "trust_safety_state"),
     Layer("Input Arbiter", "C#/.NET", "Own mouse and keyboard leases so the AI never fights the operator while eyes, memory and brain continue.", "input_arbiter_state"),
     Layer("Operating Core", "Python", "Track business state, cases, tasks, priorities and queues.", "decision_event"),
@@ -80,6 +82,7 @@ AUTONOMY_LEVELS: dict[int, str] = {
 CONTRACT_NAMES: tuple[str, ...] = (
     "stage_zero_readiness",
     "runtime_kernel_state",
+    "runtime_governor_state",
     "domain_contracts_final_readiness",
     "cabin_authority_state",
     "vision_event",
@@ -95,6 +98,7 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "business_brain_state",
     "tool_registry_state",
     "cloud_sync_state",
+    "evaluation_release_state",
     "autonomous_cycle_event",
     "human_feedback_event",
     "safety_approval_event",

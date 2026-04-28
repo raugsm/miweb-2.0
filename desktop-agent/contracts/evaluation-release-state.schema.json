@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/evaluation-release-state.schema.json",
+  "title": "AriadGSM Evaluation Release State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "contract",
+    "stage",
+    "gates",
+    "summary",
+    "artifacts",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "attention", "blocked", "error"] },
+    "engine": { "type": "string", "const": "ariadgsm_evaluation_release" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "contract": { "type": "string", "const": "evaluation_release_state" },
+    "stage": { "type": "string", "const": "15" },
+    "gates": {
+      "type": "array",
+      "minItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["gateId", "name", "status", "score", "summary"],
+        "properties": {
+          "gateId": { "type": "string" },
+          "name": { "type": "string" },
+          "status": { "type": "string", "enum": ["ok", "attention", "blocked", "error"] },
+          "score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["gatesTotal", "gatesOk", "gatesAttention", "gatesBlocked", "releaseCandidate"],
+      "properties": {
+        "gatesTotal": { "type": "integer", "minimum": 0 },
+        "gatesOk": { "type": "integer", "minimum": 0 },
+        "gatesAttention": { "type": "integer", "minimum": 0 },
+        "gatesBlocked": { "type": "integer", "minimum": 0 },
+        "releaseCandidate": { "type": "boolean" }
+      }
+    },
+    "artifacts": { "type": "object", "additionalProperties": true },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queQuedoListo", "queNoSePudoValidar", "siguientePaso"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queQuedoListo": { "type": "array", "items": { "type": "string" } },
+        "queNoSePudoValidar": { "type": "array", "items": { "type": "string" } },
+        "siguientePaso": { "type": "string" }
+      }
+    }
+  }
+}

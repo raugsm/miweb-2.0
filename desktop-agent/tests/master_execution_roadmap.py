@@ -71,7 +71,7 @@ def main() -> int:
     assert MASTER_STAGES[13].status == "closed_hands_verification_final"
     assert MASTER_STAGES[14].status == "closed_tool_registry_final"
     assert MASTER_STAGES[15].status == "closed_cloud_sync_final"
-    assert MASTER_STAGES[16].status == "next_pending"
+    assert MASTER_STAGES[16].status == "closed_release_candidate"
 
     for expected_line in EXPECTED_STAGE_LINES:
         assert expected_line in roadmap, expected_line
@@ -95,9 +95,13 @@ def main() -> int:
     assert "docs/ARIADGSM_TOOL_REGISTRY_FINAL.md" in lock
     assert "### 6.14 Cloud Sync / ariadgsm.com" in lock
     assert "docs/ARIADGSM_CLOUD_SYNC_ARIADGSM_COM_FINAL.md" in lock
-    assert "Etapa 15: Evaluation + Release" in lock[lock.index("## 10. Siguiente bloque activo") :]
+    assert "### 6.15 Evaluation + Release" in lock
+    assert "docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md" in lock
+    assert "Release Candidate 0.9.0: prueba real supervisada de cabina completa" in lock[
+        lock.index("## 10. Siguiente bloque activo") :
+    ]
     assert "Evaluation + Release" in roadmap
-    assert "updater final" in roadmap.lower()
+    assert "cerrada como release candidate en 0.9.0" in roadmap
 
     print("master execution roadmap OK")
     return 0
