@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/action-transaction-event.schema.json",
+  "title": "AriadGSM Action Transaction Event",
+  "type": "object",
+  "required": [
+    "eventType",
+    "createdAt",
+    "phase",
+    "status",
+    "transactionId",
+    "traceId",
+    "actionId",
+    "actionType",
+    "channelId",
+    "summary"
+  ],
+  "properties": {
+    "eventType": { "const": "action_transaction_event" },
+    "createdAt": { "type": "string" },
+    "phase": { "type": "string", "enum": ["begin", "complete", "blocked"] },
+    "status": { "type": "string" },
+    "transactionId": { "type": "string" },
+    "traceId": { "type": "string" },
+    "actionId": { "type": "string" },
+    "actionType": { "type": "string" },
+    "channelId": { "type": "string" },
+    "conversationTitle": { "type": "string" },
+    "sourceDecisionId": { "type": "string" },
+    "summary": { "type": "string" },
+    "verification": { "type": ["object", "null"] }
+  }
+}

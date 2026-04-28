@@ -34,6 +34,10 @@ public sealed class HandsOptions
 
     public string HandsVerificationStateFile { get; init; } = @"desktop-agent\runtime\hands-verification-state.json";
 
+    public string ActionTransactionStateFile { get; init; } = @"desktop-agent\runtime\action-transaction-state.json";
+
+    public string ActionJournalFile { get; init; } = @"desktop-agent\runtime\action-journal.jsonl";
+
     public int AutonomyLevel { get; init; } = 3;
 
     public bool ExecuteActions { get; init; } = false;
@@ -61,6 +65,18 @@ public sealed class HandsOptions
     public bool RequireSafetyApprovalForSend { get; init; } = true;
 
     public bool RequirePostActionVerification { get; init; } = true;
+
+    public bool ActionTransactionsEnabled { get; init; } = true;
+
+    public int ActionLeaseTtlMs { get; init; } = 2500;
+
+    public int MaxPhysicalActionsPerCycle { get; init; } = 1;
+
+    public int FreshPerceptionMaxAgeMs { get; init; } = 3500;
+
+    public int FreshInteractionMaxAgeMs { get; init; } = 3500;
+
+    public double MinimumActionabilityConfidence { get; init; } = 0.64;
 
     public int PollIntervalMs { get; init; } = 250;
 

@@ -1,6 +1,6 @@
 # AriadGSM Hands & Verification Final
 
-Version: 0.8.15
+Version: 0.9.6
 Estado: cerrada como base final de Etapa 12
 Fecha: 2026-04-28
 
@@ -35,6 +35,10 @@ capacidad fisica supervisada por cerebro, seguridad, ojos y memoria.
   son patrones para manipular o leer capacidades de controles sin depender solo
   de pixeles.
   Fuente: https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-controlpatternsoverview
+- Playwright Actionability: antes de actuar, el objetivo debe estar visible,
+  estable, habilitado y recibir eventos. AriadGSM adopta ese criterio para
+  clicks fisicos sobre WhatsApp.
+  Fuente: https://playwright.dev/docs/actionability
 
 ## Contratos cerrados
 
@@ -69,11 +73,30 @@ Y ahora tambien publica:
 
 - `hands-verification-state.schema.json`
 - runtime: `desktop-agent/runtime/hands-verification-state.json`
+- `action-transaction-state.schema.json`
+- `action-transaction-event.schema.json`
+- runtime: `desktop-agent/runtime/action-transaction-state.json`
+- runtime: `desktop-agent/runtime/action-journal.jsonl`
 
 Ese estado esta pensado para la interfaz: no obliga a Bryams a leer logs crudos.
 Dice que hizo, que verifico, que bloqueo y por que necesita ayuda.
 
 ## Reglas de accion verificable
+
+### Transaccion de accion
+
+Toda accion fisica pasa por `Action Transaction Gate`.
+
+Ese gate exige:
+
+- una sola accion fisica por ciclo;
+- un solo canal bajo lease;
+- `Interaction` y `Perception` basados en el mismo `perceptionEventId`;
+- lectura fresca antes de tocar;
+- politica no destructiva de navegador;
+- journal local con `actionTransactionId` y `actionTraceId`.
+
+Si una accion no cumple eso, queda `blocked` antes de mover el mouse.
 
 ### Abrir chat
 
@@ -83,6 +106,7 @@ Dice que hizo, que verifico, que bloqueo y por que necesita ayuda.
 - hay coordenadas positivas `clickX` y `clickY`;
 - Cabin Authority confirma que el canal pertenece al navegador correcto;
 - despues del click, Perception confirma canal y titulo esperado.
+- la fila existe en la Perception actual, no solo en una lectura vieja.
 
 Si Perception ve otro chat, la accion queda `failed` y se suspenden acciones
 dependientes para ese canal.
@@ -152,6 +176,8 @@ registrar herramientas sin parches.
 - Input Arbiter conserva prioridad humana.
 - Cabin Authority conserva propiedad de ventanas WhatsApp.
 - Acciones fisicas ejecutadas sin verificacion quedan `failed`.
+- Solo se ejecuta una accion fisica por ciclo antes de pedir nueva lectura.
+- `Action Transaction Gate` bloquea realidad vieja o mezclada.
 - Abrir chat confirma fila, canal y titulo.
 - Scroll historico tiene limite.
 - Borradores y envios requieren aprobacion.

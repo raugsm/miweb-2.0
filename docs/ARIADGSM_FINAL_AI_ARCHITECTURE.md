@@ -430,13 +430,19 @@ Componentes actuales a fusionar:
 Estado actual:
 
 ```text
-BASE SEGURA, NO AUTONOMIA FINAL
+CONSOLIDADA COMO ACCION TRANSACCIONAL EN 0.9.6
 ```
 
 Para consolidar:
 
+- `docs/ARIADGSM_ACTION_TOOLS_VERIFICATION_FINAL.md`;
+- `Action Transaction Gate` dentro de Hands Engine;
 - acciones fisicas solo por leases;
 - actionability tipo Playwright antes de cada clic;
+- una sola accion fisica por ciclo antes de pedir nueva lectura;
+- `Interaction` y `Perception` deben coincidir en `perceptionEventId`;
+- politica no destructiva de navegador;
+- journal local de accion con trace;
 - herramientas por capacidad, no por nombre fijo;
 - verificacion de resultado con Reader/Perception;
 - modo borrador antes de envio.

@@ -15,7 +15,7 @@ from .runtime_governor import build_runtime_governor_state
 from .support_telemetry import run_support_telemetry_once
 
 
-VERSION = "0.9.3"
+VERSION = "0.9.6"
 ENGINE = "ariadgsm_evaluation_release"
 CONTRACT = "evaluation_release_state"
 GATE_NAMES = {

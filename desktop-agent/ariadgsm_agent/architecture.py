@@ -115,6 +115,8 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "input_arbiter_state",
     "trust_safety_state",
     "hands_verification_state",
+    "action_transaction_state",
+    "action_transaction_event",
 )
 
 

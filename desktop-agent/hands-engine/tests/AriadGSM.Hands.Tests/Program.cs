@@ -16,6 +16,7 @@ await TestInteractionNavigatorOpensVerifiedRows();
 await TestMissingChatTargetSuspendsDecisionChain();
 await TestOpenChatWaitsForFreshPerceptionVerification();
 await TestOpenChatFailsWhenPerceptionShowsDifferentChat();
+await TestActionTransactionGateWritesJournalAndLimitsCycle();
 await TestTrustSafetyGateBlocksHandsBeforeExecutor();
 await TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory();
 TestContractValidator();
@@ -249,7 +250,7 @@ static async Task TestPipelineWritesAndDedupes()
         Assert(File.Exists(verificationState), "hands verification state should be published");
         using (var verificationDocument = JsonDocument.Parse(await File.ReadAllTextAsync(verificationState)))
         {
-            Assert(verificationDocument.RootElement.GetProperty("contractVersion").GetString() == "0.8.15", "hands verification state should expose the stage 12 contract");
+            Assert(verificationDocument.RootElement.GetProperty("contractVersion").GetString() == "0.9.6", "hands verification state should expose the stage 12 contract");
             Assert(verificationDocument.RootElement.GetProperty("verificationGate").GetProperty("unverifiedPhysicalActionsBecomeFailed").GetBoolean(), "verification gate should fail unverified physical actions");
         }
 
@@ -621,7 +622,40 @@ static async Task TestOpenChatWaitsForFreshPerceptionVerification()
             evidence = new[] { "msg-wa-2-abc" }
         }) + Environment.NewLine);
         await File.WriteAllTextAsync(operating, string.Empty);
-        await File.WriteAllTextAsync(perception, string.Empty);
+        await File.WriteAllTextAsync(perception, JsonSerializer.Serialize(new
+        {
+            eventType = "perception_event",
+            perceptionEventId = "perception-open-chat-verify-0",
+            observedAt = DateTimeOffset.UtcNow,
+            channelId = "wa-2",
+            objects = new object[]
+            {
+                new
+                {
+                    objectType = "chat_row",
+                    confidence = 0.96,
+                    bounds = new
+                    {
+                        left = 450,
+                        top = 180,
+                        width = 320,
+                        height = 72
+                    },
+                    text = "Cliente Verificado",
+                    role = "visible_chat_row",
+                    metadata = new
+                    {
+                        channelId = "wa-2",
+                        chatRowId = "chatrow-wa-2-open-chat-verify",
+                        title = "Cliente Verificado",
+                        preview = "Necesito precio",
+                        unreadCount = 1,
+                        clickX = 520,
+                        clickY = 216
+                    }
+                }
+            }
+        }) + Environment.NewLine);
         await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
         {
             eventType = "interaction_event",
@@ -753,6 +787,30 @@ static async Task TestOpenChatFailsWhenPerceptionShowsDifferentChat()
                         channelId = "wa-1",
                         conversationId = "wa-1-wrong"
                     }
+                },
+                new
+                {
+                    objectType = "chat_row",
+                    confidence = 0.95,
+                    bounds = new
+                    {
+                        left = 0,
+                        top = 160,
+                        width = 320,
+                        height = 72
+                    },
+                    text = "Cliente Correcto",
+                    role = "visible_chat_row",
+                    metadata = new
+                    {
+                        channelId = "wa-1",
+                        chatRowId = "chatrow-wa-1-correcto",
+                        title = "Cliente Correcto",
+                        preview = "Cuanto sale?",
+                        unreadCount = 1,
+                        clickX = 90,
+                        clickY = 196
+                    }
                 }
             }
         }) + Environment.NewLine);
@@ -824,6 +882,170 @@ static async Task TestOpenChatFailsWhenPerceptionShowsDifferentChat()
         Assert(document.RootElement.GetProperty("status").GetString() == "failed", "open_chat should fail when perception shows another chat");
         Assert(!document.RootElement.GetProperty("verification").GetProperty("verified").GetBoolean(), "verification should be false for wrong chat");
         Assert(document.RootElement.GetProperty("verification").GetProperty("summary").GetString()!.Contains("Cliente Equivocado", StringComparison.Ordinal), "failure should explain the visible wrong chat");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestActionTransactionGateWritesJournalAndLimitsCycle()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-transaction-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
+    var transactionState = Path.Combine(root, "action-transaction-state.json");
+    var journal = Path.Combine(root, "action-journal.jsonl");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, JsonSerializer.Serialize(new
+        {
+            eventType = "decision_event",
+            decisionId = "decision-transaction-1",
+            createdAt = DateTimeOffset.UtcNow,
+            goal = "learn",
+            intent = "learning_navigation",
+            confidence = 0.9,
+            autonomyLevel = 3,
+            proposedAction = "open_visible_chat_for_learning",
+            requiresHumanConfirmation = false,
+            reasoningSummary = "open",
+            channelId = "wa-2",
+            conversationTitle = "Cliente Transaction",
+            evidence = new[] { "msg-wa-2-transaction" }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(perception, JsonSerializer.Serialize(new
+        {
+            eventType = "perception_event",
+            perceptionEventId = "perception-transaction-1",
+            observedAt = DateTimeOffset.UtcNow,
+            channelId = "wa-2",
+            objects = new object[]
+            {
+                new
+                {
+                    objectType = "conversation",
+                    confidence = 0.91,
+                    text = "Cliente Transaction",
+                    role = "active_conversation",
+                    metadata = new
+                    {
+                        channelId = "wa-2",
+                        conversationId = "wa-2-transaction"
+                    }
+                },
+                new
+                {
+                    objectType = "chat_row",
+                    confidence = 0.96,
+                    bounds = new
+                    {
+                        left = 450,
+                        top = 180,
+                        width = 320,
+                        height = 72
+                    },
+                    text = "Cliente Transaction",
+                    role = "visible_chat_row",
+                    metadata = new
+                    {
+                        channelId = "wa-2",
+                        chatRowId = "chatrow-wa-2-transaction",
+                        title = "Cliente Transaction",
+                        preview = "precio",
+                        unreadCount = 1,
+                        clickX = 520,
+                        clickY = 216
+                    }
+                }
+            }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
+        {
+            eventType = "interaction_event",
+            interactionEventId = "interaction-transaction-1",
+            createdAt = DateTimeOffset.UtcNow,
+            source = "ariadgsm_interaction_engine",
+            latestPerceptionEventId = "perception-transaction-1",
+            perceptionEventsRead = 1,
+            targets = new object[]
+            {
+                new
+                {
+                    targetId = "target-transaction-1",
+                    targetType = "chat_row",
+                    channelId = "wa-2",
+                    sourcePerceptionEventId = "perception-transaction-1",
+                    observedAt = DateTimeOffset.UtcNow,
+                    title = "Cliente Transaction",
+                    preview = "precio",
+                    unreadCount = 1,
+                    left = 450,
+                    top = 180,
+                    width = 320,
+                    height = 72,
+                    clickX = 520,
+                    clickY = 216,
+                    confidence = 0.96,
+                    actionable = true,
+                    category = "customer_chat_candidate",
+                    rejectionReasons = Array.Empty<string>()
+                }
+            }
+        }) + Environment.NewLine);
+
+        var executor = new RecordingExecutor();
+        var pipeline = new HandsPipeline(new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            CursorFile = cursor,
+            ActionTransactionStateFile = transactionState,
+            ActionJournalFile = journal,
+            AutonomyLevel = 3,
+            ExecuteActions = true,
+            RequireTrustSafetyGate = false,
+            RequireCabinAuthorityForWindowActions = false,
+            InputArbiterEnabled = false,
+            RespectOrchestratorCommands = false,
+            EnableInteractionNavigator = false,
+            OpenChatVerificationTimeoutMs = 0,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10
+        }, executor);
+
+        var result = await pipeline.RunOnceAsync();
+        Assert(result.Status == "ok", "transaction pipeline should run");
+        Assert(executor.Count == 1, "transaction gate should allow exactly one physical action per cycle");
+
+        var actionLines = await File.ReadAllLinesAsync(actions);
+        Assert(actionLines.Length == 1, "transaction gate should stop after one physical action");
+        using var actionDocument = JsonDocument.Parse(actionLines[0]);
+        var target = actionDocument.RootElement.GetProperty("target");
+        Assert(target.GetProperty("actionTransactionGate").GetString() == "enabled", "action should include transaction gate metadata");
+        Assert(target.GetProperty("freshPerceptionEventId").GetString() == "perception-transaction-1", "action should record fresh perception id");
+
+        Assert(File.Exists(transactionState), "transaction state should be written");
+        using var stateDocument = JsonDocument.Parse(await File.ReadAllTextAsync(transactionState));
+        Assert(stateDocument.RootElement.GetProperty("policy").GetProperty("singlePhysicalAction").GetBoolean(), "transaction state should expose single action policy");
+        Assert(File.Exists(journal), "action journal should be written");
+        var journalText = await File.ReadAllTextAsync(journal);
+        Assert(journalText.Contains("action_transaction_event", StringComparison.Ordinal), "journal should contain transaction events");
     }
     finally
     {

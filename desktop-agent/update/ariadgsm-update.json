@@ -1,8 +1,8 @@
 {
-  "version": "0.9.5",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.5.zip",
-  "sha256": "96e33cc0bbf1204d0b35f2823d6e15219fdbf57aecf65753bb647ee92c1ced70",
+  "version": "0.9.6",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.6.zip",
+  "sha256": "ee905c3d0685066e98431fa4319f3353247d59db80c9b4097ad1523d5863303e",
   "autoApply": true,
-  "notes": "Version 0.9.5 primes Trust & Safety before Hands, refreshes Input Arbiter heartbeat every hands cycle and keeps safe navigation alive while risky accounting actions remain blocked.",
-  "publishedAt": "2026-04-28T19:35:00Z"
+  "notes": "Version 0.9.6 consolidates Layer 7 with Action Transaction Gate, fresh perception before physical actions, one channel lease at a time, post-action verification and non-destructive browser policy.",
+  "publishedAt": "2026-04-28T20:23:54Z"
 }

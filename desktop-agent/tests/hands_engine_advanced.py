@@ -12,7 +12,9 @@ def read_text(path: Path) -> str:
 def main() -> int:
     doc = read_text(REPO / "docs/ARIADGSM_HANDS_ENGINE_ADVANCED_DESIGN.md")
     final_doc = read_text(REPO / "docs/ARIADGSM_HANDS_VERIFICATION_FINAL.md")
+    layer7_doc = read_text(REPO / "docs/ARIADGSM_ACTION_TOOLS_VERIFICATION_FINAL.md")
     pipeline = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Pipeline/HandsPipeline.cs")
+    transaction_gate = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Transactions/ActionTransactionGate.cs")
     executor = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Execution/Win32HandsExecutor.cs")
     verifier = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Verification/ActionVerifier.cs")
     arbiter = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Input/InputArbiter.cs")
@@ -24,12 +26,19 @@ def main() -> int:
     assert "antes de continuar" in doc.lower()
     assert "sendinput" in doc.lower()
     assert "getlastinputinfo" in doc.lower()
-    assert "version: 0.8.15" in final_doc.lower()
+    assert "version: 0.9.6" in final_doc.lower()
     assert "businessdecisioneventsfile" in final_doc.lower()
     assert "hands-verification-state.schema.json" in final_doc.lower()
+    assert "action-transaction-state.schema.json" in final_doc.lower()
     assert "sendinput" in final_doc.lower()
     assert "getlastinputinfo" in final_doc.lower()
     assert "ui automation" in final_doc.lower()
+    assert "playwright actionability" in final_doc.lower()
+
+    assert "capa 7" in layer7_doc.lower()
+    assert "action transaction gate" in layer7_doc.lower()
+    assert "una sola accion fisica" in layer7_doc.lower()
+    assert "politica no destructiva" in layer7_doc.lower()
 
     assert "SendInput" in executor
     assert "mouse_event" not in executor
@@ -47,6 +56,15 @@ def main() -> int:
     assert "verifiedBeforeContinue" in pipeline
     assert "verificationPerceptionEventId" in pipeline
     assert "hands_verification" in pipeline
+    assert "ActionTransactionGate" in pipeline
+    assert "CycleTransactionLimitReached" in pipeline
+    assert "actionTransactionStateFile" in pipeline
+    assert "singleActionBeforeNextRead" in pipeline
+
+    assert "ValidateFreshness" in transaction_gate
+    assert "DestructiveBrowserPolicyViolation" in transaction_gate
+    assert "action_transaction_event" in transaction_gate
+    assert "singlePhysicalAction" in transaction_gate
 
     assert "VerifyOpenChat" in verifier
     assert "VerifyScrollHistory" in verifier
@@ -60,6 +78,10 @@ def main() -> int:
     assert "RequirePostActionVerification" in options
     assert "RequireSafetyApprovalForTextDraft" in options
     assert "HandsVerificationStateFile" in options
+    assert "ActionTransactionsEnabled" in options
+    assert "ActionTransactionStateFile" in options
+    assert "ActionJournalFile" in options
+    assert "FreshPerceptionMaxAgeMs" in options
 
     assert "GetLastInputInfo" in arbiter
     assert "WriteHeartbeat" in arbiter

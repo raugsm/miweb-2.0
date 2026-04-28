@@ -1,7 +1,7 @@
 # AriadGSM Evaluation + Release Final
 
 Fecha: 2026-04-28
-Version objetivo: 0.9.2
+Version objetivo: 0.9.6
 Etapa Execution Lock: 15
 Estado: release candidate
 
@@ -74,6 +74,8 @@ La IA se valida con pruebas de contratos y escenarios de negocio:
 - cliente entra por un WhatsApp y corresponde derivarlo;
 - contabilidad evidence-first;
 - acciones que requieren humano.
+- transaccion fisica de Capa 7: una accion a la vez, canal con lease,
+  percepcion fresca antes de tocar pantalla y verificacion posterior.
 
 ### 15.4 Observability / Trace Grading
 
@@ -125,15 +127,18 @@ El release candidate queda listo cuando:
 - `desktop-agent/contracts/window-reality-state.schema.json`
 - `desktop-agent/contracts/support-telemetry-state.schema.json`
 - `desktop-agent/contracts/support-telemetry-event.schema.json`
+- `desktop-agent/contracts/action-transaction-state.schema.json`
+- `desktop-agent/contracts/action-transaction-event.schema.json`
 - `desktop-agent/ariadgsm_agent/runtime_governor.py`
 - `desktop-agent/ariadgsm_agent/window_reality.py`
 - `desktop-agent/ariadgsm_agent/support_telemetry.py`
 - `desktop-agent/ariadgsm_agent/release_evaluation.py`
+- `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Transactions/ActionTransactionGate.cs`
 - `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
 - `desktop-agent/tests/window_reality_resolver.py`
 - `desktop-agent/tests/support_telemetry_core.py`
 - `desktop-agent/tests/evaluation_release.py`
-- paquete `AriadGSMAgent-0.9.2.zip`
+- paquete `AriadGSMAgent-0.9.6.zip`
 
 ## 5. Definicion de terminado
 
@@ -149,6 +154,7 @@ Etapa 15 queda cerrada cuando:
   incidentes redactados y Support Bundle seguro;
 - updater/rollback/manifest quedan verificados;
 - long-run simulado pasa;
+- Capa 7 no puede ejecutar clicks con percepcion vieja ni cerrar navegadores;
 - release candidate queda empaquetado;
 - Execution Lock apunta a prueba real supervisada, no a otra etapa de
   construccion.

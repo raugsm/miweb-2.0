@@ -31,6 +31,11 @@
         "inputArbiterRequired",
         "cabinAuthorityRequired",
         "postActionVerificationRequired",
+        "actionTransactionsEnabled",
+        "singlePhysicalAction",
+        "freshPerceptionMaxAgeMs",
+        "freshInteractionMaxAgeMs",
+        "noDestructiveBrowserPolicy",
         "textDraftRequiresApproval",
         "sendRequiresApproval",
         "allowTextInput",
@@ -43,6 +48,11 @@
         "inputArbiterRequired": { "type": "boolean" },
         "cabinAuthorityRequired": { "type": "boolean" },
         "postActionVerificationRequired": { "type": "boolean" },
+        "actionTransactionsEnabled": { "type": "boolean" },
+        "singlePhysicalAction": { "type": "boolean" },
+        "freshPerceptionMaxAgeMs": { "type": "integer", "minimum": 0 },
+        "freshInteractionMaxAgeMs": { "type": "integer", "minimum": 0 },
+        "noDestructiveBrowserPolicy": { "type": "boolean" },
         "textDraftRequiresApproval": { "type": "boolean" },
         "sendRequiresApproval": { "type": "boolean" },
         "allowTextInput": { "type": "boolean" },
@@ -60,7 +70,10 @@
         "openChatRequiresChannelTitleAndRow",
         "scrollRequiresVisibleChannel",
         "captureRequiresPerceptionConfirmation",
-        "draftsNeverSendAutomatically"
+        "draftsNeverSendAutomatically",
+        "singleActionBeforeNextRead",
+        "freshPerceptionBeforePhysicalAction",
+        "nonDestructiveBrowserPolicy"
       ],
       "properties": {
         "verifiedBeforeContinueRequired": { "type": "boolean" },
@@ -68,7 +81,10 @@
         "openChatRequiresChannelTitleAndRow": { "type": "boolean" },
         "scrollRequiresVisibleChannel": { "type": "boolean" },
         "captureRequiresPerceptionConfirmation": { "type": "boolean" },
-        "draftsNeverSendAutomatically": { "type": "boolean" }
+        "draftsNeverSendAutomatically": { "type": "boolean" },
+        "singleActionBeforeNextRead": { "type": "boolean" },
+        "freshPerceptionBeforePhysicalAction": { "type": "boolean" },
+        "nonDestructiveBrowserPolicy": { "type": "boolean" }
       }
     },
     "summary": {

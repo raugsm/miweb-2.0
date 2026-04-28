@@ -102,6 +102,18 @@ Estado:
 Capa 2 AI Runtime Control Plane consolidada en 0.9.3 como autoridad de sesion
 ```
 
+Consolidacion de Capa 7:
+
+```text
+docs/ARIADGSM_ACTION_TOOLS_VERIFICATION_FINAL.md
+```
+
+Estado:
+
+```text
+Capa 7 Action, Tools & Verification consolidada en 0.9.6 con Action Transaction Gate
+```
+
 Toda recomendacion futura debe indicar:
 
 - capa afectada;

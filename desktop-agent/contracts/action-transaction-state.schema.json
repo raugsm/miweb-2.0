@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/action-transaction-state.schema.json",
+  "title": "AriadGSM Action Transaction State",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "engine",
+    "status",
+    "updatedAt",
+    "transactionId",
+    "traceId",
+    "channelId",
+    "actionType",
+    "expiresAt",
+    "policy",
+    "summary",
+    "humanReport"
+  ],
+  "properties": {
+    "contractVersion": { "type": "string" },
+    "engine": { "const": "ariadgsm_action_transaction_gate" },
+    "status": { "type": "string", "enum": ["running", "completed", "verified", "blocked", "failed"] },
+    "updatedAt": { "type": "string" },
+    "transactionId": { "type": "string" },
+    "traceId": { "type": "string" },
+    "channelId": { "type": "string" },
+    "actionType": { "type": "string" },
+    "expiresAt": { "type": "string" },
+    "policy": {
+      "type": "object",
+      "required": [
+        "singlePhysicalAction",
+        "singleChannelLease",
+        "freshPerceptionRequired",
+        "postVerificationRequired",
+        "destructiveBrowserActionsForbidden"
+      ],
+      "properties": {
+        "singlePhysicalAction": { "type": "boolean" },
+        "singleChannelLease": { "type": "boolean" },
+        "freshPerceptionRequired": { "type": "boolean" },
+        "postVerificationRequired": { "type": "boolean" },
+        "destructiveBrowserActionsForbidden": { "type": "boolean" }
+      }
+    },
+    "lastActionId": { "type": "string" },
+    "lastActionStatus": { "type": "string" },
+    "summary": { "type": "string" },
+    "humanReport": { "type": "object" }
+  }
+}

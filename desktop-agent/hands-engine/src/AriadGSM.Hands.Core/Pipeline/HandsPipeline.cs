@@ -12,6 +12,7 @@ using AriadGSM.Hands.Orchestration;
 using AriadGSM.Hands.Perception;
 using AriadGSM.Hands.Planning;
 using AriadGSM.Hands.Safety;
+using AriadGSM.Hands.Transactions;
 using AriadGSM.Hands.Verification;
 
 namespace AriadGSM.Hands.Pipeline;
@@ -32,6 +33,7 @@ public sealed class HandsPipeline
     private readonly InputArbiter _inputArbiter;
     private readonly TrustSafetyGate _trustSafetyGate;
     private readonly CabinAuthorityGate _cabinAuthorityGate;
+    private readonly ActionTransactionGate _transactionGate;
     private readonly HashSet<string> _processedDecisionKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _processedDecisionScopes = new(StringComparer.OrdinalIgnoreCase);
     private bool _cursorLoaded;
@@ -64,6 +66,7 @@ public sealed class HandsPipeline
         _inputArbiter = new InputArbiter(options);
         _trustSafetyGate = new TrustSafetyGate(options);
         _cabinAuthorityGate = new CabinAuthorityGate(options);
+        _transactionGate = new ActionTransactionGate(options);
     }
 
     public async ValueTask<HandsHealthState> RunOnceAsync(CancellationToken cancellationToken = default)
@@ -134,9 +137,14 @@ public sealed class HandsPipeline
 
                     touchedDecision = true;
                     var scopedActionId = ScopedActionId(enrichedPlan);
-                    if (await TryWritePlanAsync(enrichedPlan, scopedActionId, trustGate, perception, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
+                    if (await TryWritePlanAsync(enrichedPlan, scopedActionId, trustGate, perception, interaction, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
                     {
                         writtenThisCycle++;
+                    }
+
+                    if (CycleTransactionLimitReached(writtenThisCycle))
+                    {
+                        break;
                     }
                 }
 
@@ -146,9 +154,16 @@ public sealed class HandsPipeline
                 }
 
                 cursorDirty = true;
+                if (CycleTransactionLimitReached(writtenThisCycle))
+                {
+                    break;
+                }
             }
 
-            writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, orchestrator, trustGate, suspendedChannels, existingIds, cancellationToken).ConfigureAwait(false);
+            if (!CycleTransactionLimitReached(writtenThisCycle))
+            {
+                writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, orchestrator, trustGate, suspendedChannels, existingIds, cancellationToken).ConfigureAwait(false);
+            }
             if (cursorDirty)
             {
                 await SaveCursorAsync(cancellationToken).ConfigureAwait(false);
@@ -332,7 +347,7 @@ public sealed class HandsPipeline
         {
             var plan = CreateNavigatorOpenChatPlan(target, interaction, now);
             var scopedActionId = ScopedActionId(plan);
-            if (await TryWritePlanAsync(plan, scopedActionId, trustGate, perception, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
+            if (await TryWritePlanAsync(plan, scopedActionId, trustGate, perception, interaction, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
             {
                 written++;
                 _lastNavigatorClickAt = DateTimeOffset.UtcNow;
@@ -445,6 +460,7 @@ public sealed class HandsPipeline
         string actionId,
         TrustSafetyGateDecision trustGate,
         PerceptionContext perception,
+        InteractionContext interaction,
         HashSet<string> existingIds,
         HashSet<string> suspendedChannels,
         CancellationToken cancellationToken)
@@ -494,12 +510,12 @@ public sealed class HandsPipeline
             }
             else
             {
-                var lease = _inputArbiter.Acquire(authorityPlan);
-                var planForExecution = EnrichPlanWithInputArbiter(authorityPlan, lease);
-                if (!lease.Granted)
+                var transaction = _transactionGate.Begin(authorityPlan, actionId, trustGate, perception, interaction);
+                var transactionPlan = transaction.Plan;
+                if (!transaction.Allowed)
                 {
                     _actionsBlocked++;
-                    var auditActionId = $"{actionId}-arbiter-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 5}";
+                    var auditActionId = $"{actionId}-transaction-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 5}";
                     if (existingIds.Contains(auditActionId))
                     {
                         _actionsSkipped++;
@@ -507,42 +523,68 @@ public sealed class HandsPipeline
                     }
 
                     actionEvent = CreateActionEvent(
-                        planForExecution,
+                        transactionPlan,
                         auditActionId,
                         "blocked",
-                        new ActionVerification(false, lease.Reason, 0.96),
+                        new ActionVerification(false, transaction.Reason, 0.94),
                         safety.Reason,
-                        executionSummary: "Input Arbiter cedio el mouse al operador.");
+                        executionSummary: "Action Transaction Gate bloqueo antes de tocar pantalla.");
+                    _transactionGate.Block(transaction, auditActionId, actionEvent);
                 }
                 else
                 {
-                    var execution = await _executor.ExecuteAsync(planForExecution, cancellationToken).ConfigureAwait(false);
-                    _inputArbiter.Complete(lease, planForExecution, execution);
-                    if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+                    var lease = _inputArbiter.Acquire(transactionPlan);
+                    var planForExecution = EnrichPlanWithInputArbiter(transactionPlan, lease);
+                    if (!lease.Granted)
                     {
-                        _actionsExecuted++;
-                    }
+                        _actionsBlocked++;
+                        var auditActionId = $"{actionId}-arbiter-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 5}";
+                        if (existingIds.Contains(auditActionId))
+                        {
+                            _actionsSkipped++;
+                            return false;
+                        }
 
-                    var verificationOutcome = await VerifyAfterExecutionAsync(
-                        planForExecution,
-                        execution,
-                        perception,
-                        cancellationToken).ConfigureAwait(false);
-                    var verifiedPlan = EnrichPlanWithVerificationOutcome(planForExecution, verificationOutcome);
-                    var verification = verificationOutcome.Verification;
-                    var finalStatus = FinalActionStatus(verifiedPlan, execution, verification);
-                    if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+                        actionEvent = CreateActionEvent(
+                            planForExecution,
+                            auditActionId,
+                            "blocked",
+                            new ActionVerification(false, lease.Reason, 0.96),
+                            safety.Reason,
+                            executionSummary: "Input Arbiter cedio el mouse al operador.");
+                        _transactionGate.Complete(transaction with { Plan = planForExecution }, actionEvent);
+                    }
+                    else
                     {
-                        _actionsVerified++;
-                    }
+                        var execution = await _executor.ExecuteAsync(planForExecution, cancellationToken).ConfigureAwait(false);
+                        _inputArbiter.Complete(lease, planForExecution, execution);
+                        if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _actionsExecuted++;
+                        }
 
-                    actionEvent = CreateActionEvent(
-                        verifiedPlan,
-                        actionId,
-                        finalStatus,
-                        verification,
-                        safety.Reason,
-                        execution.Summary);
+                        var verificationOutcome = await VerifyAfterExecutionAsync(
+                            planForExecution,
+                            execution,
+                            perception,
+                            cancellationToken).ConfigureAwait(false);
+                        var verifiedPlan = EnrichPlanWithVerificationOutcome(planForExecution, verificationOutcome);
+                        var verification = verificationOutcome.Verification;
+                        var finalStatus = FinalActionStatus(verifiedPlan, execution, verification);
+                        if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _actionsVerified++;
+                        }
+
+                        actionEvent = CreateActionEvent(
+                            verifiedPlan,
+                            actionId,
+                            finalStatus,
+                            verification,
+                            safety.Reason,
+                            execution.Summary);
+                        _transactionGate.Complete(transaction with { Plan = verifiedPlan }, actionEvent);
+                    }
                 }
             }
         }
@@ -752,6 +794,14 @@ public sealed class HandsPipeline
             || actionType.Equals("send_message", StringComparison.OrdinalIgnoreCase);
     }
 
+    private bool CycleTransactionLimitReached(int writtenThisCycle)
+    {
+        return _options.ExecuteActions
+            && _options.ActionTransactionsEnabled
+            && _options.MaxPhysicalActionsPerCycle > 0
+            && writtenThisCycle >= _options.MaxPhysicalActionsPerCycle;
+    }
+
     private static long VisitBucket(DateTimeOffset now, int revisitMinutes)
     {
         var bucketSize = TimeSpan.FromMinutes(Math.Max(1, revisitMinutes)).Ticks;
@@ -941,6 +991,7 @@ public sealed class HandsPipeline
                 "plan -> safety",
                 "safety -> cabin_authority",
                 "cabin_authority -> input_arbiter",
+                "input_arbiter -> action_transaction_gate",
                 "input_arbiter -> execute",
                 "execute -> verify",
                 "verify -> audit_event"
@@ -964,10 +1015,10 @@ public sealed class HandsPipeline
         var needsHuman = state.ActionsBlocked;
         return new Dictionary<string, object?>
         {
-            ["contractVersion"] = "0.8.15",
+            ["contractVersion"] = "0.9.6",
             ["status"] = status,
             ["engine"] = "ariadgsm_hands_verification",
-            ["version"] = "0.8.15",
+            ["version"] = "0.9.6",
             ["updatedAt"] = state.UpdatedAt,
             ["executionMode"] = _options.ExecuteActions ? "execute" : "plan",
             ["policy"] = new Dictionary<string, object?>
@@ -976,6 +1027,11 @@ public sealed class HandsPipeline
                 ["inputArbiterRequired"] = _options.InputArbiterEnabled,
                 ["cabinAuthorityRequired"] = _options.RequireCabinAuthorityForWindowActions,
                 ["postActionVerificationRequired"] = _options.RequirePostActionVerification,
+                ["actionTransactionsEnabled"] = _options.ActionTransactionsEnabled,
+                ["singlePhysicalAction"] = _options.MaxPhysicalActionsPerCycle == 1,
+                ["freshPerceptionMaxAgeMs"] = _options.FreshPerceptionMaxAgeMs,
+                ["freshInteractionMaxAgeMs"] = _options.FreshInteractionMaxAgeMs,
+                ["noDestructiveBrowserPolicy"] = true,
                 ["textDraftRequiresApproval"] = _options.RequireSafetyApprovalForTextDraft,
                 ["sendRequiresApproval"] = _options.RequireSafetyApprovalForSend,
                 ["allowTextInput"] = _options.AllowTextInput,
@@ -992,6 +1048,8 @@ public sealed class HandsPipeline
                 ["interactionEventsFile"] = _options.InteractionEventsFile,
                 ["trustSafetyStateFile"] = _options.TrustSafetyStateFile,
                 ["inputArbiterStateFile"] = _options.InputArbiterStateFile,
+                ["actionTransactionStateFile"] = _options.ActionTransactionStateFile,
+                ["actionJournalFile"] = _options.ActionJournalFile,
                 ["actionEventsFile"] = _options.ActionEventsFile
             },
             ["verificationGate"] = new Dictionary<string, object?>
@@ -1001,7 +1059,10 @@ public sealed class HandsPipeline
                 ["openChatRequiresChannelTitleAndRow"] = true,
                 ["scrollRequiresVisibleChannel"] = true,
                 ["captureRequiresPerceptionConfirmation"] = true,
-                ["draftsNeverSendAutomatically"] = true
+                ["draftsNeverSendAutomatically"] = true,
+                ["singleActionBeforeNextRead"] = true,
+                ["freshPerceptionBeforePhysicalAction"] = true,
+                ["nonDestructiveBrowserPolicy"] = true
             },
             ["summary"] = new Dictionary<string, object?>
             {

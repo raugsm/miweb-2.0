@@ -353,22 +353,25 @@ Debe mantenerse como gate central de etapas posteriores.
 Abrir chats, hacer scroll, escribir borradores, operar herramientas y verificar
 que hizo lo correcto.
 
-Estado actual: `cerrada como base final en 0.8.15`.
+Estado actual: `consolidada como accion transaccional en 0.9.6`.
 
 Existe:
 
 - `docs/ARIADGSM_HANDS_ENGINE_ADVANCED_DESIGN.md`
+- `docs/ARIADGSM_ACTION_TOOLS_VERIFICATION_FINAL.md`
 - `desktop-agent/tests/hands_engine_advanced.py`
 - `docs/ARIADGSM_HANDS_VERIFICATION_FINAL.md`
 - `desktop-agent/contracts/hands-verification-state.schema.json`
+- `desktop-agent/contracts/action-transaction-state.schema.json`
+- `desktop-agent/contracts/action-transaction-event.schema.json`
+- `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Transactions/ActionTransactionGate.cs`
 - `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Pipeline/HandsPipeline.cs`
 - `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Verification/ActionVerifier.cs`
 - `desktop-agent/hands-engine/tests/AriadGSM.Hands.Tests/Program.cs`
 
 Pendiente para autonomia final fuera de esta etapa:
 
-- operar herramientas GSM reales bajo Tool Registry;
-- verificar antes/despues con Safe Eyes.
+- operar herramientas GSM reales bajo Tool Registry.
 
 ### Etapa 13: Tool Registry
 
