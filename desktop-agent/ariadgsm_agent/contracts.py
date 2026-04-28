@@ -12,6 +12,7 @@ CONTRACT_DIR = ROOT / "contracts"
 
 CONTRACT_FILES: dict[str, str] = {
     "stage_zero_readiness": "stage-zero-readiness.schema.json",
+    "runtime_kernel_state": "runtime-kernel-state.schema.json",
     "domain_contracts_final_readiness": "domain-contracts-final-readiness.schema.json",
     "vision_event": "vision-event.schema.json",
     "perception_event": "perception-event.schema.json",
@@ -185,10 +186,10 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "riesgos": ["Cerrar Etapa 1 antes de avanzar a casos."],
         },
         "nextStage": {
-            "stageNumber": 1,
-            "name": "Domain Event Contracts",
-            "status": "base_implemented_needs_final_closure",
-            "reason": "Etapa 1 debe cerrarse como producto final.",
+            "stageNumber": "0.5",
+            "name": "Runtime Kernel",
+            "status": "closed_runtime_kernel_final",
+            "reason": "Etapa 0.5 gobierna vida de motores e incidentes antes de Cloud Sync.",
         },
     },
     "domain_contracts_final_readiness": {
@@ -217,6 +218,79 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "name": "Autonomous Cycle Orchestrator",
             "status": "implemented_as_central_cycle",
             "reason": "Etapa 2 ya existe; despues corresponde Case Manager.",
+        },
+    },
+    "runtime_kernel_state": {
+        "status": "attention",
+        "engine": "ariadgsm_runtime_kernel",
+        "version": "0.8.17",
+        "updatedAt": utc_now(),
+        "contract": "runtime_kernel_state",
+        "authority": {
+            "truthSource": "runtime-kernel-state.json",
+            "desiredRunning": True,
+            "isRunning": True,
+            "canObserve": True,
+            "canThink": True,
+            "canAct": False,
+            "canSync": False,
+            "operatorHasPriority": False,
+            "mainBlocker": "Vision se reinicio despues de un bloqueo de escritura.",
+        },
+        "summary": {
+            "enginesTotal": 22,
+            "enginesRunning": 20,
+            "enginesDegraded": 1,
+            "enginesBlocked": 0,
+            "enginesDead": 0,
+            "incidentsOpen": 1,
+            "restartsRecent": 1,
+        },
+        "engines": [
+            {
+                "engineId": "vision",
+                "name": "Vision",
+                "kind": "worker",
+                "lifecycle": "degraded",
+                "status": "ok",
+                "summary": "Vision siguio vivo tras reintento de escritura.",
+            }
+        ],
+        "incidents": [
+            {
+                "incidentId": "vision-state-write-denied-sample",
+                "severity": "warning",
+                "source": "vision",
+                "code": "state_write_denied",
+                "summary": "Windows nego escritura a un estado local.",
+                "detail": "Access to the path is denied.",
+                "detectedAt": utc_now(),
+                "recoveryAction": "retry_and_fallback_state",
+                "requiresHuman": False,
+            }
+        ],
+        "recovery": {
+            "supervisorActive": True,
+            "recentRestartCount": 1,
+            "lastCheckpointAt": utc_now(),
+            "lastRecoveryAction": "supervisor_restart",
+        },
+        "sourceFiles": {
+            "vision": "vision-health.json",
+            "agentSupervisor": "agent-supervisor-state.json",
+            "cabinAuthority": "cabin-authority-state.json",
+        },
+        "outputFiles": {
+            "state": "runtime-kernel-state.json",
+            "report": "runtime-kernel-report.json",
+            "diagnosticTimeline": "diagnostic-timeline.jsonl",
+        },
+        "humanReport": {
+            "headline": "IA trabajando con incidente explicado",
+            "queEstaPasando": ["Runtime Kernel unifico motores e incidentes."],
+            "queHice": ["Reintente y marque recuperacion en vez de ocultar el fallo."],
+            "queNecesitoDeBryams": [],
+            "riesgos": ["Cloud Sync debe leer este estado antes de subir reportes."],
         },
     },
     "cabin_authority_state": {

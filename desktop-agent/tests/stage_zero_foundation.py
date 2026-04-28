@@ -34,7 +34,8 @@ def main() -> int:
 
         assert state["stageId"] == "stage_zero_product_foundation"
         assert state["status"] == "ok", state
-        assert state["nextStage"]["name"] == "Domain Event Contracts"
+        assert state["nextStage"]["stageNumber"] == "0.5"
+        assert state["nextStage"]["name"] == "Runtime Kernel"
         assert len(state["checks"]) >= 5
         assert not validate_contract(state, "stage_zero_readiness")
         assert (runtime / "stage-zero-state.json").exists()
@@ -53,4 +54,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

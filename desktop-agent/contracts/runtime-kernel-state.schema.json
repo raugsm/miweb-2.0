@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/runtime-kernel-state.schema.json",
+  "title": "AriadGSM Runtime Kernel State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "contract",
+    "authority",
+    "summary",
+    "engines",
+    "incidents",
+    "recovery",
+    "sourceFiles",
+    "outputFiles",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked", "error"] },
+    "engine": { "type": "string", "const": "ariadgsm_runtime_kernel" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "contract": { "type": "string", "const": "runtime_kernel_state" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "truthSource",
+        "desiredRunning",
+        "isRunning",
+        "canObserve",
+        "canThink",
+        "canAct",
+        "canSync",
+        "operatorHasPriority",
+        "mainBlocker"
+      ],
+      "properties": {
+        "truthSource": { "type": "string" },
+        "desiredRunning": { "type": "boolean" },
+        "isRunning": { "type": "boolean" },
+        "canObserve": { "type": "boolean" },
+        "canThink": { "type": "boolean" },
+        "canAct": { "type": "boolean" },
+        "canSync": { "type": "boolean" },
+        "operatorHasPriority": { "type": "boolean" },
+        "mainBlocker": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "enginesTotal",
+        "enginesRunning",
+        "enginesDegraded",
+        "enginesBlocked",
+        "enginesDead",
+        "incidentsOpen",
+        "restartsRecent"
+      ],
+      "properties": {
+        "enginesTotal": { "type": "integer", "minimum": 0 },
+        "enginesRunning": { "type": "integer", "minimum": 0 },
+        "enginesDegraded": { "type": "integer", "minimum": 0 },
+        "enginesBlocked": { "type": "integer", "minimum": 0 },
+        "enginesDead": { "type": "integer", "minimum": 0 },
+        "incidentsOpen": { "type": "integer", "minimum": 0 },
+        "restartsRecent": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "engines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["engineId", "name", "kind", "lifecycle", "status", "summary"],
+        "properties": {
+          "engineId": { "type": "string" },
+          "name": { "type": "string" },
+          "kind": { "type": "string" },
+          "lifecycle": {
+            "type": "string",
+            "enum": ["starting", "ready", "running", "degraded", "restarting", "blocked", "dead", "stopped", "unknown"]
+          },
+          "status": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "incidents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "incidentId",
+          "severity",
+          "source",
+          "code",
+          "summary",
+          "detail",
+          "detectedAt",
+          "recoveryAction",
+          "requiresHuman"
+        ],
+        "properties": {
+          "incidentId": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "warning", "error", "critical"] },
+          "source": { "type": "string" },
+          "code": { "type": "string" },
+          "summary": { "type": "string" },
+          "detail": { "type": "string" },
+          "detectedAt": { "type": "string" },
+          "recoveryAction": { "type": "string" },
+          "requiresHuman": { "type": "boolean" }
+        }
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["supervisorActive", "recentRestartCount", "lastCheckpointAt", "lastRecoveryAction"],
+      "properties": {
+        "supervisorActive": { "type": "boolean" },
+        "recentRestartCount": { "type": "integer", "minimum": 0 },
+        "lastCheckpointAt": { "type": "string" },
+        "lastRecoveryAction": { "type": "string" }
+      }
+    },
+    "sourceFiles": { "type": "object", "additionalProperties": true },
+    "outputFiles": { "type": "object", "additionalProperties": true },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queEstaPasando", "queHice", "queNecesitoDeBryams", "riesgos"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queEstaPasando": { "type": "array", "items": { "type": "string" } },
+        "queHice": { "type": "array", "items": { "type": "string" } },
+        "queNecesitoDeBryams": { "type": "array", "items": { "type": "string" } },
+        "riesgos": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

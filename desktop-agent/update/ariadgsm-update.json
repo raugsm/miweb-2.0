@@ -1,8 +1,8 @@
 {
-  "version": "0.8.16",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.16.zip",
-  "sha256": "95ba31212d00ef100786fd6d788623addf312d73d0d70196453f95db1c417e2c",
+  "version": "0.8.17",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.17.zip",
+  "sha256": "b22a81a7a4b763da92bcc526fd18d7081b57a06fe02fca78c038a6e2ab27c81b",
   "autoApply": true,
-  "notes": "Version 0.8.16 closes Tool Registry: tools are registered by capability, risk, inputs, outputs, verifiers and fallbacks; external tool work becomes an auditable plan decision behind Trust & Safety and Hands instead of direct execution.",
-  "publishedAt": "2026-04-28T11:43:47Z"
+  "notes": "Version 0.8.17 closes Runtime Kernel: lifecycle, incidents, recovery and human-facing state now have a single local truth before Cloud Sync; Vision state writes retry and fall back instead of stopping on transient Windows access denial.",
+  "publishedAt": "2026-04-28T15:01:06Z"
 }

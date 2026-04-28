@@ -94,6 +94,7 @@ Las etapas maestras quedan ordenadas asi:
 
 ```text
 0. Execution Lock
+0.5. Runtime Kernel
 1. Domain Event Contracts
 2. Autonomous Cycle Orchestrator
 3. Case Manager

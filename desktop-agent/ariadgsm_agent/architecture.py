@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Stage:
-    number: int
+    number: str
     name: str
     status: str
     next_gate: str
@@ -20,27 +20,29 @@ class Layer:
 
 
 MASTER_STAGES: tuple[Stage, ...] = (
-    Stage(0, "Execution Lock", "base_closed_continuous_alignment", "governance"),
-    Stage(1, "Domain Event Contracts", "closed_operational_contract", "events"),
-    Stage(2, "Autonomous Cycle Orchestrator", "implemented_central_cycle_base", "cycle"),
-    Stage(3, "Case Manager", "closed_operational_base", "cases"),
-    Stage(4, "Channel Routing Brain", "closed_operational_base", "routing"),
-    Stage(5, "Accounting Core evidence-first", "closed_evidence_first_base", "accounting"),
-    Stage(6, "Product Shell", "closed_operational_shell", "operator_experience"),
-    Stage(7, "Cabin Authority", "closed_cabin_authority", "workspace"),
-    Stage(8, "Safe Eyes / Reader Core", "closed_reader_core_base", "reader_core"),
-    Stage(9, "Living Memory", "closed_living_memory_base", "memory"),
-    Stage(10, "Business Brain", "closed_business_brain_base", "business_reasoning"),
-    Stage(11, "Trust & Safety + Input Arbiter", "closed_trust_safety_input_arbiter_final", "safety"),
-    Stage(12, "Hands & Verification", "closed_hands_verification_final", "hands"),
-    Stage(13, "Tool Registry", "closed_tool_registry_final", "tools"),
-    Stage(14, "Cloud Sync / ariadgsm.com", "next_pending", "cloud"),
-    Stage(15, "Evaluation + Release", "pending_final", "release"),
+    Stage("0", "Execution Lock", "base_closed_continuous_alignment", "governance"),
+    Stage("0.5", "Runtime Kernel", "closed_runtime_kernel_final", "runtime_kernel"),
+    Stage("1", "Domain Event Contracts", "closed_operational_contract", "events"),
+    Stage("2", "Autonomous Cycle Orchestrator", "implemented_central_cycle_base", "cycle"),
+    Stage("3", "Case Manager", "closed_operational_base", "cases"),
+    Stage("4", "Channel Routing Brain", "closed_operational_base", "routing"),
+    Stage("5", "Accounting Core evidence-first", "closed_evidence_first_base", "accounting"),
+    Stage("6", "Product Shell", "closed_operational_shell", "operator_experience"),
+    Stage("7", "Cabin Authority", "closed_cabin_authority", "workspace"),
+    Stage("8", "Safe Eyes / Reader Core", "closed_reader_core_base", "reader_core"),
+    Stage("9", "Living Memory", "closed_living_memory_base", "memory"),
+    Stage("10", "Business Brain", "closed_business_brain_base", "business_reasoning"),
+    Stage("11", "Trust & Safety + Input Arbiter", "closed_trust_safety_input_arbiter_final", "safety"),
+    Stage("12", "Hands & Verification", "closed_hands_verification_final", "hands"),
+    Stage("13", "Tool Registry", "closed_tool_registry_final", "tools"),
+    Stage("14", "Cloud Sync / ariadgsm.com", "next_pending", "cloud"),
+    Stage("15", "Evaluation + Release", "pending_final", "release"),
 )
 
 
 LAYERS: tuple[Layer, ...] = (
     Layer("Stage 0 Product Foundation", "Python + Docs", "Validate product foundation, execution lock, versioning and release readiness.", "stage_zero_readiness"),
+    Layer("Runtime Kernel", "C#/.NET + Python", "Own the single operational truth for lifecycle, incidents, recovery and human state before cloud sync.", "runtime_kernel_state"),
     Layer("Domain Contract Governance", "Python", "Validate domain event registry, adapter coverage, human corrections and event-first memory readiness.", "domain_contracts_final_readiness"),
     Layer("Cabin Authority", "C#/.NET", "Own Edge/Chrome/Firefox WhatsApp preparation, window authority and safe browser launch without closing operator sessions.", "cabin_authority_state"),
     Layer("Vision Engine", "C#/.NET", "Live desktop capture, change detection and temporary local visual evidence.", "vision_event"),
@@ -76,6 +78,7 @@ AUTONOMY_LEVELS: dict[int, str] = {
 
 CONTRACT_NAMES: tuple[str, ...] = (
     "stage_zero_readiness",
+    "runtime_kernel_state",
     "domain_contracts_final_readiness",
     "cabin_authority_state",
     "vision_event",
@@ -115,7 +118,7 @@ def describe_pipeline() -> list[dict[str, str]]:
     ]
 
 
-def describe_master_stages() -> list[dict[str, str | int]]:
+def describe_master_stages() -> list[dict[str, str]]:
     return [
         {
             "number": stage.number,

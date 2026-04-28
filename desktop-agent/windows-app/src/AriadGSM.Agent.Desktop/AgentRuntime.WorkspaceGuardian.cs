@@ -401,6 +401,7 @@ internal sealed partial class AgentRuntime
                     string.Join(" | ", report.Blockers.Select(item => $"{item.ChannelId}:{item.Code}")),
                     report.Status.Equals("ok", StringComparison.OrdinalIgnoreCase) ? "info" : "warning");
             }
+            WriteRuntimeKernelState("cabin_authority", report.Reason);
         }
         catch
         {

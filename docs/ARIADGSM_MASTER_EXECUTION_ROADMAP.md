@@ -41,6 +41,7 @@ Orden bloqueado:
 
 ```text
 0. Execution Lock
+0.5. Runtime Kernel
 1. Domain Event Contracts
 2. Autonomous Cycle Orchestrator
 3. Case Manager
@@ -70,6 +71,29 @@ Existe:
 - `docs/ARIADGSM_EXECUTION_LOCK.md`
 - `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
 - `desktop-agent/tests/stage_zero_foundation.py`
+
+### Etapa 0.5: Runtime Kernel
+
+Autoridad unica local sobre motores, incidentes, reinicios, capacidad de actuar,
+cabina, input humano y recuperacion antes de Cloud Sync.
+
+Estado actual: `cerrada como base final en 0.8.17`.
+
+Existe:
+
+- `docs/ARIADGSM_RUNTIME_KERNEL_FINAL.md`
+- `desktop-agent/contracts/runtime-kernel-state.schema.json`
+- `desktop-agent/ariadgsm_agent/runtime_kernel.py`
+- `desktop-agent/tests/runtime_kernel.py`
+- `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.RuntimeKernel.cs`
+
+Quedo cerrado:
+
+- verdad unica `runtime-kernel-state.json`;
+- incidentes normalizados;
+- UI usando Kernel para titular estado humano;
+- Vision tolera escritura denegada sin tumbar el motor;
+- Cloud Sync congelado hasta consumir Runtime Kernel.
 
 ### Etapa 1: Domain Event Contracts
 
@@ -343,7 +367,7 @@ Quedo cerrado:
 Panel, reportes, respaldos, sincronizacion, contabilidad y aprendizaje subido a
 la nube.
 
-Estado actual: `siguiente etapa pendiente`.
+Estado actual: `siguiente etapa pendiente despues de Runtime Kernel`.
 
 Debe cerrar:
 

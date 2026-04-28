@@ -1333,6 +1333,12 @@ internal sealed class MainForm : Form
 
     private string BuildHumanHeadline(bool isRunning, int errors, int warnings)
     {
+        var kernelHeadline = StateText("runtime-kernel-state.json", "humanReport", "headline");
+        if (!string.IsNullOrWhiteSpace(kernelHeadline) && (isRunning || errors > 0 || warnings > 0))
+        {
+            return kernelHeadline;
+        }
+
         if (errors > 0)
         {
             return "Necesito tu ayuda para seguir";
@@ -1348,6 +1354,12 @@ internal sealed class MainForm : Form
 
     private string BuildHumanSubtitle(bool isRunning)
     {
+        var kernelBlocker = StateText("runtime-kernel-state.json", "authority", "mainBlocker");
+        if (!string.IsNullOrWhiteSpace(kernelBlocker))
+        {
+            return kernelBlocker;
+        }
+
         var statusBus = StateText("status-bus-state.json", "summary");
         var statusPhase = StateText("status-bus-state.json", "phase");
         if (!string.IsNullOrWhiteSpace(statusBus) && (_cabinSetupPanel.Visible || !IsCabinSetupPhase(statusPhase)))
@@ -1441,6 +1453,13 @@ internal sealed class MainForm : Form
     {
         var lines = new List<string>();
         var now = DateTimeOffset.Now;
+        var kernelHeadline = StateText("runtime-kernel-state.json", "humanReport", "headline");
+        var kernelBlocker = StateText("runtime-kernel-state.json", "authority", "mainBlocker");
+        if (!string.IsNullOrWhiteSpace(kernelHeadline) || !string.IsNullOrWhiteSpace(kernelBlocker))
+        {
+            lines.Add($"{now:HH:mm:ss} | Kernel: {kernelHeadline}{(string.IsNullOrWhiteSpace(kernelBlocker) ? string.Empty : $" - {kernelBlocker}")}");
+        }
+
         var phase = StateText("autonomous-cycle-state.json", "phase");
         if (!string.IsNullOrWhiteSpace(phase))
         {

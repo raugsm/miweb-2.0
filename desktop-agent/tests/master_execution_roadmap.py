@@ -12,6 +12,7 @@ from ariadgsm_agent.architecture import MASTER_STAGES, describe_master_stages
 
 EXPECTED_STAGES = [
     "Execution Lock",
+    "Runtime Kernel",
     "Domain Event Contracts",
     "Autonomous Cycle Orchestrator",
     "Case Manager",
@@ -29,6 +30,26 @@ EXPECTED_STAGES = [
     "Evaluation + Release",
 ]
 
+EXPECTED_STAGE_LINES = [
+    "0. Execution Lock",
+    "0.5. Runtime Kernel",
+    "1. Domain Event Contracts",
+    "2. Autonomous Cycle Orchestrator",
+    "3. Case Manager",
+    "4. Channel Routing Brain",
+    "5. Accounting Core evidence-first",
+    "6. Product Shell",
+    "7. Cabin Authority",
+    "8. Safe Eyes / Reader Core",
+    "9. Living Memory",
+    "10. Business Brain",
+    "11. Trust & Safety + Input Arbiter",
+    "12. Hands & Verification",
+    "13. Tool Registry",
+    "14. Cloud Sync / ariadgsm.com",
+    "15. Evaluation + Release",
+]
+
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
@@ -41,21 +62,24 @@ def main() -> int:
 
     assert [stage.name for stage in MASTER_STAGES] == EXPECTED_STAGES
     assert [stage["name"] for stage in describe_master_stages()] == EXPECTED_STAGES
-    assert MASTER_STAGES[8].status == "closed_reader_core_base"
-    assert MASTER_STAGES[9].status == "closed_living_memory_base"
-    assert MASTER_STAGES[10].status == "closed_business_brain_base"
-    assert MASTER_STAGES[11].status == "closed_trust_safety_input_arbiter_final"
-    assert MASTER_STAGES[12].status == "closed_hands_verification_final"
-    assert MASTER_STAGES[13].status == "closed_tool_registry_final"
-    assert MASTER_STAGES[14].status == "next_pending"
+    assert MASTER_STAGES[1].number == "0.5"
+    assert MASTER_STAGES[1].status == "closed_runtime_kernel_final"
+    assert MASTER_STAGES[9].status == "closed_reader_core_base"
+    assert MASTER_STAGES[10].status == "closed_living_memory_base"
+    assert MASTER_STAGES[11].status == "closed_business_brain_base"
+    assert MASTER_STAGES[12].status == "closed_trust_safety_input_arbiter_final"
+    assert MASTER_STAGES[13].status == "closed_hands_verification_final"
+    assert MASTER_STAGES[14].status == "closed_tool_registry_final"
+    assert MASTER_STAGES[15].status == "next_pending"
 
-    for index, name in enumerate(EXPECTED_STAGES):
-        expected_line = f"{index}. {name}"
+    for expected_line in EXPECTED_STAGE_LINES:
         assert expected_line in roadmap, expected_line
         assert expected_line in lock, expected_line
         assert expected_line in stage_zero, expected_line
 
     assert "docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md" in lock
+    assert "### 6.0.5 Runtime Kernel" in lock
+    assert "docs/ARIADGSM_RUNTIME_KERNEL_FINAL.md" in lock
     assert "### 6.8 Safe Eyes / Reader Core" in lock
     assert "docs/ARIADGSM_SAFE_EYES_READER_CORE_DESIGN.md" in lock
     assert "### 6.9 Living Memory" in lock

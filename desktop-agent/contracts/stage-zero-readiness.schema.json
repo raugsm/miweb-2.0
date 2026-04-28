@@ -64,7 +64,7 @@
       "additionalProperties": false,
       "required": ["stageNumber", "name", "status", "reason"],
       "properties": {
-        "stageNumber": { "type": "integer", "minimum": 1 },
+        "stageNumber": { "type": ["string", "integer"], "minLength": 1 },
         "name": { "type": "string", "minLength": 1 },
         "status": { "type": "string", "minLength": 1 },
         "reason": { "type": "string", "minLength": 1 }
@@ -72,4 +72,3 @@
     }
   }
 }
-

@@ -213,18 +213,28 @@ public sealed class VisionPipeline
 
     private async ValueTask WriteStateAsync(VisionHealthState state, CancellationToken cancellationToken)
     {
-        var directory = Path.GetDirectoryName(_options.StateFile);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
         var json = JsonSerializer.Serialize(state, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = true
         });
-        await WriteTextAtomicAsync(_options.StateFile, json, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await WriteTextAtomicAsync(_options.StateFile, json, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (IsTransientWriteFailure(exception))
+        {
+            var fallbackDirectory = Path.Combine(_options.StorageRoot, "state-fallback");
+            var fallbackPath = Path.Combine(fallbackDirectory, Path.GetFileName(_options.StateFile));
+            try
+            {
+                await WriteTextAtomicAsync(fallbackPath, json, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Vision must keep capturing even when Windows temporarily blocks state files.
+            }
+        }
     }
 
     private static async ValueTask WriteTextAtomicAsync(string path, string text, CancellationToken cancellationToken)
@@ -238,26 +248,46 @@ public sealed class VisionPipeline
         var tempPath = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
         try
         {
-            await File.WriteAllTextAsync(tempPath, text, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
             for (var attempt = 0; attempt < 8; attempt++)
             {
                 try
                 {
+                    await File.WriteAllTextAsync(tempPath, text, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
                     File.Move(tempPath, path, overwrite: true);
                     return;
                 }
-                catch (IOException) when (attempt < 7)
+                catch (Exception exception) when (attempt < 7 && IsTransientWriteFailure(exception))
                 {
                     await Task.Delay(25 * (attempt + 1), cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    TryDelete(tempPath);
                 }
             }
         }
         finally
         {
-            if (File.Exists(tempPath))
+            TryDelete(tempPath);
+        }
+    }
+
+    private static bool IsTransientWriteFailure(Exception exception)
+    {
+        return exception is IOException or UnauthorizedAccessException;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
             {
-                File.Delete(tempPath);
+                File.Delete(path);
             }
+        }
+        catch
+        {
         }
     }
 }

@@ -80,6 +80,7 @@ internal sealed partial class AgentRuntime : IDisposable
         WriteLifeState("idle", "login_wait", "IA detenida esperando login e inicio manual.", "constructor");
         WriteCabinChannelRegistry(ReadChannelMappings());
         WriteStatusBusState("idle", "login_wait", "Cabina esperando login e inicio manual.", []);
+        WriteRuntimeKernelState("constructor", "idle");
     }
 
     public string RepoRoot => _repoRoot;
@@ -293,6 +294,7 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         var items = new List<HealthItem>
         {
+            RuntimeKernelHealth(),
             StateHealth("Vision", "vision-health.json", "Vision"),
             StateHealth("Perception", "perception-health.json", "Perception"),
             StateHealth("Reader Core", "reader-core-state.json", "PythonCoreLoop"),
@@ -370,6 +372,7 @@ internal sealed partial class AgentRuntime : IDisposable
         IReadOnlyList<string> recentLogLines)
     {
         using var vision = ReadJsonStatus("vision-health.json");
+        using var runtimeKernel = ReadJsonStatus("runtime-kernel-state.json");
         using var perception = ReadJsonStatus("perception-health.json");
         using var readerCore = ReadJsonStatus("reader-core-state.json");
         using var interaction = ReadJsonStatus("interaction-state.json");
@@ -408,6 +411,7 @@ internal sealed partial class AgentRuntime : IDisposable
         var lines = new List<string>
         {
             "Esta zona resume el trabajo real. Los JSON y trazas largas quedan en Logs tecnicos.",
+            $"Runtime Kernel: {Text(runtimeKernel, "status")} | {RuntimeKernelAuthorityText(runtimeKernel)}",
             $"Modo: {(IsRunning ? "trabajando" : "detenido")} | Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
             $"WhatsApps: {(whatsappSummary.Length == 0 ? "sin revision" : string.Join(" | ", whatsappSummary))}",
             $"Vision: capturas={Number(vision, "framesCaptured", "eventsWritten")} | ventanas={Number(vision, "visibleWindowCount")} | intervalo={Number(vision, "captureIntervalMs")}ms",
@@ -1902,12 +1906,14 @@ internal sealed partial class AgentRuntime : IDisposable
         {
             WriteLog("Reliability supervisor started.");
             WriteSupervisorState("ok", "Supervisor watching local engines.");
+            WriteRuntimeKernelState("runtime_orchestrator", "supervisor_started");
             while (!_supervisorCts.IsCancellationRequested)
             {
                 try
                 {
                     RecoverExpectedWorkers();
                     WriteSupervisorState("ok", "Supervisor watching local engines.");
+                    WriteRuntimeKernelState("runtime_orchestrator", "supervisor_loop");
                     await Task.Delay(SupervisorInterval, _supervisorCts.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -1918,11 +1924,13 @@ internal sealed partial class AgentRuntime : IDisposable
                 {
                     WriteLog($"Reliability supervisor error: {exception.Message}");
                     WriteSupervisorState("warning", exception.Message);
+                    WriteRuntimeKernelState("runtime_orchestrator", "supervisor_error");
                     await Task.Delay(SupervisorInterval).ConfigureAwait(false);
                 }
             }
 
             WriteLog("Reliability supervisor stopped.");
+            WriteRuntimeKernelState("runtime_orchestrator", "supervisor_stopped");
         });
     }
 
@@ -2373,6 +2381,10 @@ internal sealed partial class AgentRuntime : IDisposable
             {
                 Thread.Sleep(25 * (attempt + 1));
             }
+            catch (UnauthorizedAccessException) when (attempt < 7)
+            {
+                Thread.Sleep(25 * (attempt + 1));
+            }
         }
     }
 
@@ -2420,6 +2432,10 @@ internal sealed partial class AgentRuntime : IDisposable
                 return;
             }
             catch (IOException) when (attempt < 7)
+            {
+                Thread.Sleep(25 * (attempt + 1));
+            }
+            catch (UnauthorizedAccessException) when (attempt < 7)
             {
                 Thread.Sleep(25 * (attempt + 1));
             }

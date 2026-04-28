@@ -218,7 +218,7 @@ def build_human_report(checks: list[dict[str, Any]]) -> dict[str, list[str]]:
     gaps = [f"{check['name']}: {check['detail']}" for check in checks if check.get("status") != "ok"]
     risks: list[str] = []
     if not gaps:
-        risks.append("Etapa 0 cerrada; el riesgo ahora pasa a cerrar Etapa 1 sin volver a parches.")
+        risks.append("Etapa 0 cerrada; el riesgo ahora pasa a Runtime Kernel antes de seguir Cloud Sync.")
     else:
         risks.append("No declarar autonomia final mientras existan checks pendientes.")
     return {
@@ -259,10 +259,10 @@ def run_stage_zero_once(repo_root: Path, runtime_dir: Path, state_file: Path | N
         "checks": checks,
         "humanReport": human_report,
         "nextStage": {
-            "stageNumber": 1,
-            "name": "Domain Event Contracts",
-            "status": "base_implemented_needs_final_closure",
-            "reason": "Etapa 1 ya tiene base ejecutable, pero falta cerrarla como producto final antes de avanzar a casos.",
+            "stageNumber": "0.5",
+            "name": "Runtime Kernel",
+            "status": "closed_runtime_kernel_final",
+            "reason": "Etapa 0.5 gobierna vida de motores e incidentes antes de que Cloud Sync consuma estados.",
         },
     }
 

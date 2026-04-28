@@ -90,6 +90,7 @@ Este es el orden maestro que Bryams marco y queda bloqueado:
 
 ```text
 0. Execution Lock
+0.5. Runtime Kernel
 1. Domain Event Contracts
 2. Autonomous Cycle Orchestrator
 3. Case Manager
@@ -143,6 +144,46 @@ Pendiente para considerarlo producto final:
 
 - ninguno dentro de Etapa 0; las etapas siguientes deben cumplir sus propias
   definiciones de terminado.
+
+### 6.0.5 Runtime Kernel
+
+Estado:
+
+```text
+CERRADA COMO BASE FINAL EN 0.8.17
+```
+
+Objetivo:
+
+Ser la verdad unica local sobre vida de motores, incidentes, reinicios,
+capacidad de actuar, cabina, input humano y recuperacion. Esta etapa fue
+insertada por autorizacion directa de Bryams antes de Cloud Sync para evitar que
+la nube consuma estados contradictorios.
+
+Definicion de terminado:
+
+- existe documento final;
+- existe contrato `runtime_kernel_state`;
+- la app Windows publica `runtime-kernel-state.json`;
+- la UI usa Runtime Kernel para explicar estado humano;
+- Vision no cae por `Access denied` al escribir estado;
+- los incidentes recientes se normalizan en vez de esconderse en logs;
+- Cloud Sync queda congelado hasta consumir este estado;
+- tiene pruebas repetibles.
+
+Existe:
+
+- `docs/ARIADGSM_RUNTIME_KERNEL_FINAL.md`
+- `desktop-agent/contracts/runtime-kernel-state.schema.json`
+- `desktop-agent/ariadgsm_agent/runtime_kernel.py`
+- `desktop-agent/tests/runtime_kernel.py`
+- integracion en `AgentRuntime.cs`, `AgentRuntime.RuntimeKernel.cs` y UI
+
+Pendiente para autonomia final:
+
+- enriquecer incidentes con trazas OpenTelemetry completas;
+- conectar Cloud Sync para subir reportes desde Runtime Kernel, no desde estados
+  sueltos.
 
 ### 6.1 Domain Event Contracts
 
@@ -672,9 +713,9 @@ etapa salvo que Bryams lo autorice:
 
 Motivo:
 
-Son necesarios para producto, pero si se hacen antes de cerrar `Cloud Sync /
-ariadgsm.com`, volvemos al patron de parches: ya existe razonamiento local,
-pero aun falta una nube ordenada para panel, reportes, respaldo y aprendizaje.
+Son necesarios para producto, pero si se hacen antes de cerrar el bloque activo
+volvemos al patron de parches. Cloud Sync queda congelado hasta que Runtime
+Kernel este cerrado y la nube pueda consumir una verdad local unica.
 
 Excepcion:
 
@@ -714,8 +755,8 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0` a `13` quedan cerradas como base operativa, la siguiente
-etapa pendiente del mapa maestro es:
+Como las etapas `0`, `0.5` y `1` a `13` quedan cerradas como base operativa, la
+siguiente etapa pendiente del mapa maestro vuelve a ser:
 
 ```text
 Etapa 14: Cloud Sync / ariadgsm.com
