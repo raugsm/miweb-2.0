@@ -471,7 +471,7 @@ Pendiente para considerarlo autonomia final:
 Estado:
 
 ```text
-CERRADO COMO AUTORIDAD DE CABINA 0.8.6
+CERRADO COMO CABIN REALITY AUTHORITY 0.9.7
 ```
 
 Objetivo:
@@ -482,14 +482,15 @@ con identidad wa-1/wa-2/wa-3 y estado claro antes de encender IA.
 Ya existe:
 
 - `docs/ARIADGSM_CABIN_AUTHORITY_FINAL_DESIGN.md`
+- `docs/ARIADGSM_CABIN_REALITY_AUTHORITY_FINAL.md`
 - `desktop-agent/contracts/cabin-authority-state.schema.json`
 - `desktop-agent/tests/cabin_authority_final.py`
 
 Pendiente para considerarlo autonomia final:
 
 - validacion viva prolongada en la PC de Bryams;
-- integracion con `Safe Eyes / Reader Core` para confirmar lectura util real, no
-  solo ventana visible.
+- medir en prueba real que cada canal solo pasa de `visible_ready` a
+  `action_ready` cuando Window Reality, Reader/Input y Hands estan frescos.
 
 ### 6.8 Safe Eyes / Reader Core
 

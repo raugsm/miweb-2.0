@@ -72,6 +72,41 @@ static async Task TestOrchestratorPausesMissingChannel()
             actionsVerified = 6,
             actionsSkipped = 4781
         }));
+        await File.WriteAllTextAsync(Path.Combine(runtime, "window-reality-state.json"), JsonSerializer.Serialize(new
+        {
+            status = "attention",
+            updatedAt = DateTimeOffset.UtcNow,
+            channels = new object[]
+            {
+                new
+                {
+                    channelId = "wa-1",
+                    status = "MISSING_OR_WRONG_SESSION",
+                    isOperational = false,
+                    requiresHuman = false,
+                    handsMayAct = false,
+                    decision = new { reason = "Vision no confirma wa-1 en pantalla." }
+                },
+                new
+                {
+                    channelId = "wa-2",
+                    status = "READY",
+                    isOperational = true,
+                    requiresHuman = false,
+                    handsMayAct = true,
+                    decision = new { reason = "wa-2 esta visible, fresco y accionable." }
+                },
+                new
+                {
+                    channelId = "wa-3",
+                    status = "READY",
+                    isOperational = true,
+                    requiresHuman = false,
+                    handsMayAct = true,
+                    decision = new { reason = "wa-3 esta visible, fresco y accionable." }
+                }
+            }
+        }));
         await File.WriteAllTextAsync(Path.Combine(runtime, "action-events.jsonl"), JsonSerializer.Serialize(new
         {
             eventType = "action_event",

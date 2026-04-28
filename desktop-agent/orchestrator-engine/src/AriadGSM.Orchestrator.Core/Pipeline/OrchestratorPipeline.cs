@@ -32,6 +32,7 @@ public sealed class OrchestratorPipeline
             using var perceptionDocument = RuntimeJson.ReadDocument(RuntimeFile("perception-health.json"));
             using var interactionDocument = RuntimeJson.ReadDocument(RuntimeFile("interaction-state.json"));
             using var handsDocument = RuntimeJson.ReadDocument(RuntimeFile("hands-state.json"));
+            using var windowRealityDocument = RuntimeJson.ReadDocument(RuntimeFile("window-reality-state.json"));
             actionDocuments = RuntimeJson.ReadJsonlTail(RuntimeFile("action-events.jsonl"), _options.ActionTailLines);
 
             var cabin = ReadCabin(cabinDocument);
@@ -39,8 +40,9 @@ public sealed class OrchestratorPipeline
             var perception = ReadPerception(perceptionDocument);
             var interaction = interactionDocument is null ? null : ReadInteraction(interactionDocument);
             var hands = handsDocument is null ? null : ReadHands(handsDocument);
+            var windowReality = ReadWindowReality(windowRealityDocument);
             var actionFailures = ReadActionFailures(actionDocuments);
-            var staleStates = StaleStates(visionDocument, perceptionDocument, interactionDocument, handsDocument);
+            var staleStates = StaleStates(visionDocument, perceptionDocument, interactionDocument, handsDocument, windowRealityDocument);
             var codexWindows = vision.Windows
                 .Where(item =>
                     item.ProcessName.Equals("Codex", StringComparison.OrdinalIgnoreCase)
@@ -63,10 +65,14 @@ public sealed class OrchestratorPipeline
                     .Where(item => item.ProcessName.Equals(mapping.BrowserProcess, StringComparison.OrdinalIgnoreCase))
                     .ToArray();
                 var perceptionSeen = perception.ChannelIds.Contains(mapping.ChannelId);
+                var realityChannel = windowReality.Channels.TryGetValue(mapping.ChannelId, out var foundReality)
+                    ? foundReality
+                    : WindowRealityChannelSnapshot.Missing(mapping.ChannelId);
                 var failedActions = actionFailures.TryGetValue(mapping.ChannelId, out var failures) ? failures : 0;
                 var codexOverlap = visionWindow is not null && codexWindows.Any(item => OverlapRatio(item.Bounds, visionWindow.Bounds) > 0.25);
 
                 var actionsAllowed = cabinChannel.IsReady
+                    && realityChannel.HandsMayAct
                     && !cabinChannel.RequiresHuman
                     && visionWindow is not null
                     && perceptionSeen;
@@ -91,6 +97,29 @@ public sealed class OrchestratorPipeline
                 {
                     status = "BLOCKED";
                     details.Add("Requiere accion humana.");
+                }
+
+                if (!windowReality.Available)
+                {
+                    details.Add("Window Reality aun no publico consenso; no permito manos.");
+                    blockers.Add(new OrchestratorBlocker(
+                        "window_reality_missing",
+                        "warning",
+                        mapping.ChannelId,
+                        "Reality Resolver debe fusionar cabina, lectura fresca e input antes de actuar."));
+                }
+                else if (!realityChannel.HandsMayAct)
+                {
+                    details.Add($"Reality Resolver no autoriza manos: {realityChannel.Status}.");
+                    blockers.Add(new OrchestratorBlocker(
+                        "window_reality_not_actionable",
+                        realityChannel.RequiresHuman ? "error" : "warning",
+                        mapping.ChannelId,
+                        realityChannel.Reason));
+                    recommendations.Add(new OrchestratorRecommendation(
+                        "wait_for_actionable_reality",
+                        mapping.ChannelId,
+                        "Esperar lectura fresca y permiso de input antes de tocar la ventana."));
                 }
 
                 if (visionWindow is null)
@@ -414,6 +443,40 @@ public sealed class OrchestratorPipeline
         return new OrchestratorWindowSnapshot(processId, processName, title, bounds);
     }
 
+    private static WindowRealitySnapshot ReadWindowReality(JsonDocument? document)
+    {
+        if (document is null)
+        {
+            return new WindowRealitySnapshot(false, new Dictionary<string, WindowRealityChannelSnapshot>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        var channels = new Dictionary<string, WindowRealityChannelSnapshot>(StringComparer.OrdinalIgnoreCase);
+        if (document.RootElement.TryGetProperty("channels", out var array) && array.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in array.EnumerateArray())
+            {
+                var channelId = RuntimeJson.String(item, "channelId");
+                if (string.IsNullOrWhiteSpace(channelId))
+                {
+                    continue;
+                }
+
+                var decision = item.TryGetProperty("decision", out var decisionElement)
+                    ? decisionElement
+                    : default;
+                channels[channelId] = new WindowRealityChannelSnapshot(
+                    channelId,
+                    RuntimeJson.String(item, "status"),
+                    RuntimeJson.Bool(item, false, "isOperational", "structuralReady"),
+                    RuntimeJson.Bool(item, false, "requiresHuman"),
+                    RuntimeJson.Bool(item, false, "handsMayAct", "actionReady"),
+                    RuntimeJson.String(decision, "reason"));
+            }
+        }
+
+        return new WindowRealitySnapshot(true, channels);
+    }
+
     private static VisionSnapshot ReadVision(JsonDocument? document)
     {
         if (document is null)
@@ -642,6 +705,30 @@ public sealed class OrchestratorPipeline
     }
 
     private sealed record VisionSnapshot(IReadOnlyList<OrchestratorWindowSnapshot> Windows);
+
+    private sealed record WindowRealitySnapshot(
+        bool Available,
+        IReadOnlyDictionary<string, WindowRealityChannelSnapshot> Channels);
+
+    private sealed record WindowRealityChannelSnapshot(
+        string ChannelId,
+        string Status,
+        bool IsOperational,
+        bool RequiresHuman,
+        bool HandsMayAct,
+        string Reason)
+    {
+        public static WindowRealityChannelSnapshot Missing(string channelId)
+        {
+            return new WindowRealityChannelSnapshot(
+                channelId,
+                "MISSING",
+                false,
+                false,
+                false,
+                "Reality Resolver no tiene este canal en su consenso.");
+        }
+    }
 
     private sealed record PerceptionSnapshot(IReadOnlySet<string> ChannelIds);
 

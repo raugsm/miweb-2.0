@@ -19,6 +19,9 @@ internal sealed partial class AgentRuntime
                 ["expectedUrl"] = WhatsAppWebUrl,
                 ["dedicatedProfileDirectory"] = CabinProfileDirectory(item.Mapping),
                 ["status"] = item.Status,
+                ["structuralReady"] = item.IsReady,
+                ["semanticFresh"] = false,
+                ["actionReady"] = false,
                 ["isReady"] = item.IsReady,
                 ["requiresHuman"] = item.RequiresHuman,
                 ["canLaunch"] = item.CanLaunch,
@@ -49,7 +52,7 @@ internal sealed partial class AgentRuntime
                     "Solo abro web.whatsapp.com en el navegador asignado si no encuentro una existente",
                     "No uso WhatsApp instalado ni ventanas PWA",
                     "Acomodo la cabina una sola vez por alistamiento",
-                    "Si un canal falla, arranco en modo degradado con los canales listos"
+                    "Si un canal falla, explico el bloqueo y no lo marco accionable"
                 }
             };
 

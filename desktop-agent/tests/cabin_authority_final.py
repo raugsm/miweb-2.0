@@ -39,9 +39,14 @@ def main() -> int:
 
     assert 'CabinAuthorityCanModifyWindows("loop")' not in guardian
     assert 'reason.Equals("loop"' not in guardian
+    assert '"authorityVersion"] = "cabin-reality-authority-v2"' in guardian
     assert '"handsMayArrangeWindows"] = false' in guardian
     assert '"shellUrlLaunchAllowed"] = false' in guardian
     assert '"TabItem"' in guardian
+    assert '"visible_ready"' in guardian
+    assert '"action_ready"' in guardian
+    assert "ReadCabinActionabilitySnapshot" in guardian
+    assert "Window Reality, Reader/Input y Hands no se contradicen" in guardian
 
     assert "process.Kill(entireProcessTree: true)" in runtime
     assert '"msedge"' not in runtime[runtime.index("private void StopExternalWorkerProcesses") : runtime.index("private void RecoverExpectedWorkers")]

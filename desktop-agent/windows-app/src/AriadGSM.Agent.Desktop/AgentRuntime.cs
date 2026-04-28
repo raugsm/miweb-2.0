@@ -21,6 +21,7 @@ internal sealed partial class AgentRuntime : IDisposable
 {
     private const string DefaultUpdateManifestUrl = "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/ariadgsm-update.json";
     private const int ShowWindowRestore = 9;
+    private const int DwmwaCloaked = 14;
     private const long MaxLogBytes = 16L * 1024 * 1024;
     private const int MaxLogArchives = 5;
     private const int MaxRestartsPerWindow = 4;
@@ -1355,6 +1356,9 @@ internal sealed partial class AgentRuntime : IDisposable
                     ["channelId"] = item.ChannelId,
                     ["browser"] = item.Mapping.BrowserProcess,
                     ["status"] = item.Status,
+                    ["structuralReady"] = item.IsReady,
+                    ["semanticFresh"] = false,
+                    ["actionReady"] = false,
                     ["isReady"] = item.IsReady,
                     ["requiresHuman"] = item.RequiresHuman,
                     ["canLaunch"] = item.CanLaunch,
@@ -1393,6 +1397,9 @@ internal sealed partial class AgentRuntime : IDisposable
                     ["status"] = channelStatus,
                     ["confidence"] = item.IsReady ? 0.72 : 0.42,
                     ["isOperational"] = isOperational,
+                    ["structuralReady"] = isOperational,
+                    ["semanticFresh"] = false,
+                    ["actionReady"] = false,
                     ["requiresHuman"] = item.RequiresHuman,
                     ["handsMayAct"] = false,
                     ["decision"] = new Dictionary<string, object?>
@@ -1523,6 +1530,8 @@ internal sealed partial class AgentRuntime : IDisposable
                     ["expectedChannels"] = readiness.Count,
                     ["operationalChannels"] = operational,
                     ["readyChannels"] = operational,
+                    ["structuralReadyChannels"] = operational,
+                    ["actionReadyChannels"] = 0,
                     ["conflictedChannels"] = conflicted,
                     ["requiresHumanChannels"] = requiresHuman,
                     ["staleInputs"] = 0,
@@ -3327,6 +3336,11 @@ internal sealed partial class AgentRuntime : IDisposable
                 return true;
             }
 
+            if (IsWindowCloaked(handle))
+            {
+                return true;
+            }
+
             var titleBuilder = new StringBuilder(512);
             _ = GetWindowText(handle, titleBuilder, titleBuilder.Capacity);
             var title = titleBuilder.ToString().Trim();
@@ -3375,6 +3389,18 @@ internal sealed partial class AgentRuntime : IDisposable
                 ["height"] = window.Bounds.Height
             }
         };
+    }
+
+    private static bool IsWindowCloaked(IntPtr handle)
+    {
+        try
+        {
+            return DwmGetWindowAttribute(handle, DwmwaCloaked, out var cloaked, Marshal.SizeOf<int>()) == 0 && cloaked != 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string NormalizeProcessName(string value)
@@ -3684,6 +3710,9 @@ internal sealed partial class AgentRuntime : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect lpRect);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
 
     private static long GetOperatorIdleMilliseconds()
     {

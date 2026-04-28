@@ -108,8 +108,11 @@ def main() -> int:
         state = run_window_reality_once(runtime)
         assert state["status"] == "ok"
         assert state["summary"]["operationalChannels"] == 3
+        assert state["summary"]["structuralReadyChannels"] == 3
+        assert state["summary"]["actionReadyChannels"] == 3
         assert state["summary"]["handsMayActChannels"] == 3
         assert all(item["status"] == "READY" for item in state["channels"])
+        assert all(item["actionReady"] is True for item in state["channels"])
         assert not validate_contract(state, "window_reality_state")
 
     with TemporaryDirectory() as tmp:
@@ -155,6 +158,8 @@ def main() -> int:
         state = run_window_reality_once(runtime)
         assert state["status"] == "ok"
         assert all(item["status"] == "READY_OPERATOR_BUSY" for item in state["channels"])
+        assert all(item["structuralReady"] is True for item in state["channels"])
+        assert all(item["actionReady"] is False for item in state["channels"])
         assert state["summary"]["handsMayActChannels"] == 0
         assert not validate_contract(state, "window_reality_state")
 

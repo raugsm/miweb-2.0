@@ -1,8 +1,8 @@
 {
-  "version": "0.9.6",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.6.zip",
-  "sha256": "ee905c3d0685066e98431fa4319f3353247d59db80c9b4097ad1523d5863303e",
+  "version": "0.9.7",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.7.zip",
+  "sha256": "3491f6f14d53590cf9f189148037ccc846cd591feff6f4654c244c482439ea08",
   "autoApply": true,
-  "notes": "Version 0.9.6 consolidates Layer 7 with Action Transaction Gate, fresh perception before physical actions, one channel lease at a time, post-action verification and non-destructive browser policy.",
-  "publishedAt": "2026-04-28T20:23:54Z"
+  "notes": "Version 0.9.7 consolidates Layer 3 Cabin Reality Authority: fixed Edge/Chrome/Firefox channel ownership, visible/fresh/actionable readiness, DWM cloaked-window rejection, Window Reality consensus in Orchestrator and action_ready gating before Hands.",
+  "publishedAt": "2026-04-28T20:53:17Z"
 }

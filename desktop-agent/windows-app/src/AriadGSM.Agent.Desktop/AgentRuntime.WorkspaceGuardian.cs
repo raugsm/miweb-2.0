@@ -11,6 +11,7 @@ namespace AriadGSM.Agent.Desktop;
 internal sealed partial class AgentRuntime
 {
     private static readonly TimeSpan WorkspaceGuardianInterval = TimeSpan.FromMilliseconds(900);
+    private static readonly TimeSpan CabinActionabilityMaxAge = TimeSpan.FromMilliseconds(3500);
 
     private string WorkspaceGuardianStateFile => Path.Combine(_runtimeDir, "workspace-guardian-state.json");
     private string CabinAuthorityStateFile => Path.Combine(_runtimeDir, "cabin-authority-state.json");
@@ -338,18 +339,79 @@ internal sealed partial class AgentRuntime
 
             WriteAllTextAtomicShared(WorkspaceGuardianStateFile, JsonSerializer.Serialize(state, options));
 
+            var actionability = ReadCabinActionabilitySnapshot();
+            var authorityChannels = report.Channels.Select(channel =>
+            {
+                var action = actionability.TryGetValue(channel.ChannelId, out var found)
+                    ? found
+                    : CabinChannelActionability.Missing();
+                var structuralReady = channel.Status.Equals("ready", StringComparison.OrdinalIgnoreCase) && channel.RemainingBlockers == 0;
+                var actionReady = structuralReady && action.IsFresh && action.IsOperational && action.HandsMayAct;
+                return new Dictionary<string, object?>
+                {
+                    ["channelId"] = channel.ChannelId,
+                    ["browserProcess"] = channel.BrowserProcess,
+                    ["status"] = actionReady
+                        ? "action_ready"
+                        : structuralReady
+                            ? "visible_ready"
+                            : channel.Status.Equals("covered", StringComparison.OrdinalIgnoreCase)
+                                ? "covered"
+                                : "missing",
+                    ["structuralReady"] = structuralReady,
+                    ["semanticFresh"] = action.SemanticFresh,
+                    ["actionReady"] = actionReady,
+                    ["handsMayAct"] = actionReady,
+                    ["actionabilityReason"] = actionReady
+                        ? "Window Reality, Reader/Input y Hands no se contradicen."
+                        : action.Reason,
+                    ["actionabilitySource"] = action.Source,
+                    ["expectedBounds"] = SerializeBounds(channel.ExpectedBounds),
+                    ["window"] = SerializeCabinWindow(channel.Window),
+                    ["remainingBlockers"] = channel.RemainingBlockers,
+                    ["freshness"] = new Dictionary<string, object?>
+                    {
+                        ["status"] = action.IsFresh ? "fresh" : "waiting",
+                        ["ageMs"] = action.AgeMs,
+                        ["maxAgeMs"] = (int)CabinActionabilityMaxAge.TotalMilliseconds
+                    }
+                };
+            }).ToArray();
+            var structuralReadyChannels = authorityChannels.Count(channel => BoolValue(channel, "structuralReady"));
+            var actionReadyChannels = authorityChannels.Count(channel => BoolValue(channel, "actionReady"));
+            var authorityPhase = actionReadyChannels == report.Channels.Count && report.Channels.Count > 0
+                ? "action_ready"
+                : structuralReadyChannels == report.Channels.Count && report.Channels.Count > 0
+                    ? "visible_ready_waiting_fresh_reader"
+                    : report.Phase;
+            var authoritySummary = actionReadyChannels == report.Channels.Count && report.Channels.Count > 0
+                ? "Cabin Reality: las 3 columnas estan visibles, frescas y accionables."
+                : structuralReadyChannels == report.Channels.Count && report.Channels.Count > 0
+                    ? "Cabin Reality: las 3 columnas estan visibles; espero lectura fresca antes de manos."
+                    : report.Summary;
+
             var authority = new Dictionary<string, object?>
             {
                 ["status"] = report.Status,
                 ["engine"] = "ariadgsm_cabin_authority",
-                ["phase"] = report.Phase,
-                ["summary"] = report.Summary,
+                ["contract"] = "cabin_authority_state",
+                ["authorityVersion"] = "cabin-reality-authority-v2",
+                ["phase"] = authorityPhase,
+                ["summary"] = authoritySummary,
                 ["reason"] = report.Reason,
                 ["updatedAt"] = DateTimeOffset.UtcNow,
                 ["exclusiveWindowControl"] = true,
-                ["handsMayFocus"] = report.Channels.Any(channel => channel.Status.Equals("ready", StringComparison.OrdinalIgnoreCase)),
+                ["handsMayFocus"] = actionReadyChannels > 0,
                 ["handsMayRecoverWindows"] = false,
                 ["handsMayArrangeWindows"] = false,
+                ["readiness"] = new Dictionary<string, object?>
+                {
+                    ["expectedChannels"] = report.Channels.Count,
+                    ["structuralReadyChannels"] = structuralReadyChannels,
+                    ["actionReadyChannels"] = actionReadyChannels,
+                    ["coveredChannels"] = report.Channels.Count(channel => channel.Status.Equals("covered", StringComparison.OrdinalIgnoreCase)),
+                    ["missingChannels"] = report.Channels.Count(channel => channel.Status.Equals("missing", StringComparison.OrdinalIgnoreCase))
+                },
                 ["launchPolicy"] = new Dictionary<string, object?>
                 {
                     ["mode"] = "explicit_browser_executable_only",
@@ -362,21 +424,12 @@ internal sealed partial class AgentRuntime
                 {
                     "Solo Cabin Authority puede acomodar o restaurar ventanas de navegador.",
                     "El monitor en bucle solo observa; no minimiza ventanas del operador.",
-                    "Hands puede clicar solo en canales ready, visibles y sin bloqueadores.",
+                    "Hands puede clicar solo en canales action_ready: visibles, frescos y sin bloqueadores.",
                     "Si una ventana cubre WhatsApp, se reporta al operador en vez de cerrarla.",
                     "El localizador de sesiones solo selecciona pestanas reales; nunca invoca botones de cerrar.",
                     "Abrir un canal usa el ejecutable exacto del navegador asignado, nunca la URL por shell."
                 },
-                ["channels"] = report.Channels.Select(channel => new Dictionary<string, object?>
-                {
-                    ["channelId"] = channel.ChannelId,
-                    ["browserProcess"] = channel.BrowserProcess,
-                    ["status"] = channel.Status,
-                    ["handsMayAct"] = channel.Status.Equals("ready", StringComparison.OrdinalIgnoreCase),
-                    ["expectedBounds"] = SerializeBounds(channel.ExpectedBounds),
-                    ["window"] = SerializeCabinWindow(channel.Window),
-                    ["remainingBlockers"] = channel.RemainingBlockers
-                }).ToArray(),
+                ["channels"] = authorityChannels,
                 ["blockers"] = report.Blockers.Select(blocker => new Dictionary<string, object?>
                 {
                     ["channelId"] = blocker.ChannelId,
@@ -388,7 +441,23 @@ internal sealed partial class AgentRuntime
                     ["channelId"] = action.ChannelId,
                     ["type"] = action.Type,
                     ["detail"] = action.Detail
-                }).ToArray()
+                }).ToArray(),
+                ["humanReport"] = new Dictionary<string, object?>
+                {
+                    ["headline"] = authoritySummary,
+                    ["queEstaPasando"] = new[]
+                    {
+                        $"Ventanas visibles: {structuralReadyChannels}/{report.Channels.Count}.",
+                        $"Canales accionables ahora: {actionReadyChannels}/{report.Channels.Count}."
+                    },
+                    ["queNecesitoDeBryams"] = actionReadyChannels == report.Channels.Count
+                        ? new[] { "Nada por ahora; la IA puede pedir permiso y actuar dentro de la cabina." }
+                        : authorityChannels
+                            .Where(channel => !BoolValue(channel, "actionReady"))
+                            .Select(channel => $"{channel["channelId"]}: {channel["actionabilityReason"]}")
+                            .Take(6)
+                            .ToArray()
+                }
             };
 
             WriteAllTextAtomicShared(CabinAuthorityStateFile, JsonSerializer.Serialize(authority, options));
@@ -417,6 +486,65 @@ internal sealed partial class AgentRuntime
             ["width"] = bounds.Width,
             ["height"] = bounds.Height
         };
+    }
+
+    private IReadOnlyDictionary<string, CabinChannelActionability> ReadCabinActionabilitySnapshot()
+    {
+        var result = new Dictionary<string, CabinChannelActionability>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (!File.Exists(_windowRealityStateFile))
+            {
+                return result;
+            }
+
+            using var document = JsonDocument.Parse(ReadAllTextShared(_windowRealityStateFile));
+            var root = document.RootElement;
+            var updatedAt = TryDate(root, "updatedAt");
+            var age = updatedAt is null
+                ? (double?)null
+                : Math.Max(0, (DateTimeOffset.UtcNow - updatedAt.Value.ToUniversalTime()).TotalMilliseconds);
+            var fresh = age is not null && age.Value <= CabinActionabilityMaxAge.TotalMilliseconds;
+            if (!root.TryGetProperty("channels", out var channels) || channels.ValueKind != JsonValueKind.Array)
+            {
+                return result;
+            }
+
+            foreach (var channel in channels.EnumerateArray())
+            {
+                var channelId = TryString(channel, "channelId") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(channelId))
+                {
+                    continue;
+                }
+
+                var decision = channel.TryGetProperty("decision", out var decisionElement)
+                    ? decisionElement
+                    : default;
+                var reason = TryString(decision, "reason")
+                    ?? TryString(channel, "status")
+                    ?? "Window Reality aun no publico accionabilidad fresca.";
+                result[channelId] = new CabinChannelActionability(
+                    fresh,
+                    TryBool(channel, "isOperational", "structuralReady") == true,
+                    TryBool(channel, "handsMayAct", "actionReady") == true,
+                    TryBool(channel, "semanticFresh") == true || (TryString(channel, "status") ?? string.Empty).Contains("READY", StringComparison.OrdinalIgnoreCase),
+                    age,
+                    "window-reality-state.json",
+                    fresh ? reason : "Espero Window Reality fresco antes de autorizar manos.");
+            }
+        }
+        catch (Exception exception)
+        {
+            WriteLog($"Cabin Authority: no pude leer accionabilidad de Window Reality: {exception.Message}");
+        }
+
+        return result;
+    }
+
+    private static bool BoolValue(Dictionary<string, object?> document, string key)
+    {
+        return document.TryGetValue(key, out var value) && value is bool boolean && boolean;
     }
 
     private sealed record WorkspaceGuardianReport(
@@ -450,4 +578,26 @@ internal sealed partial class AgentRuntime
     private sealed record WorkspaceGuardianBlocker(string ChannelId, string Code, string Detail);
 
     private sealed record WorkspaceGuardianAction(string ChannelId, string Type, string Detail);
+
+    private sealed record CabinChannelActionability(
+        bool IsFresh,
+        bool IsOperational,
+        bool HandsMayAct,
+        bool SemanticFresh,
+        double? AgeMs,
+        string Source,
+        string Reason)
+    {
+        public static CabinChannelActionability Missing()
+        {
+            return new CabinChannelActionability(
+                false,
+                false,
+                false,
+                false,
+                null,
+                "window-reality-state.json",
+                "Espero Window Reality, Reader Core, Input Arbiter y Hands frescos antes de autorizar manos.");
+        }
+    }
 }

@@ -255,15 +255,19 @@ Componentes actuales a fusionar:
 Estado actual:
 
 ```text
-BASE FUERTE, NO VALIDADA EN JORNADA REAL
+CONSOLIDADA EN 0.9.7 COMO CABIN REALITY AUTHORITY
 ```
 
 Para consolidar:
 
-- una sola autoridad sobre ventanas;
-- lectura permitida aunque manos no puedan actuar;
-- pruebas reales con varias aplicaciones abiertas;
-- ningun motor excepto Cabin puede mover/restaurar navegadores.
+- documento final: `docs/ARIADGSM_CABIN_REALITY_AUTHORITY_FINAL.md`;
+- contrato: `desktop-agent/contracts/cabin-authority-state.schema.json`;
+- estado: `desktop-agent/runtime/cabin-authority-state.json`;
+- `wa-1=Edge`, `wa-2=Chrome`, `wa-3=Firefox`;
+- separacion obligatoria entre `structuralReady`, `semanticFresh` y
+  `actionReady`;
+- ningun motor excepto Cabin Reality Authority puede mover/restaurar
+  navegadores.
 
 ### Capa 4: Perception & Reader Core
 

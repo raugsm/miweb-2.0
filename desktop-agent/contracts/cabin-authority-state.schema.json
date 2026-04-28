@@ -7,6 +7,8 @@
   "required": [
     "status",
     "engine",
+    "contract",
+    "authorityVersion",
     "phase",
     "summary",
     "reason",
@@ -14,6 +16,7 @@
     "exclusiveWindowControl",
     "handsMayRecoverWindows",
     "handsMayArrangeWindows",
+    "readiness",
     "launchPolicy",
     "policy",
     "channels",
@@ -23,6 +26,8 @@
   "properties": {
     "status": { "type": "string", "enum": ["ok", "attention", "stopped"] },
     "engine": { "type": "string", "const": "ariadgsm_cabin_authority" },
+    "contract": { "type": "string", "const": "cabin_authority_state" },
+    "authorityVersion": { "type": "string", "minLength": 1 },
     "phase": { "type": "string", "minLength": 1 },
     "summary": { "type": "string", "minLength": 1 },
     "reason": { "type": "string", "minLength": 1 },
@@ -31,6 +36,24 @@
     "handsMayFocus": { "type": "boolean" },
     "handsMayRecoverWindows": { "type": "boolean", "const": false },
     "handsMayArrangeWindows": { "type": "boolean", "const": false },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "expectedChannels",
+        "structuralReadyChannels",
+        "actionReadyChannels",
+        "coveredChannels",
+        "missingChannels"
+      ],
+      "properties": {
+        "expectedChannels": { "type": "integer", "minimum": 0 },
+        "structuralReadyChannels": { "type": "integer", "minimum": 0 },
+        "actionReadyChannels": { "type": "integer", "minimum": 0 },
+        "coveredChannels": { "type": "integer", "minimum": 0 },
+        "missingChannels": { "type": "integer", "minimum": 0 }
+      }
+    },
     "launchPolicy": {
       "type": "object",
       "additionalProperties": true,
@@ -64,11 +87,35 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["channelId", "browserProcess", "status", "handsMayAct", "expectedBounds"],
+        "required": [
+          "channelId",
+          "browserProcess",
+          "status",
+          "structuralReady",
+          "semanticFresh",
+          "actionReady",
+          "handsMayAct",
+          "expectedBounds"
+        ],
         "properties": {
           "channelId": { "type": "string", "minLength": 1 },
           "browserProcess": { "type": "string", "minLength": 1 },
-          "status": { "type": "string", "enum": ["ready", "covered", "missing"] },
+          "status": {
+            "type": "string",
+            "enum": [
+              "action_ready",
+              "visible_ready",
+              "ready",
+              "covered",
+              "missing",
+              "human_required",
+              "blocked",
+              "stale"
+            ]
+          },
+          "structuralReady": { "type": "boolean" },
+          "semanticFresh": { "type": "boolean" },
+          "actionReady": { "type": "boolean" },
           "handsMayAct": { "type": "boolean" },
           "remainingBlockers": { "type": "integer", "minimum": 0 },
           "expectedBounds": {

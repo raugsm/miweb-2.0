@@ -2,6 +2,10 @@
 
 Estado: cerrado para version `0.8.6`.
 
+Nota 2026-04-28: este documento queda como antecedente. La version vigente es
+`docs/ARIADGSM_CABIN_REALITY_AUTHORITY_FINAL.md`, que separa ventana visible,
+lectura fresca y permiso real de manos.
+
 Este bloque existe para resolver de raiz el fallo mas repetido de la cabina:
 cuando Bryams pulsa `Alistar WhatsApps` o `Encender IA`, el sistema debe
 preparar Edge, Chrome y Firefox como WhatsApp 1/2/3 sin cerrar pestañas,

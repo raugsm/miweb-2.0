@@ -495,6 +495,8 @@ def build_window_reality_stage(window_reality: dict[str, Any]) -> dict[str, Any]
                 "expectedChannels": 3,
                 "operationalChannels": 0,
                 "readyChannels": 0,
+                "structuralReadyChannels": 0,
+                "actionReadyChannels": 0,
                 "conflictedChannels": 0,
                 "requiresHumanChannels": 0,
                 "staleInputs": 0,
@@ -526,6 +528,8 @@ def build_window_reality_stage(window_reality: dict[str, Any]) -> dict[str, Any]
             "expectedChannels": expected,
             "operationalChannels": operational,
             "readyChannels": as_int(summary.get("readyChannels")),
+            "structuralReadyChannels": as_int(summary.get("structuralReadyChannels")),
+            "actionReadyChannels": as_int(summary.get("actionReadyChannels")),
             "conflictedChannels": conflicted,
             "requiresHumanChannels": as_int(summary.get("requiresHumanChannels")),
             "staleInputs": stale,
@@ -800,6 +804,7 @@ def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     blocked = as_int(summary.get("blocked"))
     requires_human = as_int(summary.get("requiresHumanConfirmation"))
     operational_channels = as_int(reality_summary.get("operationalChannels"))
+    actionable_channels = as_int(reality_summary.get("handsMayActChannels") or reality_summary.get("actionReadyChannels"))
     reality_status = normalize_status(window_reality.get("status") if window_reality else "attention")
 
     if operator_has_priority or input_phase in {"operator_control", "operator_cooldown"}:
@@ -809,6 +814,10 @@ def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     elif window_reality and (reality_status == "blocked" or operational_channels <= 0):
         decision = "BLOCK"
         reason = "Window Reality Resolver no encontro ningun WhatsApp operable con evidencia fresca."
+        can_hands_run = False
+    elif window_reality and actionable_channels <= 0:
+        decision = "ALLOW_READ_ONLY"
+        reason = "Cabina visible, pero aun no hay canal accionable; sigo leyendo y aprendiendo sin mover mouse."
         can_hands_run = False
     elif critical > 0:
         decision = "BLOCK"
@@ -838,6 +847,7 @@ def permission_gate(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "inputPhase": input_phase,
         "windowRealityStatus": reality_status,
         "windowRealityOperationalChannels": operational_channels,
+        "windowRealityActionableChannels": actionable_channels,
         "requiresHumanConfirmation": requires_human,
         "blockedActions": blocked,
         "criticalFindings": critical,

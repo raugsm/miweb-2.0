@@ -210,19 +210,20 @@ Existe:
 Alistar Edge, Chrome y Firefox sin cerrar ventanas, con cajas fijas y estados
 claros.
 
-Estado actual: `cerrada como autoridad de cabina`.
+Estado actual: `cerrada como Cabin Reality Authority 0.9.7`.
 
 Existe:
 
 - `docs/ARIADGSM_CABIN_AUTHORITY_FINAL_DESIGN.md`
+- `docs/ARIADGSM_CABIN_REALITY_AUTHORITY_FINAL.md`
 - `desktop-agent/contracts/cabin-authority-state.schema.json`
 - `desktop-agent/tests/cabin_authority_final.py`
 
 Pendiente para autonomia final:
 
 - validacion viva prolongada en la PC de Bryams;
-- Window Reality Resolver confirma no solo ventana lista, sino lectura util,
-  frescura y capacidad real de accion.
+- prueba real de una hora con muchas aplicaciones abiertas para medir que
+  `visible_ready` y `action_ready` no se contradicen.
 
 ### Etapa 8: Safe Eyes / Reader Core
 

@@ -9,11 +9,11 @@ from typing import Any
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DIR = AGENT_ROOT / "runtime"
-VERSION = "0.9.1"
+VERSION = "0.9.7"
 ENGINE = "ariadgsm_window_reality_resolver"
 CONTRACT = "window_reality_state"
 
-READY_STATUSES = {"ready", "ok", "visible", "current"}
+READY_STATUSES = {"ready", "ok", "visible", "visible_ready", "action_ready", "current"}
 COVERED_STATUSES = {"covered_by_window", "covered", "occluded"}
 HUMAN_STATUSES = {"login_required", "needs_use_here", "profile_error", "duplicate_whatsapp_windows"}
 MISSING_STATUSES = {
@@ -147,7 +147,7 @@ def build_signal(kind: str, status: str, confidence: float, detail: str, evidenc
 
 def structural_signal(channel: dict[str, Any], cabin_fresh: dict[str, Any]) -> dict[str, Any]:
     raw_status = normalized_status(channel.get("status"))
-    is_ready = as_bool(channel.get("isReady")) or raw_status in READY_STATUSES
+    is_ready = as_bool(channel.get("isReady")) or as_bool(channel.get("structuralReady")) or raw_status in READY_STATUSES
     if not cabin_fresh["fresh"]:
         return build_signal("structural", "stale", 0.1, "Cabin readiness esta viejo o sin fecha.")
     if is_ready:
@@ -282,6 +282,9 @@ def decide_channel(channel_id: str, signals: list[dict[str, Any]], channel: dict
         "channelId": channel_id,
         "status": status,
         "confidence": round(max(0.0, min(1.0, confidence)), 3),
+        "structuralReady": is_operational,
+        "semanticFresh": semantic == "ok",
+        "actionReady": hands_may_act,
         "isOperational": is_operational,
         "requiresHuman": requires_human,
         "handsMayAct": hands_may_act,
@@ -350,6 +353,8 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
 
     operational = sum(1 for item in channels if item["isOperational"])
     ready = sum(1 for item in channels if item["status"] in {"READY", "READY_PENDING_SEMANTIC", "READY_OPERATOR_BUSY"})
+    structural_ready = sum(1 for item in channels if item["structuralReady"])
+    action_ready = sum(1 for item in channels if item["actionReady"])
     conflicted = sum(1 for item in channels if item["status"] in {"READY_WITH_CONFLICT", "COVERED_CONFIRMED"})
     human = sum(1 for item in channels if item["requiresHuman"])
     stale_inputs = sum(1 for item in (cabin_fresh, reader_fresh, input_fresh, hands_fresh) if item["status"] == "stale")
@@ -404,6 +409,8 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
             "expectedChannels": len(channels),
             "operationalChannels": operational,
             "readyChannels": ready,
+            "structuralReadyChannels": structural_ready,
+            "actionReadyChannels": action_ready,
             "conflictedChannels": conflicted,
             "requiresHumanChannels": human,
             "staleInputs": stale_inputs,

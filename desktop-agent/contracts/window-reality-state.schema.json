@@ -96,6 +96,8 @@
         "expectedChannels": {"type": "integer", "minimum": 0},
         "operationalChannels": {"type": "integer", "minimum": 0},
         "readyChannels": {"type": "integer", "minimum": 0},
+        "structuralReadyChannels": {"type": "integer", "minimum": 0},
+        "actionReadyChannels": {"type": "integer", "minimum": 0},
         "conflictedChannels": {"type": "integer", "minimum": 0},
         "requiresHumanChannels": {"type": "integer", "minimum": 0},
         "staleInputs": {"type": "integer", "minimum": 0},
@@ -124,6 +126,9 @@
           "status": {"type": "string", "minLength": 1},
           "confidence": {"type": "number", "minimum": 0, "maximum": 1},
           "isOperational": {"type": "boolean"},
+          "structuralReady": {"type": "boolean"},
+          "semanticFresh": {"type": "boolean"},
+          "actionReady": {"type": "boolean"},
           "requiresHuman": {"type": "boolean"},
           "handsMayAct": {"type": "boolean"},
           "decision": {

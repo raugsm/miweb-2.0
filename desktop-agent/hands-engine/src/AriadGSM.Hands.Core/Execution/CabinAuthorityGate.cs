@@ -60,9 +60,9 @@ public sealed class CabinAuthorityGate
             }
 
             var status = ReadString(channel, "status");
-            var handsMayAct = TryReadBool(channel, "handsMayAct") ?? status.Equals("ready", StringComparison.OrdinalIgnoreCase);
+            var handsMayAct = TryReadBool(channel, "handsMayAct") ?? IsActionReadyStatus(status);
             var remainingBlockers = ReadInt(channel, "remainingBlockers");
-            if (!handsMayAct || !status.Equals("ready", StringComparison.OrdinalIgnoreCase))
+            if (!handsMayAct || !IsActionReadyStatus(status))
             {
                 return CabinAuthorityDecision.Block($"Cabin Authority blocked {channelId}: channel status is {status}.");
             }
@@ -92,6 +92,12 @@ public sealed class CabinAuthorityGate
             || actionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
             || actionType.Equals("capture_conversation", StringComparison.OrdinalIgnoreCase)
             || actionType.Equals("scroll_history", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsActionReadyStatus(string status)
+    {
+        return status.Equals("ready", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("action_ready", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryFindChannel(JsonElement root, string channelId, out JsonElement channel)
