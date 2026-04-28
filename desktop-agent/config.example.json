@@ -43,6 +43,18 @@
     "db": "./desktop-agent/runtime/memory-core.sqlite",
     "limit": 500
   },
+  "toolRegistryCore": {
+    "catalogFile": "./desktop-agent/runtime/tool-registry-catalog.json",
+    "businessRecommendationsFile": "./desktop-agent/runtime/business-recommendations.jsonl",
+    "businessDecisionEventsFile": "./desktop-agent/runtime/business-decision-events.jsonl",
+    "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
+    "handsVerificationStateFile": "./desktop-agent/runtime/hands-verification-state.json",
+    "trustSafetyStateFile": "./desktop-agent/runtime/trust-safety-state.json",
+    "stateFile": "./desktop-agent/runtime/tool-registry-state.json",
+    "reportFile": "./desktop-agent/runtime/tool-registry-report.json",
+    "limit": 500,
+    "emitDecisions": true
+  },
   "caseManagerCore": {
     "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
     "caseEventsFile": "./desktop-agent/runtime/case-events.jsonl",

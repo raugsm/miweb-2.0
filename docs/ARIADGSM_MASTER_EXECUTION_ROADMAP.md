@@ -269,7 +269,7 @@ Debe cerrar:
 
 Pendiente para autonomia final:
 
-- conectar Tool Registry;
+- alimentar Business Brain con resultados reales del Tool Registry;
 - habilitar razonamiento LLM bajo contrato;
 - validar con conversaciones reales largas.
 
@@ -319,21 +319,31 @@ Pendiente para autonomia final fuera de esta etapa:
 Herramientas GSM por capacidad: USB Redirector, programas, paneles, servidores,
 proveedores, alternativas.
 
-Estado actual: `siguiente etapa pendiente`.
+Estado actual: `cerrada como base final en 0.8.16`.
 
-Debe cerrar:
+Existe:
 
-- inventario de herramientas;
-- capacidades, riesgos, entradas y salidas;
+- `docs/ARIADGSM_TOOL_REGISTRY_FINAL.md`
+- `desktop-agent/contracts/tool-registry-state.schema.json`
+- `desktop-agent/ariadgsm_agent/tool_registry.py`
+- `desktop-agent/tool-registry/catalog.example.json`
+- `desktop-agent/tests/tool_registry.py`
+
+Quedo cerrado:
+
+- inventario inicial de herramientas;
+- capacidades, riesgos, entradas, salidas y verificadores;
 - alternativas cuando una herramienta falla;
-- aprendizaje de procedimientos sin codificar cada caso como parche.
+- planes de herramienta sin ejecucion directa;
+- integracion con Trust & Safety y Hands por `decision_event`;
+- pruebas sin acciones reales peligrosas.
 
 ### Etapa 14: Cloud Sync / ariadgsm.com
 
 Panel, reportes, respaldos, sincronizacion, contabilidad y aprendizaje subido a
 la nube.
 
-Estado actual: `parcial`.
+Estado actual: `siguiente etapa pendiente`.
 
 Debe cerrar:
 
@@ -362,8 +372,9 @@ Debe cerrar:
 La proxima etapa pendiente es:
 
 ```text
-Etapa 8: Safe Eyes / Reader Core
+Etapa 14: Cloud Sync / ariadgsm.com
 ```
 
-No se debe saltar a `Updater final`, `Cloud Sync final` o herramientas GSM antes
-de cerrar esta etapa, salvo bloqueo real aprobado por Bryams.
+No se debe saltar a `Evaluation + Release`, updater final o ejecucion real de
+herramientas GSM antes de cerrar esta etapa, salvo bloqueo real aprobado por
+Bryams.

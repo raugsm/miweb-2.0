@@ -109,6 +109,13 @@ def seed_runtime(root: Path, *, operator_control: bool = False, critical: bool =
     business_brain_state["summary"]["recommendations"] = 1
     business_brain_state["humanReport"]["queNecesitoDeBryams"] = []
     write_json(root / "business-brain-state.json", business_brain_state)
+    tool_registry_state = sample_event("tool_registry_state")
+    tool_registry_state["status"] = "ok"
+    tool_registry_state["summary"]["requestsRead"] = 1
+    tool_registry_state["summary"]["matchedRequests"] = 1
+    tool_registry_state["summary"]["plansNeedHuman"] = 0
+    tool_registry_state["humanReport"]["queNecesitaBryams"] = []
+    write_json(root / "tool-registry-state.json", tool_registry_state)
     trust_safety_state = sample_event("trust_safety_state")
     trust_safety_state["status"] = "blocked" if critical else "ok"
     trust_safety_state["permissionGate"]["decision"] = "BLOCK" if critical else "ALLOW"

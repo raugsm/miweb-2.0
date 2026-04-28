@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/tool-registry-state.schema.json",
+  "title": "AriadGSM Tool Registry State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "contract",
+    "policy",
+    "sourceFiles",
+    "outputFiles",
+    "summary",
+    "tools",
+    "capabilities",
+    "requests",
+    "toolPlans",
+    "emittedDecisionEvents",
+    "handsIntegration",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked", "error"] },
+    "engine": { "type": "string", "const": "ariadgsm_tool_registry" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "contract": { "type": "string", "const": "tool_registry_state" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "selectionMode",
+        "executionMode",
+        "trustSafetyRequired",
+        "handsVerificationRequired",
+        "leastPrivilege",
+        "approvalRequiredForRisk",
+        "noSecretsInCatalog"
+      ],
+      "properties": {
+        "selectionMode": { "type": "string" },
+        "executionMode": { "type": "string" },
+        "trustSafetyRequired": { "type": "boolean" },
+        "handsVerificationRequired": { "type": "boolean" },
+        "leastPrivilege": { "type": "boolean" },
+        "approvalRequiredForRisk": { "type": "array", "items": { "type": "string" } },
+        "noSecretsInCatalog": { "type": "boolean" }
+      }
+    },
+    "sourceFiles": { "type": "object", "additionalProperties": true },
+    "outputFiles": { "type": "object", "additionalProperties": true },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "toolsRegistered",
+        "capabilitiesRegistered",
+        "readyTools",
+        "degradedTools",
+        "blockedTools",
+        "requestsRead",
+        "matchedRequests",
+        "unmatchedRequests",
+        "plansReady",
+        "plansNeedHuman",
+        "emittedDecisionEvents"
+      ],
+      "properties": {
+        "toolsRegistered": { "type": "integer", "minimum": 0 },
+        "capabilitiesRegistered": { "type": "integer", "minimum": 0 },
+        "readyTools": { "type": "integer", "minimum": 0 },
+        "degradedTools": { "type": "integer", "minimum": 0 },
+        "blockedTools": { "type": "integer", "minimum": 0 },
+        "requestsRead": { "type": "integer", "minimum": 0 },
+        "matchedRequests": { "type": "integer", "minimum": 0 },
+        "unmatchedRequests": { "type": "integer", "minimum": 0 },
+        "plansReady": { "type": "integer", "minimum": 0 },
+        "plansNeedHuman": { "type": "integer", "minimum": 0 },
+        "emittedDecisionEvents": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "tools": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "capabilities": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "requests": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "toolPlans": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "emittedDecisionEvents": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "handsIntegration": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "decisionEventContract",
+        "handsConsumesDecisionEvents",
+        "externalExecutionAllowedByRegistry",
+        "verificationRequiredBeforeDone",
+        "writesToDecisionEvents"
+      ],
+      "properties": {
+        "decisionEventContract": { "type": "string" },
+        "handsConsumesDecisionEvents": { "type": "boolean" },
+        "externalExecutionAllowedByRegistry": { "type": "boolean" },
+        "verificationRequiredBeforeDone": { "type": "boolean" },
+        "writesToDecisionEvents": { "type": "boolean" }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queQuedoListo", "quePuedeHacer", "queNecesitaBryams", "riesgos"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queQuedoListo": { "type": "array", "items": { "type": "string" } },
+        "quePuedeHacer": { "type": "array", "items": { "type": "string" } },
+        "queNecesitaBryams": { "type": "array", "items": { "type": "string" } },
+        "riesgos": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

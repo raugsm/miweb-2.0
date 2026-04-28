@@ -1,0 +1,66 @@
+{
+  "version": "0.8.16",
+  "notes": "Editable catalog. Do not store passwords, cookies, tokens or customer secrets here.",
+  "tools": [
+    {
+      "toolId": "browser-whatsapp-reader",
+      "name": "WhatsApp Web visible reader",
+      "category": "local_browser",
+      "status": "ready",
+      "riskLevel": "medium",
+      "capabilities": ["read_visible_chat", "capture_conversation", "channel_context"],
+      "inputsNeeded": ["visible WhatsApp Web channel", "verified chat row"],
+      "outputsProduced": ["visible messages", "chat title", "channel id", "evidence references"],
+      "verifiers": ["reader_core_state", "hands_verification_state"],
+      "failureSignals": ["wrong_channel", "blocked_window", "no_visible_chat"],
+      "alternatives": ["manual-operator-review"],
+      "requiresHumanApproval": false,
+      "executionOwner": "Hands & Verification"
+    },
+    {
+      "toolId": "gsm-service-panel",
+      "name": "Authorized GSM service panel",
+      "category": "business_panel",
+      "status": "manual_required",
+      "riskLevel": "high",
+      "capabilities": ["service_order", "price_lookup", "supplier_status", "authorized_device_service"],
+      "inputsNeeded": ["customer case", "service type", "country", "operator approval"],
+      "outputsProduced": ["quote candidate", "order reference", "supplier status"],
+      "verifiers": ["case_id", "supplier_reference", "operator_confirmation"],
+      "failureSignals": ["login_required", "insufficient_credits", "service_unavailable", "price_changed"],
+      "alternatives": ["pricing-reference-sheet", "manual-operator-review"],
+      "requiresHumanApproval": true,
+      "executionOwner": "Bryams"
+    },
+    {
+      "toolId": "usb-remote-session",
+      "name": "Remote USB session coordinator",
+      "category": "device_connectivity",
+      "status": "manual_required",
+      "riskLevel": "high",
+      "capabilities": ["remote_usb", "device_forwarding", "connection_health_check"],
+      "inputsNeeded": ["customer consent", "remote session id", "device model", "operator approval"],
+      "outputsProduced": ["connection status", "device visible status", "session evidence"],
+      "verifiers": ["device_seen", "session_alive", "operator_confirmation"],
+      "failureSignals": ["usb_dropped", "driver_missing", "latency_high", "device_not_seen"],
+      "alternatives": ["driver-package-manager", "manual-operator-review"],
+      "requiresHumanApproval": true,
+      "executionOwner": "Bryams"
+    },
+    {
+      "toolId": "manual-operator-review",
+      "name": "Bryams manual review",
+      "category": "human_override",
+      "status": "ready",
+      "riskLevel": "low",
+      "capabilities": ["human_override", "risk_review", "fallback_decision", "operator_confirmation"],
+      "inputsNeeded": ["case summary", "tool plan", "risk explanation"],
+      "outputsProduced": ["approval", "correction", "manual outcome"],
+      "verifiers": ["human_feedback_event", "safety_approval_event"],
+      "failureSignals": ["operator_unavailable"],
+      "alternatives": [],
+      "requiresHumanApproval": false,
+      "executionOwner": "Bryams"
+    }
+  ]
+}

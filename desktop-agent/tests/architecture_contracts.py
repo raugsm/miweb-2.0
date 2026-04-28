@@ -384,6 +384,14 @@ def main() -> int:
             json.dumps(sample_event("accounting_core_state"), ensure_ascii=False),
             encoding="utf-8",
         )
+        tool_registry_state = sample_event("tool_registry_state")
+        tool_registry_state["status"] = "ok"
+        tool_registry_state["summary"]["plansNeedHuman"] = 0
+        tool_registry_state["humanReport"]["queNecesitaBryams"] = []
+        (root / "tool-registry-state.json").write_text(
+            json.dumps(tool_registry_state, ensure_ascii=False),
+            encoding="utf-8",
+        )
         cycle_state = run_autonomous_cycle_once(
             root,
             autonomous_cycle_state_file,
@@ -392,8 +400,9 @@ def main() -> int:
         )
         assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
         assert cycle_state["status"] in {"ok", "attention", "blocked"}
-        assert len(cycle_state["stages"]) == 11
+        assert len(cycle_state["stages"]) == 12
         assert any(stage["stageId"] == "business_brain" for stage in cycle_state["stages"])
+        assert any(stage["stageId"] == "tool_registry" for stage in cycle_state["stages"])
         assert any(stage["stageId"] == "trust_safety" for stage in cycle_state["stages"])
         assert [step["stepId"] for step in cycle_state["steps"]] == [
             "observe",

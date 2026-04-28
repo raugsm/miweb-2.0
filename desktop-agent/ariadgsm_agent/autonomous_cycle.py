@@ -541,6 +541,47 @@ def build_business_brain_stage(business_brain: dict[str, Any]) -> dict[str, Any]
     )
 
 
+def build_tool_registry_stage(tool_registry: dict[str, Any]) -> dict[str, Any]:
+    summary = tool_registry.get("summary") if isinstance(tool_registry.get("summary"), dict) else {}
+    status = normalize_status(tool_registry.get("status") if tool_registry else "attention")
+    needs_human = as_int(summary.get("plansNeedHuman"))
+    unmatched = as_int(summary.get("unmatchedRequests"))
+    blocked_tools = as_int(summary.get("blockedTools"))
+    if blocked_tools > 0:
+        status = worst_status([status, "attention"])
+    if needs_human > 0 or unmatched > 0:
+        status = worst_status([status, "attention"])
+    detail = text(
+        nested(tool_registry, "humanReport", "headline"),
+        (
+            f"Herramientas={as_int(summary.get('toolsRegistered'))}; "
+            f"capacidades={as_int(summary.get('capabilitiesRegistered'))}; "
+            f"solicitudes={as_int(summary.get('requestsRead'))}; "
+            f"humano={needs_human}."
+        ),
+    )
+    return make_stage(
+        "tool_registry",
+        "AriadGSM Tool Registry",
+        status,
+        detail,
+        {
+            "toolsRegistered": as_int(summary.get("toolsRegistered")),
+            "capabilitiesRegistered": as_int(summary.get("capabilitiesRegistered")),
+            "readyTools": as_int(summary.get("readyTools")),
+            "degradedTools": as_int(summary.get("degradedTools")),
+            "blockedTools": blocked_tools,
+            "requestsRead": as_int(summary.get("requestsRead")),
+            "matchedRequests": as_int(summary.get("matchedRequests")),
+            "unmatchedRequests": unmatched,
+            "plansReady": as_int(summary.get("plansReady")),
+            "plansNeedHuman": needs_human,
+            "emittedDecisionEvents": as_int(summary.get("emittedDecisionEvents")),
+        },
+        ["tool-registry-state.json", "tool-registry-catalog.json", "tool-registry-report.json"],
+    )
+
+
 def build_case_manager_stage(case_manager: dict[str, Any]) -> dict[str, Any]:
     summary = case_manager.get("summary") if isinstance(case_manager.get("summary"), dict) else {}
     open_cases = as_int(summary.get("openCases"))
@@ -732,6 +773,7 @@ def build_operating_steps(
     accounting_core = states["accounting_core"]
     memory = states["memory"]
     business_brain = states.get("business_brain", {})
+    tool_registry = states.get("tool_registry", {})
 
     timeline_ingested = timeline.get("ingested") if isinstance(timeline.get("ingested"), dict) else {}
     cognitive_summary = cognitive.get("summary") if isinstance(cognitive.get("summary"), dict) else {}
@@ -741,6 +783,7 @@ def build_operating_steps(
     accounting_core_summary = accounting_core.get("summary") if isinstance(accounting_core.get("summary"), dict) else {}
     memory_summary = memory.get("summary") if isinstance(memory.get("summary"), dict) else {}
     business_summary = business_brain.get("summary") if isinstance(business_brain.get("summary"), dict) else {}
+    tool_summary = tool_registry.get("summary") if isinstance(tool_registry.get("summary"), dict) else {}
     supervisor_summary = supervisor.get("summary") if isinstance(supervisor.get("summary"), dict) else {}
 
     messages = as_int(timeline_ingested.get("messages"))
@@ -751,6 +794,9 @@ def build_operating_steps(
     route_decisions = as_int(route_summary.get("routeDecisions"))
     accounting_records = as_int(accounting_core_summary.get("accountingRecords"))
     business_recommendations = as_int(business_summary.get("recommendations"))
+    tool_requests = as_int(tool_summary.get("requestsRead"))
+    tool_plans = as_int(tool_summary.get("matchedRequests"))
+    tool_needs_human = as_int(tool_summary.get("plansNeedHuman"))
     actions_written = as_int(hands_stage.get("metrics", {}).get("actionsWritten"))
     actions_executed = as_int(hands_stage.get("metrics", {}).get("actionsExecuted"))
     actions_verified = as_int(hands_stage.get("metrics", {}).get("actionsVerified"))
@@ -760,7 +806,7 @@ def build_operating_steps(
 
     observe_status = normalize_status(reader.get("status"))
     understand_status = step_status([observe_status, "ok" if messages > 0 and timelines > 0 else "attention"])
-    plan_status = "ok" if decisions > 0 or cases > 0 or case_manager_cases > 0 or route_decisions > 0 or accounting_records > 0 or business_recommendations > 0 else "attention"
+    plan_status = "ok" if decisions > 0 or cases > 0 or case_manager_cases > 0 or route_decisions > 0 or accounting_records > 0 or business_recommendations > 0 or tool_plans > 0 else "attention"
     if observe_status == "blocked":
         plan_status = "blocked"
 
@@ -830,13 +876,16 @@ def build_operating_steps(
             "Planear",
             plan_status,
             "Elegir la siguiente mejor accion de negocio sin tocar aun la PC.",
-            f"Decisiones={decisions}; casos={cases}; propuestas negocio={business_recommendations}; tareas={as_int(operating_summary.get('openTasks'))}.",
-            ["cognitive-state.json", "operating-state.json", "memory-state.json", "business-brain-state.json"],
-            ["decision propuesta", "caso actualizado", "recomendacion de negocio", "siguiente accion"],
+            f"Decisiones={decisions}; casos={cases}; propuestas negocio={business_recommendations}; herramientas={tool_plans}/{tool_requests}; tareas={as_int(operating_summary.get('openTasks'))}.",
+            ["cognitive-state.json", "operating-state.json", "memory-state.json", "business-brain-state.json", "tool-registry-state.json"],
+            ["decision propuesta", "caso actualizado", "recomendacion de negocio", "plan de herramienta", "siguiente accion"],
             {
                 "decisions": decisions,
                 "cases": cases,
                 "businessRecommendations": business_recommendations,
+                "toolRequests": tool_requests,
+                "toolPlans": tool_plans,
+                "toolPlansNeedHuman": tool_needs_human,
                 "openTasks": as_int(operating_summary.get("openTasks")),
                 "accountingDrafts": as_int(operating_summary.get("accountingDrafts")),
             },
@@ -1101,6 +1150,7 @@ def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[d
     accounting = as_int(nested(stage_map.get("business_memory", {}), "metrics", "accountingEvents"))
     routes = as_int(nested(stage_map.get("channel_routing", {}), "metrics", "proposedRoutes"))
     accounting_confirmed = as_int(nested(stage_map.get("accounting_core", {}), "metrics", "confirmedRecords"))
+    tool_plans = as_int(nested(stage_map.get("tool_registry", {}), "metrics", "matchedRequests"))
     executed = as_int(nested(stage_map.get("verified_hands", {}), "metrics", "actionsExecuted"))
     label = {"ok": "estable", "attention": "con avisos", "blocked": "bloqueado"}[status]
     gate_decision = text(gate.get("decision"), "ALLOW")
@@ -1108,7 +1158,7 @@ def build_summary(status: str, states: dict[str, dict[str, Any]], stages: list[d
     return (
         f"Ciclo autonomo {label}: WhatsApp {perceived}/{expected}, "
         f"mensajes={messages}, decisiones={decisions}, aprendizaje={learning}, "
-        f"contabilidad={accounting}, confirmados={accounting_confirmed}, rutas={routes}, acciones={executed}, gate={gate_decision}, siguiente={next_step}."
+        f"contabilidad={accounting}, confirmados={accounting_confirmed}, rutas={routes}, herramientas={tool_plans}, acciones={executed}, gate={gate_decision}, siguiente={next_step}."
     )
 
 
@@ -1140,6 +1190,7 @@ def run_autonomous_cycle_once(
         "accounting_core": read_json(runtime / "accounting-core-state.json"),
         "memory": read_json(runtime / "memory-state.json"),
         "business_brain": read_json(runtime / "business-brain-state.json"),
+        "tool_registry": read_json(runtime / "tool-registry-state.json"),
         "trust_safety": read_json(runtime / "trust-safety-state.json"),
         "supervisor": read_json(runtime / "supervisor-state.json"),
         "hands": read_json(runtime / "hands-state.json"),
@@ -1165,6 +1216,7 @@ def run_autonomous_cycle_once(
         build_accounting_core_stage(states["accounting_core"]),
         build_business_memory_stage(states["memory"], states["timeline"], states["cognitive"], states["operating"]),
         build_business_brain_stage(states["business_brain"]),
+        build_tool_registry_stage(states["tool_registry"]),
         build_trust_safety_stage(states["trust_safety"]),
         build_verified_hands_stage(states["hands"], states["input_arbiter"]),
     ]

@@ -135,14 +135,15 @@ El objetivo es que la app diga cosas tipo:
 - "No confirme el chat correcto";
 - "No envio nada porque falta aprobacion".
 
-## Que queda fuera de esta etapa
+## Que quedaba fuera de esta etapa
 
-No se cierra Tool Registry todavia.
+Tool Registry no se cerro dentro de la etapa 12; quedo cerrado despues en
+0.8.16 como etapa 13.
 
 Eso significa que AriadGSM aun no opera herramientas GSM como USB Redirector,
 programas de flasheo o paneles externos por capacidad abstracta. La etapa 12
-solo deja las manos listas y verificables para que la etapa 13 pueda registrar
-herramientas sin parches.
+solo dejo las manos listas y verificables para que la etapa 13 pudiera
+registrar herramientas sin parches.
 
 ## Definicion de terminado
 
@@ -157,7 +158,7 @@ herramientas sin parches.
 - Se publica `hands-verification-state.json`.
 - Hay pruebas C# y Python para el contrato.
 
-## Siguiente etapa
+## Siguiente etapa historica
 
 Etapa 13: Tool Registry.
 

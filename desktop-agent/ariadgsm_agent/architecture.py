@@ -33,8 +33,8 @@ MASTER_STAGES: tuple[Stage, ...] = (
     Stage(10, "Business Brain", "closed_business_brain_base", "business_reasoning"),
     Stage(11, "Trust & Safety + Input Arbiter", "closed_trust_safety_input_arbiter_final", "safety"),
     Stage(12, "Hands & Verification", "closed_hands_verification_final", "hands"),
-    Stage(13, "Tool Registry", "next_pending", "tools"),
-    Stage(14, "Cloud Sync / ariadgsm.com", "partial", "cloud"),
+    Stage(13, "Tool Registry", "closed_tool_registry_final", "tools"),
+    Stage(14, "Cloud Sync / ariadgsm.com", "next_pending", "cloud"),
     Stage(15, "Evaluation + Release", "pending_final", "release"),
 )
 
@@ -52,6 +52,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("Channel Routing Brain", "Python", "Decide whether a case stays, transfers or merges across WhatsApp channels with evidence and approval gates.", "channel_routing_state"),
     Layer("Memory Core", "Python", "Store episodic, semantic, procedural, accounting, style and correction memories with evidence and uncertainty.", "living_memory_state"),
     Layer("Business Brain", "Python", "Use Living Memory, cases, routing and accounting evidence to propose business decisions without physical action.", "business_brain_state"),
+    Layer("Tool Registry", "Python", "Resolve GSM capabilities into registered tools, risk, inputs, outputs, verifiers and fallback plans without direct execution.", "tool_registry_state"),
     Layer("Trust & Safety", "Python", "Evaluate Cognitive, Operating and Business Brain decisions, enforce approvals, evidence, autonomy and permission gates.", "trust_safety_state"),
     Layer("Input Arbiter", "C#/.NET", "Own mouse and keyboard leases so the AI never fights the operator while eyes, memory and brain continue.", "input_arbiter_state"),
     Layer("Operating Core", "Python", "Track business state, cases, tasks, priorities and queues.", "decision_event"),
@@ -88,6 +89,7 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "learning_event",
     "living_memory_state",
     "business_brain_state",
+    "tool_registry_state",
     "autonomous_cycle_event",
     "human_feedback_event",
     "safety_approval_event",

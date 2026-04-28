@@ -617,21 +617,64 @@ Pendiente para autonomia final:
 - extender verificacion por UI Automation especifica de cajas de texto cuando
   Tool Registry habilite herramientas externas.
 
+### 6.13 Tool Registry
+
+Estado:
+
+```text
+CERRADA COMO BASE FINAL EN 0.8.16
+```
+
+Objetivo:
+
+Registrar herramientas GSM por capacidad, riesgo, entradas, salidas,
+verificadores y alternativas para que Business Brain pueda planear como IA de
+negocio sin codificar un parche por cada programa.
+
+Definicion de terminado:
+
+- existe documento final;
+- existe contrato `tool_registry_state`;
+- existe catalogo editable de herramientas;
+- las herramientas se eligen por capacidad, no por nombre de programa;
+- cada herramienta declara riesgo, verificadores y fallos;
+- produce planes de herramienta como decisiones auditables;
+- no ejecuta herramientas externas directamente;
+- integra con Trust & Safety y Hands & Verification;
+- tiene pruebas sin acciones reales peligrosas.
+
+Existe:
+
+- `docs/ARIADGSM_TOOL_REGISTRY_FINAL.md`
+- `desktop-agent/contracts/tool-registry-state.schema.json`
+- `desktop-agent/ariadgsm_agent/tool_registry.py`
+- `desktop-agent/tool-registry/catalog.example.json`
+- `desktop-agent/tests/tool_registry.py`
+- integracion en `AgentRuntime.cs` y `autonomous_cycle.py`
+
+Pendiente para autonomia final:
+
+- cargar el inventario real de herramientas, proveedores, paneles y licencias
+  de AriadGSM;
+- medir fallos reales por herramienta y degradarlas automaticamente con Living
+  Memory;
+- permitir ejecucion externa solo en etapas superiores, con aprobacion por
+  accion y verificacion.
+
 ## 7. Bloques que NO pueden adelantarse
 
 Estos bloques son importantes, pero no deben sustituir el orden de la nueva
 etapa salvo que Bryams lo autorice:
 
-- Tool Registry.
 - Cloud Sync / ariadgsm.com.
 - Updater final.
 - Evaluation + Release.
 
 Motivo:
 
-Son necesarios para producto, pero si se hacen antes de cerrar `Tool Registry`,
-volvemos al patron de parches: las manos ya verifican, pero no sabrian operar
-herramientas GSM por capacidad estable.
+Son necesarios para producto, pero si se hacen antes de cerrar `Cloud Sync /
+ariadgsm.com`, volvemos al patron de parches: ya existe razonamiento local,
+pero aun falta una nube ordenada para panel, reportes, respaldo y aprendizaje.
 
 Excepcion:
 
@@ -671,26 +714,26 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0` a `12` quedan cerradas como base operativa, la siguiente
+Como las etapas `0` a `13` quedan cerradas como base operativa, la siguiente
 etapa pendiente del mapa maestro es:
 
 ```text
-Etapa 13: Tool Registry
+Etapa 14: Cloud Sync / ariadgsm.com
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_TOOL_REGISTRY_FINAL.md
+docs/ARIADGSM_CLOUD_SYNC_ARIADGSM_COM_FINAL.md
 ```
 
 El entregable tecnico minimo posterior es:
 
 ```text
-inventario de herramientas GSM por capacidad
-contrato de herramienta y ejecucion
-riesgos, entradas, salidas y verificadores
-alternativas cuando falle una herramienta
-integracion con Hands & Verification
-pruebas sin acciones reales peligrosas
+panel web unificado
+sincronizacion local -> nube
+respaldo seguro de estados, reportes y memoria aprobada
+politica de privacidad y redaccion antes de subir datos
+reportes de contabilidad, aprendizaje y actividad
+pruebas sin subir evidencia sensible bruta por defecto
 ```

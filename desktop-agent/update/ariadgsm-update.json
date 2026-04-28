@@ -1,8 +1,8 @@
 {
-  "version": "0.8.15",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.15.zip",
-  "sha256": "24a0e9013f3ee72b7d660aba495da37e96d93b1f7d1a986db61c76ca09f52aac",
+  "version": "0.8.16",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.16.zip",
+  "sha256": "95ba31212d00ef100786fd6d788623addf312d73d0d70196453f95db1c417e2c",
   "autoApply": true,
-  "notes": "Version 0.8.15 closes Hands & Verification: Business Brain decisions reach Hands, Trust & Safety approval metadata is enforced for drafts/sends, physical actions fail when not verified, and hands-verification-state.json gives the app a human-readable verification report.",
-  "publishedAt": "2026-04-28T11:25:40Z"
+  "notes": "Version 0.8.16 closes Tool Registry: tools are registered by capability, risk, inputs, outputs, verifiers and fallbacks; external tool work becomes an auditable plan decision behind Trust & Safety and Hands instead of direct execution.",
+  "publishedAt": "2026-04-28T11:43:47Z"
 }
