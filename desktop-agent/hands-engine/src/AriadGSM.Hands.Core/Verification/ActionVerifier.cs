@@ -39,18 +39,40 @@ public sealed class ActionVerifier
             return VerifyOpenChat(plan, context, channelId, conversationId);
         }
 
-        if (context.ContainsConversation(conversationId))
+        if (plan.ActionType.Equals("focus_window", StringComparison.OrdinalIgnoreCase))
         {
-            return new ActionVerification(true, $"Perception confirms conversation '{conversationId}' is visible.", 0.92);
+            return VerifyVisibleChannel(context, channelId, "Ventana enfocada");
         }
 
-        if (context.ContainsChannel(channelId))
+        if (plan.ActionType.Equals("scroll_history", StringComparison.OrdinalIgnoreCase))
         {
-            var visible = context.BestForChannel(channelId);
-            return new ActionVerification(
-                plan.ActionType is "focus_window" or "capture_conversation" or "scroll_history",
-                $"Perception sees channel '{channelId}' visible as '{visible?.Title ?? "WhatsApp"}'.",
-                0.78);
+            return VerifyScrollHistory(context, channelId);
+        }
+
+        if (plan.ActionType.Equals("capture_conversation", StringComparison.OrdinalIgnoreCase))
+        {
+            return VerifyConversationCapture(context, channelId, conversationId);
+        }
+
+        if (plan.ActionType.Equals("record_accounting", StringComparison.OrdinalIgnoreCase))
+        {
+            return execution.Status.Equals("verified", StringComparison.OrdinalIgnoreCase)
+                ? new ActionVerification(true, execution.Summary, execution.Confidence)
+                : new ActionVerification(false, "La contabilidad queda como borrador/verificacion externa; Hands no la confirma por UI.", 0.3);
+        }
+
+        if (plan.ActionType.Equals("write_text", StringComparison.OrdinalIgnoreCase))
+        {
+            return ReadTargetBool(plan, "textDraftVerified")
+                ? new ActionVerification(true, "Borrador confirmado por verificacion de caja de texto.", 0.9)
+                : new ActionVerification(false, "No confirme que el texto quedara escrito como borrador correcto; no envio nada.", 0.2);
+        }
+
+        if (plan.ActionType.Equals("send_message", StringComparison.OrdinalIgnoreCase))
+        {
+            return ReadTargetBool(plan, "messageSentVerified")
+                ? new ActionVerification(true, "Envio confirmado por verificacion posterior.", 0.9)
+                : new ActionVerification(false, "No confirmo envio automatico sin aprobacion y verificacion explicita.", 0.1);
         }
 
         return new ActionVerification(false, "Perception has not confirmed the requested target yet.", 0.25);
@@ -111,9 +133,63 @@ public sealed class ActionVerifier
             0.55);
     }
 
+    private static ActionVerification VerifyVisibleChannel(PerceptionContext context, string? channelId, string actionLabel)
+    {
+        if (context.ContainsChannel(channelId))
+        {
+            var visible = context.BestForChannel(channelId);
+            return new ActionVerification(
+                true,
+                $"{actionLabel}: Perception ve {channelId ?? "el canal"} como '{visible?.Title ?? "WhatsApp"}'.",
+                Math.Max(0.78, visible?.Confidence ?? 0));
+        }
+
+        return new ActionVerification(false, $"{actionLabel}: Perception no confirmo el canal {channelId ?? "solicitado"}.", 0.25);
+    }
+
+    private static ActionVerification VerifyScrollHistory(PerceptionContext context, string? channelId)
+    {
+        if (!context.ContainsChannel(channelId))
+        {
+            return new ActionVerification(false, $"Scroll detenido: no confirme que {channelId ?? "el canal"} siga visible.", 0.25);
+        }
+
+        var visible = context.BestForChannel(channelId);
+        return new ActionVerification(
+            true,
+            $"Scroll historico verificado de forma segura: {channelId ?? "canal"} sigue visible como '{visible?.Title ?? "WhatsApp"}'.",
+            Math.Max(0.74, visible?.Confidence ?? 0));
+    }
+
+    private static ActionVerification VerifyConversationCapture(PerceptionContext context, string? channelId, string? conversationId)
+    {
+        if (context.ContainsConversation(conversationId))
+        {
+            return new ActionVerification(true, $"Captura confirmada: Perception ve conversacion '{conversationId}'.", 0.92);
+        }
+
+        if (context.ContainsChannel(channelId))
+        {
+            var visible = context.BestForChannel(channelId);
+            return new ActionVerification(
+                true,
+                $"Captura confirmada por canal: Perception ve {channelId ?? "el canal"} activo como '{visible?.Title ?? "WhatsApp"}'.",
+                Math.Max(0.78, visible?.Confidence ?? 0));
+        }
+
+        return new ActionVerification(false, "Captura no confirmada: Perception no devolvio canal ni conversacion esperada.", 0.25);
+    }
+
     private static string? GetTargetString(ActionPlan plan, string key)
     {
         return plan.Target.TryGetValue(key, out var value) ? value?.ToString() : null;
+    }
+
+    private static bool ReadTargetBool(ActionPlan plan, string key)
+    {
+        return plan.Target.TryGetValue(key, out var value)
+            && value is bool boolean
+            && boolean;
     }
 
     private static bool TitlesMatch(string? expected, string? actual)

@@ -8,6 +8,8 @@ public sealed class HandsOptions
 
     public string OperatingDecisionEventsFile { get; init; } = @"desktop-agent\runtime\decision-events.jsonl";
 
+    public string BusinessDecisionEventsFile { get; init; } = @"desktop-agent\runtime\business-decision-events.jsonl";
+
     public string PerceptionEventsFile { get; init; } = @"desktop-agent\runtime\perception-events.jsonl";
 
     public string InteractionEventsFile { get; init; } = @"desktop-agent\runtime\interaction-events.jsonl";
@@ -30,6 +32,8 @@ public sealed class HandsOptions
 
     public string TrustSafetyStateFile { get; init; } = @"desktop-agent\runtime\trust-safety-state.json";
 
+    public string HandsVerificationStateFile { get; init; } = @"desktop-agent\runtime\hands-verification-state.json";
+
     public int AutonomyLevel { get; init; } = 3;
 
     public bool ExecuteActions { get; init; } = false;
@@ -51,6 +55,12 @@ public sealed class HandsOptions
     public bool AllowTextInput { get; init; } = false;
 
     public bool AllowSendMessage { get; init; } = false;
+
+    public bool RequireSafetyApprovalForTextDraft { get; init; } = true;
+
+    public bool RequireSafetyApprovalForSend { get; init; } = true;
+
+    public bool RequirePostActionVerification { get; init; } = true;
 
     public int PollIntervalMs { get; init; } = 250;
 
@@ -81,6 +91,8 @@ public sealed class HandsOptions
     public int OpenChatVerificationTimeoutMs { get; init; } = 1800;
 
     public int OpenChatVerificationPollMs { get; init; } = 150;
+
+    public int HistoryScrollWheelSteps { get; init; } = 6;
 
     public int ProcessedDecisionCursorLimit { get; init; } = 2000;
 

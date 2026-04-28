@@ -11,6 +11,7 @@ def read_text(path: Path) -> str:
 
 def main() -> int:
     doc = read_text(REPO / "docs/ARIADGSM_HANDS_ENGINE_ADVANCED_DESIGN.md")
+    final_doc = read_text(REPO / "docs/ARIADGSM_HANDS_VERIFICATION_FINAL.md")
     pipeline = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Pipeline/HandsPipeline.cs")
     executor = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Execution/Win32HandsExecutor.cs")
     verifier = read_text(REPO / "desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Verification/ActionVerifier.cs")
@@ -23,6 +24,12 @@ def main() -> int:
     assert "antes de continuar" in doc.lower()
     assert "sendinput" in doc.lower()
     assert "getlastinputinfo" in doc.lower()
+    assert "version: 0.8.15" in final_doc.lower()
+    assert "businessdecisioneventsfile" in final_doc.lower()
+    assert "hands-verification-state.schema.json" in final_doc.lower()
+    assert "sendinput" in final_doc.lower()
+    assert "getlastinputinfo" in final_doc.lower()
+    assert "ui automation" in final_doc.lower()
 
     assert "SendInput" in executor
     assert "mouse_event" not in executor
@@ -31,17 +38,28 @@ def main() -> int:
     assert "VerifyAfterExecutionAsync" in pipeline
     assert "ShouldWaitForFreshOpenChatVerification" in pipeline
     assert "FinalActionStatus" in pipeline
+    assert "BusinessDecisionEventsFile" in pipeline
+    assert "HandsVerificationStateFile" in pipeline
+    assert "EnrichPlanWithTrustSafety" in pipeline
+    assert "RequiresPostActionVerification" in pipeline
     assert 'plan.ActionType.Equals("open_chat"' in pipeline
     assert 'return "failed";' in pipeline
     assert "verifiedBeforeContinue" in pipeline
     assert "verificationPerceptionEventId" in pipeline
+    assert "hands_verification" in pipeline
 
     assert "VerifyOpenChat" in verifier
+    assert "VerifyScrollHistory" in verifier
+    assert "VerifyConversationCapture" in verifier
     assert "TitlesMatch" in verifier
     assert "No continuo con acciones dependientes" in verifier
 
     assert "OpenChatVerificationTimeoutMs" in options
     assert "OpenChatVerificationPollMs" in options
+    assert "BusinessDecisionEventsFile" in options
+    assert "RequirePostActionVerification" in options
+    assert "RequireSafetyApprovalForTextDraft" in options
+    assert "HandsVerificationStateFile" in options
 
     assert "GetLastInputInfo" in arbiter
     assert "contractVersion" in arbiter
@@ -56,6 +74,7 @@ def main() -> int:
 
     assert "TrustSafetyGate" in trust_gate
     assert "permissionGate" in trust_gate
+    assert "approvalLedger" in trust_gate
     assert "canHandsRun" in trust_gate
     assert "TrustSafetyMaxAgeMs" in options
     assert "RequireTrustSafetyGate" in options

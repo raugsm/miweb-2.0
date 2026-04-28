@@ -45,7 +45,8 @@ def main() -> int:
     assert MASTER_STAGES[9].status == "closed_living_memory_base"
     assert MASTER_STAGES[10].status == "closed_business_brain_base"
     assert MASTER_STAGES[11].status == "closed_trust_safety_input_arbiter_final"
-    assert MASTER_STAGES[12].status == "next_pending"
+    assert MASTER_STAGES[12].status == "closed_hands_verification_final"
+    assert MASTER_STAGES[13].status == "next_pending"
 
     for index, name in enumerate(EXPECTED_STAGES):
         expected_line = f"{index}. {name}"
@@ -62,7 +63,9 @@ def main() -> int:
     assert "docs/ARIADGSM_BUSINESS_BRAIN_DESIGN.md" in lock
     assert "### 6.11 Trust & Safety + Input Arbiter" in lock
     assert "docs/ARIADGSM_TRUST_SAFETY_INPUT_ARBITER_FINAL.md" in lock
-    assert "Etapa 12: Hands & Verification" in lock
+    assert "### 6.12 Hands & Verification" in lock
+    assert "docs/ARIADGSM_HANDS_VERIFICATION_FINAL.md" in lock
+    assert "Etapa 13: Tool Registry" in lock
     assert "Updater final" not in lock[lock.index("## 10. Siguiente bloque activo") :]
     assert "Evaluation + Release" in roadmap
     assert "updater final" in roadmap.lower()

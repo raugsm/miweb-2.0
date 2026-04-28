@@ -52,7 +52,7 @@ public sealed class HandsPipeline
     {
         _options = options;
         _decisionReader = new DecisionEventReader(
-            [options.CognitiveDecisionEventsFile, options.OperatingDecisionEventsFile],
+            [options.CognitiveDecisionEventsFile, options.OperatingDecisionEventsFile, options.BusinessDecisionEventsFile],
             options.DecisionLimit);
         _perceptionReader = new PerceptionContextReader(options.PerceptionEventsFile, options.PerceptionLimit);
         _interactionReader = new InteractionContextReader(options.InteractionEventsFile, options.InteractionLimit);
@@ -133,7 +133,7 @@ public sealed class HandsPipeline
 
                     touchedDecision = true;
                     var scopedActionId = ScopedActionId(enrichedPlan);
-                    if (await TryWritePlanAsync(enrichedPlan, scopedActionId, perception, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
+                    if (await TryWritePlanAsync(enrichedPlan, scopedActionId, trustGate, perception, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
                     {
                         writtenThisCycle++;
                     }
@@ -147,7 +147,7 @@ public sealed class HandsPipeline
                 cursorDirty = true;
             }
 
-            writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, orchestrator, suspendedChannels, existingIds, cancellationToken).ConfigureAwait(false);
+            writtenThisCycle += await RunInteractionNavigatorAsync(interaction, perception, orchestrator, trustGate, suspendedChannels, existingIds, cancellationToken).ConfigureAwait(false);
             if (cursorDirty)
             {
                 await SaveCursorAsync(cancellationToken).ConfigureAwait(false);
@@ -307,6 +307,7 @@ public sealed class HandsPipeline
         InteractionContext interaction,
         PerceptionContext perception,
         OrchestratorCommandContext orchestrator,
+        TrustSafetyGateDecision trustGate,
         HashSet<string> suspendedChannels,
         HashSet<string> existingIds,
         CancellationToken cancellationToken)
@@ -330,7 +331,7 @@ public sealed class HandsPipeline
         {
             var plan = CreateNavigatorOpenChatPlan(target, interaction, now);
             var scopedActionId = ScopedActionId(plan);
-            if (await TryWritePlanAsync(plan, scopedActionId, perception, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
+            if (await TryWritePlanAsync(plan, scopedActionId, trustGate, perception, existingIds, suspendedChannels, cancellationToken).ConfigureAwait(false))
             {
                 written++;
                 _lastNavigatorClickAt = DateTimeOffset.UtcNow;
@@ -441,6 +442,7 @@ public sealed class HandsPipeline
     private async ValueTask<bool> TryWritePlanAsync(
         ActionPlan plan,
         string actionId,
+        TrustSafetyGateDecision trustGate,
         PerceptionContext perception,
         HashSet<string> existingIds,
         HashSet<string> suspendedChannels,
@@ -453,13 +455,14 @@ public sealed class HandsPipeline
             return false;
         }
 
-        var safety = _safety.Evaluate(plan);
+        var safetyPlan = EnrichPlanWithTrustSafety(plan, actionId, trustGate);
+        var safety = _safety.Evaluate(safetyPlan);
         ActionEvent actionEvent;
         if (safety.Blocked)
         {
             _actionsBlocked++;
             actionEvent = CreateActionEvent(
-                plan,
+                safetyPlan,
                 actionId,
                 "blocked",
                 new ActionVerification(false, safety.Reason, 0),
@@ -468,8 +471,8 @@ public sealed class HandsPipeline
         }
         else
         {
-            var authority = _cabinAuthorityGate.Evaluate(plan);
-            var authorityPlan = EnrichPlanWithCabinAuthority(plan, authority);
+            var authority = _cabinAuthorityGate.Evaluate(safetyPlan);
+            var authorityPlan = EnrichPlanWithCabinAuthority(safetyPlan, authority);
             if (!authority.Allowed)
             {
                 _actionsBlocked++;
@@ -549,9 +552,9 @@ public sealed class HandsPipeline
             throw new InvalidOperationException(string.Join("; ", errors));
         }
 
-        if (ShouldSuspendChannel(plan, actionEvent))
+        if (ShouldSuspendChannel(safetyPlan, actionEvent))
         {
-            var channelId = TargetString(plan, "channelId");
+            var channelId = TargetString(safetyPlan, "channelId");
             if (!string.IsNullOrWhiteSpace(channelId))
             {
                 suspendedChannels.Add(channelId);
@@ -585,6 +588,37 @@ public sealed class HandsPipeline
             && actionEvent.Status.Equals("blocked", StringComparison.OrdinalIgnoreCase)
             && (text.Contains("no verified Interaction target coordinates", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("Cabin Authority", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static ActionPlan EnrichPlanWithTrustSafety(ActionPlan plan, string scopedActionId, TrustSafetyGateDecision gate)
+    {
+        var sourceDecisionId = TargetString(plan, "sourceDecisionId") ?? string.Empty;
+        var approvalId = FirstApproval(gate, sourceDecisionId, plan.ActionId, scopedActionId);
+        var target = new Dictionary<string, object?>(plan.Target, StringComparer.OrdinalIgnoreCase)
+        {
+            ["trustSafetyGateDecision"] = gate.Decision,
+            ["trustSafetyGateReason"] = gate.Reason,
+            ["trustSafetyAgeMs"] = gate.AgeMs,
+            ["trustSafetyApproved"] = !string.IsNullOrWhiteSpace(approvalId),
+            ["trustSafetyApprovalId"] = approvalId ?? string.Empty,
+            ["trustSafetyVerifiedSources"] = gate.ApprovedSources.Count
+        };
+
+        return plan with { Target = target };
+    }
+
+    private static string? FirstApproval(TrustSafetyGateDecision gate, params string[] sourceIds)
+    {
+        foreach (var sourceId in sourceIds.Where(item => !string.IsNullOrWhiteSpace(item)))
+        {
+            if (gate.ApprovedSources.TryGetValue(sourceId, out var approvalId)
+                && !string.IsNullOrWhiteSpace(approvalId))
+            {
+                return approvalId;
+            }
+        }
+
+        return null;
     }
 
     private static ActionPlan EnrichPlanWithCabinAuthority(ActionPlan plan, CabinAuthorityDecision decision)
@@ -688,7 +722,7 @@ public sealed class HandsPipeline
         return plan with { Target = target };
     }
 
-    private static string FinalActionStatus(ActionPlan plan, ExecutionResult execution, ActionVerification verification)
+    private string FinalActionStatus(ActionPlan plan, ExecutionResult execution, ActionVerification verification)
     {
         if (verification.Verified
             && (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase)
@@ -697,13 +731,24 @@ public sealed class HandsPipeline
             return "verified";
         }
 
-        if (plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
+        if (_options.RequirePostActionVerification
+            && RequiresPostActionVerification(plan.ActionType)
             && execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
         {
             return "failed";
         }
 
         return execution.Status;
+    }
+
+    private static bool RequiresPostActionVerification(string actionType)
+    {
+        return actionType.Equals("focus_window", StringComparison.OrdinalIgnoreCase)
+            || actionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
+            || actionType.Equals("scroll_history", StringComparison.OrdinalIgnoreCase)
+            || actionType.Equals("capture_conversation", StringComparison.OrdinalIgnoreCase)
+            || actionType.Equals("write_text", StringComparison.OrdinalIgnoreCase)
+            || actionType.Equals("send_message", StringComparison.OrdinalIgnoreCase);
     }
 
     private static long VisitBucket(DateTimeOffset now, int revisitMinutes)
@@ -883,6 +928,12 @@ public sealed class HandsPipeline
             ["actionsSkipped"] = state.ActionsSkipped,
             ["lastActionId"] = state.LastActionId,
             ["lastSummary"] = state.LastSummary,
+            ["decisionSources"] = new[]
+            {
+                _options.CognitiveDecisionEventsFile,
+                _options.OperatingDecisionEventsFile,
+                _options.BusinessDecisionEventsFile
+            },
             ["contract"] = new[]
             {
                 "decision -> plan",
@@ -894,11 +945,107 @@ public sealed class HandsPipeline
                 "verify -> audit_event"
             }
         };
+        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
         await WriteTextAtomicAsync(
             _options.ActionQueueStateFile,
-            JsonSerializer.Serialize(queueState, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true }),
+            JsonSerializer.Serialize(queueState, jsonOptions),
+            cancellationToken).ConfigureAwait(false);
+        await WriteTextAtomicAsync(
+            _options.HandsVerificationStateFile,
+            JsonSerializer.Serialize(CreateVerificationState(state), jsonOptions),
             cancellationToken).ConfigureAwait(false);
         return state;
+    }
+
+    private Dictionary<string, object?> CreateVerificationState(HandsHealthState state)
+    {
+        var status = string.IsNullOrWhiteSpace(state.LastError) ? state.Status : "error";
+        var needsHuman = state.ActionsBlocked;
+        return new Dictionary<string, object?>
+        {
+            ["contractVersion"] = "0.8.15",
+            ["status"] = status,
+            ["engine"] = "ariadgsm_hands_verification",
+            ["version"] = "0.8.15",
+            ["updatedAt"] = state.UpdatedAt,
+            ["executionMode"] = _options.ExecuteActions ? "execute" : "plan",
+            ["policy"] = new Dictionary<string, object?>
+            {
+                ["trustSafetyRequired"] = _options.RequireTrustSafetyGate,
+                ["inputArbiterRequired"] = _options.InputArbiterEnabled,
+                ["cabinAuthorityRequired"] = _options.RequireCabinAuthorityForWindowActions,
+                ["postActionVerificationRequired"] = _options.RequirePostActionVerification,
+                ["textDraftRequiresApproval"] = _options.RequireSafetyApprovalForTextDraft,
+                ["sendRequiresApproval"] = _options.RequireSafetyApprovalForSend,
+                ["allowTextInput"] = _options.AllowTextInput,
+                ["allowSendMessage"] = _options.AllowSendMessage,
+                ["physicalActions"] = new[] { "focus_window", "open_chat", "scroll_history", "capture_conversation", "write_text", "send_message" },
+                ["historyScrollWheelSteps"] = _options.HistoryScrollWheelSteps
+            },
+            ["inputs"] = new Dictionary<string, object?>
+            {
+                ["cognitiveDecisionEventsFile"] = _options.CognitiveDecisionEventsFile,
+                ["operatingDecisionEventsFile"] = _options.OperatingDecisionEventsFile,
+                ["businessDecisionEventsFile"] = _options.BusinessDecisionEventsFile,
+                ["perceptionEventsFile"] = _options.PerceptionEventsFile,
+                ["interactionEventsFile"] = _options.InteractionEventsFile,
+                ["trustSafetyStateFile"] = _options.TrustSafetyStateFile,
+                ["inputArbiterStateFile"] = _options.InputArbiterStateFile,
+                ["actionEventsFile"] = _options.ActionEventsFile
+            },
+            ["verificationGate"] = new Dictionary<string, object?>
+            {
+                ["verifiedBeforeContinueRequired"] = _options.RequirePostActionVerification,
+                ["unverifiedPhysicalActionsBecomeFailed"] = _options.RequirePostActionVerification,
+                ["openChatRequiresChannelTitleAndRow"] = true,
+                ["scrollRequiresVisibleChannel"] = true,
+                ["captureRequiresPerceptionConfirmation"] = true,
+                ["draftsNeverSendAutomatically"] = true
+            },
+            ["summary"] = new Dictionary<string, object?>
+            {
+                ["decisionsRead"] = state.DecisionsRead,
+                ["actionsPlanned"] = state.ActionsPlanned,
+                ["actionsWritten"] = state.ActionsWritten,
+                ["actionsBlocked"] = state.ActionsBlocked,
+                ["actionsExecuted"] = state.ActionsExecuted,
+                ["actionsVerified"] = state.ActionsVerified,
+                ["actionsSkipped"] = state.ActionsSkipped,
+                ["needsHuman"] = needsHuman
+            },
+            ["lastAction"] = new Dictionary<string, object?>
+            {
+                ["actionId"] = state.LastActionId,
+                ["summary"] = state.LastSummary,
+                ["error"] = state.LastError
+            },
+            ["humanReport"] = new Dictionary<string, object?>
+            {
+                ["headline"] = HumanHeadline(status, needsHuman),
+                ["resumenDecision"] = string.IsNullOrWhiteSpace(state.LastSummary) ? "Hands espera una decision verificable." : state.LastSummary,
+                ["permitidas"] = state.ActionsVerified > 0 ? new[] { $"{state.ActionsVerified} accion(es) verificadas antes de continuar." } : Array.Empty<string>(),
+                ["necesitanBryams"] = needsHuman > 0 ? new[] { $"{needsHuman} accion(es) bloqueadas o pendientes de aprobacion." } : Array.Empty<string>(),
+                ["bloqueadas"] = state.ActionsBlocked > 0 ? new[] { $"{state.ActionsBlocked} accion(es) no pasaron seguridad/verificacion." } : Array.Empty<string>(),
+                ["riesgos"] = string.IsNullOrWhiteSpace(state.LastError) ? Array.Empty<string>() : new[] { state.LastError }
+            }
+        };
+    }
+
+    private static string HumanHeadline(string status, int needsHuman)
+    {
+        if (status.Equals("error", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Manos con error";
+        }
+
+        if (needsHuman > 0)
+        {
+            return "Manos esperando permiso o verificacion";
+        }
+
+        return status.Equals("ok", StringComparison.OrdinalIgnoreCase)
+            ? "Manos verificadas"
+            : "Manos en espera segura";
     }
 
     private static async ValueTask WriteTextAtomicAsync(string path, string text, CancellationToken cancellationToken)

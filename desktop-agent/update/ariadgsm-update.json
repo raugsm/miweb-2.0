@@ -1,8 +1,8 @@
 {
-  "version": "0.8.14",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.14.zip",
-  "sha256": "ecfe7a60aa21758222bdee5e7c9c1efee626bdd3c1d29aaf68eb5a9956bc0408",
+  "version": "0.8.15",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.15.zip",
+  "sha256": "24a0e9013f3ee72b7d660aba495da37e96d93b1f7d1a986db61c76ca09f52aac",
   "autoApply": true,
-  "notes": "Version 0.8.14 closes Trust & Safety + Input Arbiter: final permission gate, Business Brain decisions in Supervisor, safety approval events, Input Arbiter lease contract, Hands Trust/Safety execution gate, evidence requirements and operator-priority mouse protection.",
-  "publishedAt": "2026-04-28T11:09:06Z"
+  "notes": "Version 0.8.15 closes Hands & Verification: Business Brain decisions reach Hands, Trust & Safety approval metadata is enforced for drafts/sends, physical actions fail when not verified, and hands-verification-state.json gives the app a human-readable verification report.",
+  "publishedAt": "2026-04-28T11:25:40Z"
 }

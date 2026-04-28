@@ -1,6 +1,7 @@
 {
   "cognitiveDecisionEventsFile": "desktop-agent\\runtime\\cognitive-decision-events.jsonl",
   "operatingDecisionEventsFile": "desktop-agent\\runtime\\decision-events.jsonl",
+  "businessDecisionEventsFile": "desktop-agent\\runtime\\business-decision-events.jsonl",
   "perceptionEventsFile": "desktop-agent\\runtime\\perception-events.jsonl",
   "interactionEventsFile": "desktop-agent\\runtime\\interaction-events.jsonl",
   "actionEventsFile": "desktop-agent\\runtime\\action-events.jsonl",
@@ -12,6 +13,7 @@
   "cursorFile": "desktop-agent\\runtime\\hands-cursor.json",
   "inputArbiterStateFile": "desktop-agent\\runtime\\input-arbiter-state.json",
   "trustSafetyStateFile": "desktop-agent\\runtime\\trust-safety-state.json",
+  "handsVerificationStateFile": "desktop-agent\\runtime\\hands-verification-state.json",
   "autonomyLevel": 3,
   "executeActions": true,
   "inputArbiterEnabled": true,
@@ -23,6 +25,9 @@
   "respectOrchestratorCommands": true,
   "allowTextInput": false,
   "allowSendMessage": false,
+  "requireSafetyApprovalForTextDraft": true,
+  "requireSafetyApprovalForSend": true,
+  "requirePostActionVerification": true,
   "pollIntervalMs": 250,
   "maxCycles": 0,
   "decisionLimit": 200,
@@ -38,6 +43,7 @@
   "aiControlLeaseMs": 900,
   "openChatVerificationTimeoutMs": 1800,
   "openChatVerificationPollMs": 150,
+  "historyScrollWheelSteps": 6,
   "processedDecisionCursorLimit": 2000,
   "channelMappings": [
     {

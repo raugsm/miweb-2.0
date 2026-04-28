@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/hands-verification-state.schema.json",
+  "title": "AriadGSM Hands Verification State",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "executionMode",
+    "policy",
+    "inputs",
+    "verificationGate",
+    "summary",
+    "lastAction",
+    "humanReport"
+  ],
+  "properties": {
+    "contractVersion": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "idle", "error"] },
+    "engine": { "type": "string" },
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "executionMode": { "type": "string", "enum": ["plan", "execute"] },
+    "policy": {
+      "type": "object",
+      "required": [
+        "trustSafetyRequired",
+        "inputArbiterRequired",
+        "cabinAuthorityRequired",
+        "postActionVerificationRequired",
+        "textDraftRequiresApproval",
+        "sendRequiresApproval",
+        "allowTextInput",
+        "allowSendMessage",
+        "physicalActions",
+        "historyScrollWheelSteps"
+      ],
+      "properties": {
+        "trustSafetyRequired": { "type": "boolean" },
+        "inputArbiterRequired": { "type": "boolean" },
+        "cabinAuthorityRequired": { "type": "boolean" },
+        "postActionVerificationRequired": { "type": "boolean" },
+        "textDraftRequiresApproval": { "type": "boolean" },
+        "sendRequiresApproval": { "type": "boolean" },
+        "allowTextInput": { "type": "boolean" },
+        "allowSendMessage": { "type": "boolean" },
+        "physicalActions": { "type": "array", "items": { "type": "string" } },
+        "historyScrollWheelSteps": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "inputs": { "type": "object" },
+    "verificationGate": {
+      "type": "object",
+      "required": [
+        "verifiedBeforeContinueRequired",
+        "unverifiedPhysicalActionsBecomeFailed",
+        "openChatRequiresChannelTitleAndRow",
+        "scrollRequiresVisibleChannel",
+        "captureRequiresPerceptionConfirmation",
+        "draftsNeverSendAutomatically"
+      ],
+      "properties": {
+        "verifiedBeforeContinueRequired": { "type": "boolean" },
+        "unverifiedPhysicalActionsBecomeFailed": { "type": "boolean" },
+        "openChatRequiresChannelTitleAndRow": { "type": "boolean" },
+        "scrollRequiresVisibleChannel": { "type": "boolean" },
+        "captureRequiresPerceptionConfirmation": { "type": "boolean" },
+        "draftsNeverSendAutomatically": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "decisionsRead",
+        "actionsPlanned",
+        "actionsWritten",
+        "actionsBlocked",
+        "actionsExecuted",
+        "actionsVerified",
+        "actionsSkipped",
+        "needsHuman"
+      ],
+      "properties": {
+        "decisionsRead": { "type": "integer", "minimum": 0 },
+        "actionsPlanned": { "type": "integer", "minimum": 0 },
+        "actionsWritten": { "type": "integer", "minimum": 0 },
+        "actionsBlocked": { "type": "integer", "minimum": 0 },
+        "actionsExecuted": { "type": "integer", "minimum": 0 },
+        "actionsVerified": { "type": "integer", "minimum": 0 },
+        "actionsSkipped": { "type": "integer", "minimum": 0 },
+        "needsHuman": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "lastAction": {
+      "type": "object",
+      "required": ["actionId", "summary", "error"],
+      "properties": {
+        "actionId": { "type": "string" },
+        "summary": { "type": "string" },
+        "error": { "type": "string" }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "required": ["headline", "resumenDecision", "permitidas", "necesitanBryams", "bloqueadas", "riesgos"],
+      "properties": {
+        "headline": { "type": "string" },
+        "resumenDecision": { "type": "string" },
+        "permitidas": { "type": "array", "items": { "type": "string" } },
+        "necesitanBryams": { "type": "array", "items": { "type": "string" } },
+        "bloqueadas": { "type": "array", "items": { "type": "string" } },
+        "riesgos": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

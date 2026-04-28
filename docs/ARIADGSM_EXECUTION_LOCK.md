@@ -584,7 +584,7 @@ Pendiente para autonomia final:
 Estado:
 
 ```text
-SIGUIENTE ETAPA PENDIENTE
+CERRADA COMO BASE FINAL EN 0.8.15
 ```
 
 Objetivo:
@@ -600,12 +600,28 @@ Definicion de terminado:
 - escribir texto no envia sin aprobacion;
 - errores quedan explicados en estado humano y action events.
 
+Existe:
+
+- `docs/ARIADGSM_HANDS_VERIFICATION_FINAL.md`
+- `desktop-agent/contracts/hands-verification-state.schema.json`
+- `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Pipeline/HandsPipeline.cs`
+- `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Verification/ActionVerifier.cs`
+- `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Safety/HandsSafetyPolicy.cs`
+- `desktop-agent/hands-engine/tests/AriadGSM.Hands.Tests/Program.cs`
+- `desktop-agent/tests/hands_engine_advanced.py`
+
+Pendiente para autonomia final:
+
+- registrar herramientas GSM reales en Tool Registry;
+- validar envios reales solo despues de Evaluation + Release;
+- extender verificacion por UI Automation especifica de cajas de texto cuando
+  Tool Registry habilite herramientas externas.
+
 ## 7. Bloques que NO pueden adelantarse
 
 Estos bloques son importantes, pero no deben sustituir el orden de la nueva
 etapa salvo que Bryams lo autorice:
 
-- Hands & Verification final.
 - Tool Registry.
 - Cloud Sync / ariadgsm.com.
 - Updater final.
@@ -613,10 +629,9 @@ etapa salvo que Bryams lo autorice:
 
 Motivo:
 
-Son necesarios para producto, pero si se hacen antes de cerrar `Hands &
-Verification final`, volvemos al patron de parches: el cerebro podria proponer
-bien y seguridad podria autorizar bien, pero las manos no verifican cada
-resultado con la firmeza requerida.
+Son necesarios para producto, pero si se hacen antes de cerrar `Tool Registry`,
+volvemos al patron de parches: las manos ya verifican, pero no sabrian operar
+herramientas GSM por capacidad estable.
 
 Excepcion:
 
@@ -656,26 +671,26 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0` a `11` quedan cerradas como base operativa, la siguiente
+Como las etapas `0` a `12` quedan cerradas como base operativa, la siguiente
 etapa pendiente del mapa maestro es:
 
 ```text
-Etapa 12: Hands & Verification
+Etapa 13: Tool Registry
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_HANDS_VERIFICATION_FINAL.md
+docs/ARIADGSM_TOOL_REGISTRY_FINAL.md
 ```
 
 El entregable tecnico minimo posterior es:
 
 ```text
-contrato final de accion verificada
-consumo estricto de Trust & Safety
-apertura de chats con verificacion fuerte
-scroll y lectura historica con limites
-borradores sin envio automatico
+inventario de herramientas GSM por capacidad
+contrato de herramienta y ejecucion
+riesgos, entradas, salidas y verificadores
+alternativas cuando falle una herramienta
+integracion con Hands & Verification
 pruebas sin acciones reales peligrosas
 ```

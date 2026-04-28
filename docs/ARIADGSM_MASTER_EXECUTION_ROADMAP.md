@@ -297,14 +297,19 @@ Debe mantenerse como gate central de etapas posteriores.
 Abrir chats, hacer scroll, escribir borradores, operar herramientas y verificar
 que hizo lo correcto.
 
-Estado actual: `siguiente etapa pendiente`.
+Estado actual: `cerrada como base final en 0.8.15`.
 
 Existe:
 
 - `docs/ARIADGSM_HANDS_ENGINE_ADVANCED_DESIGN.md`
 - `desktop-agent/tests/hands_engine_advanced.py`
+- `docs/ARIADGSM_HANDS_VERIFICATION_FINAL.md`
+- `desktop-agent/contracts/hands-verification-state.schema.json`
+- `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Pipeline/HandsPipeline.cs`
+- `desktop-agent/hands-engine/src/AriadGSM.Hands.Core/Verification/ActionVerifier.cs`
+- `desktop-agent/hands-engine/tests/AriadGSM.Hands.Tests/Program.cs`
 
-Pendiente para autonomia final:
+Pendiente para autonomia final fuera de esta etapa:
 
 - operar herramientas GSM reales bajo Tool Registry;
 - verificar antes/despues con Safe Eyes.
@@ -314,7 +319,7 @@ Pendiente para autonomia final:
 Herramientas GSM por capacidad: USB Redirector, programas, paneles, servidores,
 proveedores, alternativas.
 
-Estado actual: `pendiente`.
+Estado actual: `siguiente etapa pendiente`.
 
 Debe cerrar:
 

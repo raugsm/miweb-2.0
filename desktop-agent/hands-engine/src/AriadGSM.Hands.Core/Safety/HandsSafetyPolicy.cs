@@ -24,9 +24,23 @@ public sealed class HandsSafetyPolicy
             return new SafetyDecision(true, "Text input is disabled by Hands policy.");
         }
 
+        if (plan.ActionType.Equals("write_text", StringComparison.OrdinalIgnoreCase)
+            && _options.RequireSafetyApprovalForTextDraft
+            && !HasTrustSafetyApproval(plan))
+        {
+            return new SafetyDecision(true, "Text draft blocked: missing per-action Trust & Safety approval.");
+        }
+
         if (plan.ActionType.Equals("send_message", StringComparison.OrdinalIgnoreCase) && !_options.AllowSendMessage)
         {
             return new SafetyDecision(true, "Sending messages is disabled by Hands policy.");
+        }
+
+        if (plan.ActionType.Equals("send_message", StringComparison.OrdinalIgnoreCase)
+            && _options.RequireSafetyApprovalForSend
+            && !HasTrustSafetyApproval(plan))
+        {
+            return new SafetyDecision(true, "Message send blocked: missing explicit Trust & Safety approval.");
         }
 
         if (plan.ActionType.Equals("record_accounting", StringComparison.OrdinalIgnoreCase) && plan.RequiresHumanConfirmation)
@@ -70,5 +84,14 @@ public sealed class HandsSafetyPolicy
         }
 
         return int.TryParse(value.ToString(), out var parsed) && parsed > 0;
+    }
+
+    private static bool HasTrustSafetyApproval(ActionPlan plan)
+    {
+        return plan.Target.TryGetValue("trustSafetyApproved", out var approved)
+            && approved is bool approvedBool
+            && approvedBool
+            && plan.Target.TryGetValue("trustSafetyApprovalId", out var approvalId)
+            && !string.IsNullOrWhiteSpace(approvalId?.ToString());
     }
 }

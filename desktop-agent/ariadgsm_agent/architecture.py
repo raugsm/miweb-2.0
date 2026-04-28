@@ -32,8 +32,8 @@ MASTER_STAGES: tuple[Stage, ...] = (
     Stage(9, "Living Memory", "closed_living_memory_base", "memory"),
     Stage(10, "Business Brain", "closed_business_brain_base", "business_reasoning"),
     Stage(11, "Trust & Safety + Input Arbiter", "closed_trust_safety_input_arbiter_final", "safety"),
-    Stage(12, "Hands & Verification", "next_pending", "hands"),
-    Stage(13, "Tool Registry", "pending", "tools"),
+    Stage(12, "Hands & Verification", "closed_hands_verification_final", "hands"),
+    Stage(13, "Tool Registry", "next_pending", "tools"),
     Stage(14, "Cloud Sync / ariadgsm.com", "partial", "cloud"),
     Stage(15, "Evaluation + Release", "pending_final", "release"),
 )
@@ -57,7 +57,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("Operating Core", "Python", "Track business state, cases, tasks, priorities and queues.", "decision_event"),
     Layer("Accounting Core", "Python", "Create payment, debt and refund records with evidence-first confirmation gates.", "accounting_core_state"),
     Layer("Cognitive Core", "Python", "Reason, plan, learn, ask for confirmation and choose the next action.", "decision_event"),
-    Layer("Hands Engine", "C#/.NET", "Move mouse, keyboard, windows and scroll, then verify the action.", "action_event"),
+    Layer("Hands Engine", "C#/.NET", "Move mouse, keyboard, windows and scroll only after permission, then verify every physical action before continuing.", "hands_verification_state"),
     Layer("Supervisor", "C#/.NET + Python", "Enforce autonomy, confidence, permissions, audit and safety policy.", "action_event"),
     Layer("Autonomous Cycle", "Python + C#/.NET", "Unify eyes, timeline, reasoning, memory, safety and hands into one auditable operating loop.", "autonomous_cycle_event"),
 )
@@ -97,6 +97,7 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "accounting_core_state",
     "input_arbiter_state",
     "trust_safety_state",
+    "hands_verification_state",
 )
 
 

@@ -93,7 +93,7 @@ public sealed class Win32HandsExecutor : IHandsExecutor
 
         if (plan.ActionType.Equals("scroll_history", StringComparison.OrdinalIgnoreCase))
         {
-            for (var index = 0; index < 6; index++)
+            for (var index = 0; index < Math.Clamp(_options.HistoryScrollWheelSteps, 1, 24); index++)
             {
                 if (!TrySendMouseInput(out var wheelError, CreateMouseInput(MouseEventWheel, WheelDelta)))
                 {

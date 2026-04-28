@@ -9,7 +9,9 @@ using AriadGSM.Hands.Safety;
 
 TestPlannerInfersChannelFromEvidence();
 TestSafetyBlocksSend();
+TestTextDraftRequiresTrustSafetyApproval();
 await TestPipelineWritesAndDedupes();
+await TestBusinessBrainDecisionsReachHands();
 await TestInteractionNavigatorOpensVerifiedRows();
 await TestMissingChatTargetSuspendsDecisionChain();
 await TestOpenChatWaitsForFreshPerceptionVerification();
@@ -65,6 +67,41 @@ static void TestSafetyBlocksSend()
     Assert(safety.Blocked, "send_message must be blocked when AllowSendMessage is false");
 }
 
+static void TestTextDraftRequiresTrustSafetyApproval()
+{
+    var decision = new AriadGSM.Hands.Decisions.DecisionEvent
+    {
+        EventType = "decision_event",
+        DecisionId = "decision-draft-approval-1",
+        CreatedAt = DateTimeOffset.UtcNow,
+        Goal = "operate",
+        Intent = "price_request",
+        Confidence = 0.9,
+        AutonomyLevel = 5,
+        ProposedAction = "draft",
+        RequiresHumanConfirmation = false,
+        ReasoningSummary = "draft",
+        Evidence = ["msg-wa-1-abc"]
+    };
+    var plan = new ActionPlanner().Plan(decision).First(item => item.ActionType == "write_text");
+    var policy = new HandsSafetyPolicy(new HandsOptions
+    {
+        AutonomyLevel = 5,
+        AllowTextInput = true,
+        RequireSafetyApprovalForTextDraft = true
+    });
+    var blocked = policy.Evaluate(plan);
+    Assert(blocked.Blocked, "write_text must be blocked without per-action Trust & Safety approval");
+
+    var approvedTarget = new Dictionary<string, object?>(plan.Target, StringComparer.OrdinalIgnoreCase)
+    {
+        ["trustSafetyApproved"] = true,
+        ["trustSafetyApprovalId"] = "approval-draft-1"
+    };
+    var approved = policy.Evaluate(plan with { Target = approvedTarget });
+    Assert(!approved.Blocked, "write_text can pass safety only after approval metadata is attached");
+}
+
 static async Task TestPipelineWritesAndDedupes()
 {
     var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-test-" + Guid.NewGuid().ToString("N"));
@@ -75,6 +112,7 @@ static async Task TestPipelineWritesAndDedupes()
     var interaction = Path.Combine(root, "interaction-events.jsonl");
     var actions = Path.Combine(root, "action-events.jsonl");
     var state = Path.Combine(root, "hands-state.json");
+    var verificationState = Path.Combine(root, "hands-verification-state.json");
     var cursor = Path.Combine(root, "hands-cursor.json");
     try
     {
@@ -192,6 +230,7 @@ static async Task TestPipelineWritesAndDedupes()
             InteractionEventsFile = interaction,
             ActionEventsFile = actions,
             StateFile = state,
+            HandsVerificationStateFile = verificationState,
             CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = false,
@@ -207,6 +246,12 @@ static async Task TestPipelineWritesAndDedupes()
         Assert(first.Status == "ok", "first pipeline run should be ok");
         Assert(first.ActionsWritten >= 2, "pipeline should write planned action events");
         Assert(File.Exists(actions), "action events should exist");
+        Assert(File.Exists(verificationState), "hands verification state should be published");
+        using (var verificationDocument = JsonDocument.Parse(await File.ReadAllTextAsync(verificationState)))
+        {
+            Assert(verificationDocument.RootElement.GetProperty("contractVersion").GetString() == "0.8.15", "hands verification state should expose the stage 12 contract");
+            Assert(verificationDocument.RootElement.GetProperty("verificationGate").GetProperty("unverifiedPhysicalActionsBecomeFailed").GetBoolean(), "verification gate should fail unverified physical actions");
+        }
 
         var actionLines = await File.ReadAllLinesAsync(actions);
         Assert(actionLines.Length == first.ActionsWritten, "all written actions should be persisted");
@@ -242,6 +287,7 @@ static async Task TestPipelineWritesAndDedupes()
             InteractionEventsFile = interaction,
             ActionEventsFile = actions,
             StateFile = state,
+            HandsVerificationStateFile = verificationState,
             CursorFile = cursor,
             AutonomyLevel = 3,
             ExecuteActions = true,
@@ -262,6 +308,105 @@ static async Task TestPipelineWritesAndDedupes()
         var executeLines = await File.ReadAllLinesAsync(actions);
         Assert(executeLines.Any(line => line.Contains("\"executionMode\":\"execute\"", StringComparison.Ordinal)),
             "execute events should be audited with executionMode=execute");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestBusinessBrainDecisionsReachHands()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-business-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var business = Path.Combine(root, "business-decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, string.Empty);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(business, JsonSerializer.Serialize(new
+        {
+            eventType = "decision_event",
+            decisionId = "business-decision-hands-1",
+            createdAt = DateTimeOffset.UtcNow,
+            goal = "attend_customer",
+            intent = "learning_navigation",
+            confidence = 0.91,
+            autonomyLevel = 3,
+            proposedAction = "open_visible_chat_for_learning",
+            requiresHumanConfirmation = false,
+            reasoningSummary = "Business Brain picked a customer chat.",
+            channelId = "wa-2",
+            conversationTitle = "Cliente Business",
+            evidence = new[] { "msg-wa-2-business" }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(perception, string.Empty);
+        await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
+        {
+            eventType = "interaction_event",
+            interactionEventId = "interaction-business-1",
+            createdAt = DateTimeOffset.UtcNow,
+            source = "ariadgsm_interaction_engine",
+            latestPerceptionEventId = "perception-business-1",
+            perceptionEventsRead = 1,
+            targets = new object[]
+            {
+                new
+                {
+                    targetId = "target-business-1",
+                    targetType = "chat_row",
+                    channelId = "wa-2",
+                    sourcePerceptionEventId = "perception-business-1",
+                    observedAt = DateTimeOffset.UtcNow,
+                    title = "Cliente Business",
+                    preview = "precio?",
+                    unreadCount = 1,
+                    left = 500,
+                    top = 160,
+                    width = 320,
+                    height = 72,
+                    clickX = 590,
+                    clickY = 196,
+                    confidence = 0.95,
+                    actionable = true,
+                    category = "customer_chat_candidate",
+                    rejectionReasons = Array.Empty<string>()
+                }
+            }
+        }) + Environment.NewLine);
+
+        var pipeline = new HandsPipeline(new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            BusinessDecisionEventsFile = business,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            CursorFile = cursor,
+            AutonomyLevel = 3,
+            ExecuteActions = false,
+            RespectOrchestratorCommands = false,
+            EnableInteractionNavigator = false,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10
+        });
+        var result = await pipeline.RunOnceAsync();
+        Assert(result.Status == "ok", "business decisions should feed hands in plan mode");
+        var lines = await File.ReadAllLinesAsync(actions);
+        Assert(lines.Any(line => line.Contains("business-decision-hands-1", StringComparison.Ordinal)), "action target should preserve Business Brain source decision id");
     }
     finally
     {
