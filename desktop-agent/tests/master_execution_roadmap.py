@@ -85,6 +85,8 @@ def main() -> int:
     assert "docs/ARIADGSM_SAFE_EYES_READER_CORE_DESIGN.md" in lock
     assert "### 6.8.5 Window Reality Resolver" in lock
     assert "docs/ARIADGSM_WINDOW_REALITY_RESOLVER_FINAL.md" in lock
+    assert "### 6.8.6 Support & Telemetry Core" in lock
+    assert "docs/ARIADGSM_SUPPORT_TELEMETRY_CORE_FINAL.md" in lock
     assert "### 6.9 Living Memory" in lock
     assert "docs/ARIADGSM_LIVING_MEMORY_DESIGN.md" in lock
     assert "### 6.10 Business Brain" in lock
@@ -99,12 +101,13 @@ def main() -> int:
     assert "docs/ARIADGSM_CLOUD_SYNC_ARIADGSM_COM_FINAL.md" in lock
     assert "### 6.15 Evaluation + Release" in lock
     assert "docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md" in lock
-    assert "Release Candidate 0.9.1: prueba real supervisada de cabina completa" in lock[
+    assert "Release Candidate 0.9.2: prueba real supervisada de cabina completa" in lock[
         lock.index("## 10. Siguiente bloque activo") :
     ]
     assert "Evaluation + Release" in roadmap
-    assert "cerrada como release candidate en 0.9.1" in roadmap
+    assert "cerrada como release candidate en 0.9.2" in roadmap
     assert "Window Reality Resolver quedo cerrado en 0.9.1" in roadmap
+    assert "Support & Telemetry Core quedo cerrado en 0.9.2" in roadmap
 
     print("master execution roadmap OK")
     return 0

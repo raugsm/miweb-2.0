@@ -404,8 +404,9 @@ def main() -> int:
         )
         assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
         assert cycle_state["status"] in {"ok", "attention", "blocked"}
-        assert len(cycle_state["stages"]) == 13
+        assert len(cycle_state["stages"]) == 14
         assert any(stage["stageId"] == "window_reality" for stage in cycle_state["stages"])
+        assert any(stage["stageId"] == "support_telemetry" for stage in cycle_state["stages"])
         assert any(stage["stageId"] == "business_brain" for stage in cycle_state["stages"])
         assert any(stage["stageId"] == "tool_registry" for stage in cycle_state["stages"])
         assert any(stage["stageId"] == "trust_safety" for stage in cycle_state["stages"])

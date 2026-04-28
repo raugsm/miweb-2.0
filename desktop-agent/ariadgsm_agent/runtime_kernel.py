@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 ENGINE = "ariadgsm_runtime_kernel"
 CONTRACT = "runtime_kernel_state"
 
@@ -20,6 +20,7 @@ ENGINE_FILES: tuple[tuple[str, str, str, str], ...] = (
     ("orchestrator", "Orchestrator", "worker", "orchestrator-state.json"),
     ("reader_core", "Reader Core", "python_core", "reader-core-state.json"),
     ("window_reality", "Window Reality Resolver", "python_core", "window-reality-state.json"),
+    ("support_telemetry", "Support & Telemetry", "python_core", "support-telemetry-state.json"),
     ("timeline", "Timeline", "python_core", "timeline-state.json"),
     ("cognitive", "Cognitive", "python_core", "cognitive-state.json"),
     ("operating", "Operating", "python_core", "operating-state.json"),

@@ -12,9 +12,10 @@ from typing import Any
 from .architecture import MASTER_STAGES
 from .contracts import CONTRACT_FILES, sample_event, validate_contract
 from .runtime_governor import build_runtime_governor_state
+from .support_telemetry import run_support_telemetry_once
 
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 ENGINE = "ariadgsm_evaluation_release"
 CONTRACT = "evaluation_release_state"
 GATE_NAMES = {
@@ -160,6 +161,7 @@ def gate_evaluation_harness(repo_root: Path, runtime_dir: Path) -> dict[str, Any
         "docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md",
         "docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md",
         "docs/ARIADGSM_WINDOW_REALITY_RESOLVER_FINAL.md",
+        "docs/ARIADGSM_SUPPORT_TELEMETRY_CORE_FINAL.md",
     ]
     missing_docs = [path for path in required_docs if not (repo_root / path).exists()]
     failures.extend([f"missing:{path}" for path in missing_docs])
@@ -202,6 +204,7 @@ def grade_trace_line(line: str) -> dict[str, Any]:
 
 
 def gate_observability(runtime_dir: Path) -> dict[str, Any]:
+    support_state = run_support_telemetry_once(runtime_dir)
     lines = []
     for file_name in ("diagnostic-timeline.jsonl", "windows-app.log"):
         path = runtime_dir / file_name
@@ -217,10 +220,19 @@ def gate_observability(runtime_dir: Path) -> dict[str, Any]:
         "tracesGraded": len(traces),
         "averageScore": round(avg, 3),
         "traces": traces[-25:],
-        "openTelemetryPlan": "correlate logs, metrics and traces by traceId in post-RC hardening",
+        "supportTelemetry": {
+            "status": support_state.get("status"),
+            "traceId": support_state.get("traceId"),
+            "correlationId": support_state.get("correlationId"),
+            "incidentsOpen": (support_state.get("summary") or {}).get("incidentsOpen") if isinstance(support_state.get("summary"), dict) else 0,
+            "bundleReady": (support_state.get("summary") or {}).get("bundleReady") if isinstance(support_state.get("summary"), dict) else False,
+        },
+        "openTelemetryPlan": "traceId/correlationId compatibles con OTel; EventSource/EventPipe queda activo en la app .NET",
     }
     write_json(runtime_dir / "trace-grading-state.json", state)
-    return gate("15.4", state["status"], avg, f"Trace grading local califico {len(traces)} lineas.")
+    support_ok = support_state.get("status") in {"ok", "attention", "blocked"}
+    gate_status = state["status"] if support_ok else "blocked"
+    return gate("15.4", gate_status, avg if support_ok else 0.0, f"Trace grading califico {len(traces)} lineas y Support Telemetry genero caja negra/bundle local.")
 
 
 def gate_updater_rollback(repo_root: Path, runtime_dir: Path, version: str) -> dict[str, Any]:

@@ -304,6 +304,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Perception", "perception-health.json", "Perception"),
             StateHealth("Reader Core", "reader-core-state.json", "PythonCoreLoop"),
             StateHealth("Reality Resolver", "window-reality-state.json", "PythonCoreLoop"),
+            StateHealth("Support & Telemetry", "support-telemetry-state.json", "PythonCoreLoop"),
             StateHealth("Interaction", "interaction-state.json", "Interaction"),
             StateHealth("Orchestrator", "orchestrator-state.json", "Orchestrator"),
             StateHealth("Timeline", "timeline-state.json", "PythonCoreLoop"),
@@ -385,6 +386,7 @@ internal sealed partial class AgentRuntime : IDisposable
         using var perception = ReadJsonStatus("perception-health.json");
         using var readerCore = ReadJsonStatus("reader-core-state.json");
         using var windowReality = ReadJsonStatus("window-reality-state.json");
+        using var supportTelemetry = ReadJsonStatus("support-telemetry-state.json");
         using var interaction = ReadJsonStatus("interaction-state.json");
         using var orchestrator = ReadJsonStatus("orchestrator-state.json");
         using var timeline = ReadJsonStatus("timeline-state.json");
@@ -429,6 +431,7 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Vision: capturas={Number(vision, "framesCaptured", "eventsWritten")} | ventanas={Number(vision, "visibleWindowCount")} | intervalo={Number(vision, "captureIntervalMs")}ms",
             $"Reader Core: nuevos={NestedNumber(readerCore, "ingested", "newMessages")} | rechazados={NestedNumber(readerCore, "ingested", "rejected")} | desacuerdos={NestedNumber(readerCore, "summary", "latestRunDisagreements")} | OCR={NestedNumber(readerCore, "summary", "ocrFallbackMessages")}",
             $"Reality Resolver: {Text(windowReality, "status")} | operables={NestedNumber(windowReality, "summary", "operationalChannels")}/{NestedNumber(windowReality, "summary", "expectedChannels")} | conflictos={NestedNumber(windowReality, "summary", "conflictedChannels")} | viejo={NestedNumber(windowReality, "summary", "staleInputs")}",
+            $"Support: {Text(supportTelemetry, "status")} | incidentes={NestedNumber(supportTelemetry, "summary", "incidentsOpen")} | caja negra={NestedNumber(supportTelemetry, "summary", "blackboxEventsRetained")} | bundle={NestedBool(supportTelemetry, "summary", "bundleReady")}",
             $"Perception OCR: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
             $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
             $"Orchestrator: fase={Text(orchestrator, "phase")} | {Text(orchestrator, "summary")}",
@@ -2166,6 +2169,7 @@ internal sealed partial class AgentRuntime : IDisposable
             ("DomainEventsAfterCycle", "ariadgsm_agent.domain_events", new[] { "--json" }),
             ("RuntimeGovernor", "ariadgsm_agent.runtime_governor", new[] { "--desired-running", "--json" }),
             ("RuntimeKernel", "ariadgsm_agent.runtime_kernel", new[] { "--json" }),
+            ("SupportTelemetry", "ariadgsm_agent.support_telemetry", new[] { "--json" }),
             ("CloudSync", "ariadgsm_agent.cloud_sync", new[] { "--json" }),
             ("EvaluationRelease", "ariadgsm_agent.release_evaluation", new[] { "--version", CurrentVersion, "--json" })
         };
@@ -2538,6 +2542,7 @@ internal sealed partial class AgentRuntime : IDisposable
     private void WriteLogNoThrow(string message)
     {
         var line = $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss} {message}";
+        AriadGSMTelemetryEventSource.Log.SafeRuntimeLog(message);
         try
         {
             Directory.CreateDirectory(_runtimeDir);

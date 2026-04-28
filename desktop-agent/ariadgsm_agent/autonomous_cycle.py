@@ -535,6 +535,35 @@ def build_window_reality_stage(window_reality: dict[str, Any]) -> dict[str, Any]
     )
 
 
+def build_support_telemetry_stage(support: dict[str, Any]) -> dict[str, Any]:
+    if not support:
+        return make_stage(
+            "support_telemetry",
+            "AriadGSM Support & Telemetry",
+            "idle",
+            "Support & Telemetry aun no publico caja negra en este ciclo.",
+            {"incidentsOpen": 0, "blackboxEventsRetained": 0, "bundleReady": False},
+            ["support-telemetry-state.json"],
+        )
+    summary = support.get("summary") if isinstance(support.get("summary"), dict) else {}
+    human = support.get("humanReport") if isinstance(support.get("humanReport"), dict) else {}
+    return make_stage(
+        "support_telemetry",
+        "AriadGSM Support & Telemetry",
+        support.get("status"),
+        text(human.get("headline") if isinstance(human, dict) else "", "Support & Telemetry correlaciono el ciclo."),
+        {
+            "incidentsOpen": as_int(summary.get("incidentsOpen")),
+            "criticalIncidents": as_int(summary.get("criticalIncidents")),
+            "warningIncidents": as_int(summary.get("warningIncidents")),
+            "blackboxEventsRetained": as_int(summary.get("blackboxEventsRetained")),
+            "bundleReady": bool(summary.get("bundleReady")),
+            "redactionsApplied": as_int(summary.get("redactionsApplied")),
+        },
+        ["support-telemetry-state.json", "support-blackbox.jsonl"],
+    )
+
+
 def build_verified_hands_stage(hands: dict[str, Any], input_arbiter: dict[str, Any]) -> dict[str, Any]:
     stage = build_hands_stage(hands)
     stage["stageId"] = "verified_hands"
@@ -1269,12 +1298,14 @@ def run_autonomous_cycle_once(
         "workspace_guardian": read_json(runtime / "workspace-guardian-state.json"),
         "cabin": read_json(runtime / "cabin-readiness.json"),
         "window_reality": read_json(runtime / "window-reality-state.json"),
+        "support_telemetry": read_json(runtime / "support-telemetry-state.json"),
     }
 
     stages = [
         build_life_controller_stage(states["life"], states["agent_supervisor"], states["update"]),
         build_workspace_guardian_stage(states["workspace_setup"], states["cabin_manager"], states["workspace_guardian"], states["cabin_authority"], states["cabin"], states["orchestrator"]),
         build_window_reality_stage(states["window_reality"]),
+        build_support_telemetry_stage(states["support_telemetry"]),
         build_input_arbiter_stage(states["input_arbiter"]),
         build_reader_core_stage(states),
         build_case_manager_stage(states["case_manager"]),

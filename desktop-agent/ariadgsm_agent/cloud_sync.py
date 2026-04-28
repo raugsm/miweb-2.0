@@ -13,7 +13,7 @@ from typing import Any
 from urllib import error, request
 
 
-VERSION = "0.8.18"
+VERSION = "0.9.2"
 ENGINE = "ariadgsm_cloud_sync"
 CONTRACT = "cloud_sync_state"
 DEFAULT_CLOUD_URL = "https://ariadgsm.com"
@@ -363,6 +363,42 @@ def build_review_events(runtime_dir: Path) -> list[dict[str, Any]]:
     return events
 
 
+def build_support_telemetry_events(runtime_dir: Path) -> list[dict[str, Any]]:
+    support_state = read_json(runtime_dir / "support-telemetry-state.json")
+    if not support_state:
+        return []
+    summary = support_state.get("summary") if isinstance(support_state.get("summary"), dict) else {}
+    human = support_state.get("humanReport") if isinstance(support_state.get("humanReport"), dict) else {}
+    safe_events = support_state.get("cloudSafeEvents") if isinstance(support_state.get("cloudSafeEvents"), list) else []
+    events: list[dict[str, Any]] = [
+        {
+            "type": "support_telemetry",
+            "data": {
+                "eventId": f"support-telemetry-{sha256_text(text(support_state.get('traceId')) + text(support_state.get('updatedAt')))[:18]}",
+                "traceId": text(support_state.get("traceId")),
+                "correlationId": text(support_state.get("correlationId")),
+                "status": text(support_state.get("status"), "missing"),
+                "summary": bounded_text(human.get("headline") or "Soporte local revisado.", 500),
+                "incidentsOpen": number(summary.get("incidentsOpen")),
+                "criticalIncidents": number(summary.get("criticalIncidents")),
+                "warningIncidents": number(summary.get("warningIncidents")),
+                "redactionsApplied": number(summary.get("redactionsApplied")),
+                "bundleReady": bool(summary.get("bundleReady")),
+                "privacy": {
+                    "rawScreenshotsUploaded": False,
+                    "fullChatsUploaded": False,
+                    "tokensLogged": False,
+                    "supportBundleUploaded": False,
+                },
+            },
+        }
+    ]
+    for item in safe_events[:12]:
+        if isinstance(item, dict):
+            events.append(item)
+    return events
+
+
 def build_payload(
     runtime_dir: Path,
     cloud_url: str,
@@ -376,7 +412,8 @@ def build_payload(
     message_events, sent_keys, message_summary = build_message_events(runtime_dir, ledger)
     checkpoint_events = build_checkpoint_events(runtime_dir)
     review_events = build_review_events(runtime_dir)
-    events = [build_agent_status_event(runtime_kernel), *checkpoint_events, *message_events, *review_events]
+    support_events = build_support_telemetry_events(runtime_dir)
+    events = [build_agent_status_event(runtime_kernel), *checkpoint_events, *message_events, *review_events, *support_events]
     events = events[:MAX_EVENTS_PER_BATCH]
     events_json = json.dumps(events, ensure_ascii=False, sort_keys=True)
     batch_id = f"cloudsync-{sha256_text(events_json)[:18]}"
@@ -404,6 +441,7 @@ def build_payload(
             **message_summary,
             "checkpointEvents": len(checkpoint_events),
             "reviewEvents": len(review_events),
+            "supportTelemetryEvents": len(support_events),
             "eventsPrepared": len(events),
         },
         "conversations": message_summary["conversationsSeen"],
@@ -417,6 +455,7 @@ def build_payload(
             "rawFramesUploaded": False,
             "screenshotsUploaded": False,
             "secretsLogged": False,
+            "supportBundleUploaded": False,
         },
     }
     return payload, sent_keys, payload["summary"]
@@ -516,6 +555,7 @@ def build_state(
             "messagesRejected": number(summary.get("messagesRejected")),
             "conversationsSeen": number(summary.get("conversationsSeen")),
             "reviewEvents": number(summary.get("reviewEvents")),
+            "supportTelemetryEvents": number(summary.get("supportTelemetryEvents")),
             "attempts": len(attempts),
             "canSync": can_sync,
         },
@@ -536,6 +576,7 @@ def build_state(
             "timeline": "timeline-events.jsonl",
             "domainEvents": "domain-events.jsonl",
             "cabinReadiness": "cabin-readiness.json",
+            "supportTelemetry": "support-telemetry-state.json",
         },
         "outputFiles": {
             "state": "cloud-sync-state.json",

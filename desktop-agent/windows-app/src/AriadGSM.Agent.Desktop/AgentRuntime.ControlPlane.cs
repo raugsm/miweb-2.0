@@ -27,6 +27,7 @@ internal sealed partial class AgentRuntime
                     "Reader Core outputs structured conversations, not loose OCR lines.",
                     "Action Queue audits plan, safety, execution and verification.",
                     "Memory and Accounting store evidence-first business knowledge.",
+                    "Support & Telemetry keeps a local blackbox with redacted diagnostics.",
                     "Diagnostic Timeline explains what happened in human language."
                 },
                 ["layers"] = new[]
@@ -39,6 +40,7 @@ internal sealed partial class AgentRuntime
                     "reader_core",
                     "action_queue",
                     "memory_accounting",
+                    "support_telemetry",
                     "diagnostic_timeline"
                 }
             };

@@ -242,6 +242,20 @@ Etapa 7, Etapa 8, Etapa 11, Etapa 12 y Etapa 15:
 - prueba `desktop-agent/tests/window_reality_resolver.py`;
 - integracion con app Windows, Runtime Kernel, Autonomous Cycle y Evaluation.
 
+Support & Telemetry Core quedo cerrado en 0.9.2 como caja negra local
+transversal entre Runtime Kernel, Window Reality, ciclo autonomo, seguridad,
+manos, updater, release y ariadgsm.com:
+
+- documento `docs/ARIADGSM_SUPPORT_TELEMETRY_CORE_FINAL.md`;
+- contratos `desktop-agent/contracts/support-telemetry-state.schema.json` y
+  `desktop-agent/contracts/support-telemetry-event.schema.json`;
+- motor `desktop-agent/ariadgsm_agent/support_telemetry.py`;
+- prueba `desktop-agent/tests/support_telemetry_core.py`;
+- integracion con app Windows, Runtime Kernel, Cloud Sync y Evaluation.
+
+Regla fija: no subir capturas, chats completos, contrasenas, tokens ni dumps sin
+permiso explicito; la nube recibe solo resumen seguro.
+
 Debe cerrar:
 
 - identidad positiva: solo WhatsApp Web real;
@@ -400,17 +414,21 @@ Quedo cerrado:
 
 Pruebas, metricas, instalador, updater, rollback, versiones y entrega estable.
 
-Estado actual: `cerrada como release candidate en 0.9.1`.
+Estado actual: `cerrada como release candidate en 0.9.2`.
 
 Existe:
 
 - `docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md`
 - `docs/ARIADGSM_WINDOW_REALITY_RESOLVER_FINAL.md`
+- `docs/ARIADGSM_SUPPORT_TELEMETRY_CORE_FINAL.md`
 - `desktop-agent/contracts/runtime-governor-state.schema.json`
 - `desktop-agent/contracts/evaluation-release-state.schema.json`
 - `desktop-agent/contracts/window-reality-state.schema.json`
+- `desktop-agent/contracts/support-telemetry-state.schema.json`
+- `desktop-agent/contracts/support-telemetry-event.schema.json`
 - `desktop-agent/ariadgsm_agent/runtime_governor.py`
 - `desktop-agent/ariadgsm_agent/window_reality.py`
+- `desktop-agent/ariadgsm_agent/support_telemetry.py`
 - `desktop-agent/ariadgsm_agent/release_evaluation.py`
 - `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
 - `desktop-agent/tests/evaluation_release.py`
@@ -423,6 +441,8 @@ Quedo cerrado:
 - checkpoints durables para reanudar estado;
 - evaluation harness local para contratos y escenarios de negocio;
 - trace grading local para explicar fallos;
+- Support & Telemetry Core con caja negra local, Support Bundle seguro,
+  traceId/correlationId y privacidad por diseno;
 - validacion de manifest, paquete, SHA256 y rollback;
 - long-run simulado de release;
 - Window Reality Resolver validado por contrato y eval local;
@@ -440,7 +460,7 @@ paso ya no es crear otra arquitectura, sino validar el candidato en una prueba
 real supervisada:
 
 ```text
-Release Candidate 0.9.1: prueba real supervisada de cabina completa
+Release Candidate 0.9.2: prueba real supervisada de cabina completa
 ```
 
 No se debe saltar a ejecucion real no supervisada de herramientas GSM sin pasar

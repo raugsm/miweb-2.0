@@ -140,6 +140,8 @@ internal sealed partial class AgentRuntime
             ("interaction", "Interaction", "worker", "interaction-state.json", "Interaction"),
             ("orchestrator", "Orchestrator", "worker", "orchestrator-state.json", "Orchestrator"),
             ("reader_core", "Reader Core", "python_core", "reader-core-state.json", "PythonCoreLoop"),
+            ("window_reality", "Window Reality Resolver", "python_core", "window-reality-state.json", "PythonCoreLoop"),
+            ("support_telemetry", "Support & Telemetry", "python_core", "support-telemetry-state.json", "PythonCoreLoop"),
             ("timeline", "Timeline", "python_core", "timeline-state.json", "PythonCoreLoop"),
             ("cognitive", "Cognitive", "python_core", "cognitive-state.json", "PythonCoreLoop"),
             ("operating", "Operating", "python_core", "operating-state.json", "PythonCoreLoop"),
@@ -149,6 +151,8 @@ internal sealed partial class AgentRuntime
             ("memory", "Memory", "python_core", "memory-state.json", "PythonCoreLoop"),
             ("business_brain", "Business Brain", "python_core", "business-brain-state.json", "PythonCoreLoop"),
             ("tool_registry", "Tool Registry", "python_core", "tool-registry-state.json", "PythonCoreLoop"),
+            ("cloud_sync", "Cloud Sync", "python_core", "cloud-sync-state.json", "PythonCoreLoop"),
+            ("evaluation_release", "Evaluation + Release", "python_core", "evaluation-release-state.json", "PythonCoreLoop"),
             ("trust_safety", "Trust & Safety", "python_core", "trust-safety-state.json", "PythonCoreLoop"),
             ("hands", "Hands", "worker", "hands-state.json", "Hands"),
             ("input_arbiter", "Input Arbiter", "worker", "input-arbiter-state.json", "Hands"),
@@ -409,10 +413,13 @@ internal sealed partial class AgentRuntime
             ["interaction"] = "interaction-state.json",
             ["orchestrator"] = "orchestrator-state.json",
             ["cabinAuthority"] = "cabin-authority-state.json",
+            ["windowReality"] = "window-reality-state.json",
+            ["supportTelemetry"] = "support-telemetry-state.json",
             ["lifeController"] = "life-controller-state.json",
             ["agentSupervisor"] = "agent-supervisor-state.json",
             ["trustSafety"] = "trust-safety-state.json",
-            ["inputArbiter"] = "input-arbiter-state.json"
+            ["inputArbiter"] = "input-arbiter-state.json",
+            ["cloudSync"] = "cloud-sync-state.json"
         };
     }
 

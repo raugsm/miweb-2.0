@@ -1,7 +1,7 @@
 # AriadGSM Evaluation + Release Final
 
 Fecha: 2026-04-28
-Version objetivo: 0.9.1
+Version objetivo: 0.9.2
 Etapa Execution Lock: 15
 Estado: release candidate
 
@@ -22,6 +22,10 @@ La etapa se basa en patrones externos usados en sistemas reales:
   cooperativo y eventos de cierre.
 - Kubernetes Controllers: reconciliar estado deseado contra estado observado.
 - OpenTelemetry: logs, metricas y trazas como una sola historia observable.
+- OWASP Logging: telemetria util sin exponer tokens, contrasenas, chats
+  completos ni datos sensibles.
+- Windows Error Reporting LocalDumps: metadatos locales de crash sin subir dumps
+  automaticamente.
 - OpenAI Evals: evaluar comportamiento de IA con casos y trazas, no solo
   compilar codigo.
 - NIST AI RMF: controlar riesgos de IA durante todo el ciclo de vida.
@@ -119,13 +123,17 @@ El release candidate queda listo cuando:
 - `desktop-agent/contracts/runtime-governor-state.schema.json`
 - `desktop-agent/contracts/evaluation-release-state.schema.json`
 - `desktop-agent/contracts/window-reality-state.schema.json`
+- `desktop-agent/contracts/support-telemetry-state.schema.json`
+- `desktop-agent/contracts/support-telemetry-event.schema.json`
 - `desktop-agent/ariadgsm_agent/runtime_governor.py`
 - `desktop-agent/ariadgsm_agent/window_reality.py`
+- `desktop-agent/ariadgsm_agent/support_telemetry.py`
 - `desktop-agent/ariadgsm_agent/release_evaluation.py`
 - `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
 - `desktop-agent/tests/window_reality_resolver.py`
+- `desktop-agent/tests/support_telemetry_core.py`
 - `desktop-agent/tests/evaluation_release.py`
-- paquete `AriadGSMAgent-0.9.1.zip`
+- paquete `AriadGSMAgent-0.9.2.zip`
 
 ## 5. Definicion de terminado
 
@@ -137,6 +145,8 @@ Etapa 15 queda cerrada cuando:
 - existen checkpoints durables;
 - hay evaluation harness local;
 - hay trace grading local;
+- Support & Telemetry Core genera caja negra local, traceId/correlationId,
+  incidentes redactados y Support Bundle seguro;
 - updater/rollback/manifest quedan verificados;
 - long-run simulado pasa;
 - release candidate queda empaquetado;

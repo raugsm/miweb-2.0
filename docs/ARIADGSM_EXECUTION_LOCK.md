@@ -527,6 +527,35 @@ Impacto en etapas:
 - Etapa 12: Hands solo actua si `handsMayAct=true`.
 - Etapa 15: Evaluation + Release valida contrato, documento y paquete.
 
+### 6.8.6 Support & Telemetry Core
+
+Estado:
+
+```text
+CERRADA COMO CAPA TRANSVERSAL EN 0.9.2
+```
+
+Objetivo:
+
+Crear soporte formal, telemetria, caja negra local y diagnostico humano para
+entender por que AriadGSM IA Local observa, decide, falla, se detiene, no actua
+o necesita ayuda.
+
+Existe:
+
+- `docs/ARIADGSM_SUPPORT_TELEMETRY_CORE_FINAL.md`
+- `desktop-agent/contracts/support-telemetry-state.schema.json`
+- `desktop-agent/contracts/support-telemetry-event.schema.json`
+- `desktop-agent/ariadgsm_agent/support_telemetry.py`
+- `desktop-agent/tests/support_telemetry_core.py`
+- integracion con `AgentRuntime.cs`, Runtime Kernel, Cloud Sync y Evaluation
+
+Regla de privacidad:
+
+- no subir capturas, chats completos, tokens, contrasenas, cookies ni dumps;
+- la nube recibe solo resumen seguro;
+- el Support Bundle queda local y requiere permiso explicito antes de enviarse.
+
 ### 6.9 Living Memory
 
 Estado:
@@ -780,7 +809,7 @@ Pendiente para autonomia final:
 Estado:
 
 ```text
-CERRADA COMO RELEASE CANDIDATE EN 0.9.1
+CERRADA COMO RELEASE CANDIDATE EN 0.9.2
 ```
 
 Objetivo:
@@ -808,11 +837,15 @@ Existe:
 - `desktop-agent/contracts/runtime-governor-state.schema.json`
 - `desktop-agent/contracts/evaluation-release-state.schema.json`
 - `desktop-agent/contracts/window-reality-state.schema.json`
+- `desktop-agent/contracts/support-telemetry-state.schema.json`
+- `desktop-agent/contracts/support-telemetry-event.schema.json`
 - `desktop-agent/ariadgsm_agent/runtime_governor.py`
 - `desktop-agent/ariadgsm_agent/window_reality.py`
+- `desktop-agent/ariadgsm_agent/support_telemetry.py`
 - `desktop-agent/ariadgsm_agent/release_evaluation.py`
 - `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/AgentRuntime.ProcessGovernor.cs`
 - `desktop-agent/tests/evaluation_release.py`
+- `desktop-agent/tests/support_telemetry_core.py`
 
 Pendiente fuera de construccion:
 
@@ -879,18 +912,18 @@ siguiente accion no es otra etapa de construccion: es validar el release
 candidate en la PC real.
 
 ```text
-Release Candidate 0.9.1: prueba real supervisada de cabina completa
+Release Candidate 0.9.2: prueba real supervisada de cabina completa
 ```
 
 Alcance:
 
 ```text
-arrancar app desde paquete 0.9.1
+arrancar app desde paquete 0.9.2
 iniciar sesion
 alistar Edge=wa-1, Chrome=wa-2, Firefox=wa-3 sin cerrar ventanas
 encender IA
 observar Window Reality Resolver, lectura, razonamiento, permisos, manos y sincronizacion
-revisar Evaluation Release, Runtime Kernel y Runtime Governor
+revisar Evaluation Release, Runtime Kernel, Runtime Governor y Support & Telemetry
 aceptar o rechazar el release candidate con evidencia
 ```
 

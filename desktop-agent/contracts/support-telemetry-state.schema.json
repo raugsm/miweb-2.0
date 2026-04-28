@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/support-telemetry-state.schema.json",
+  "title": "AriadGSM Support Telemetry State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "contract",
+    "traceId",
+    "correlationId",
+    "policy",
+    "sources",
+    "summary",
+    "incidents",
+    "blackbox",
+    "supportBundle",
+    "privacy",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "attention", "blocked", "idle", "error"] },
+    "engine": { "type": "string", "const": "ariadgsm_support_telemetry_core" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "contract": { "type": "string", "const": "support_telemetry_state" },
+    "traceId": { "type": "string", "minLength": 8 },
+    "correlationId": { "type": "string", "minLength": 8 },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "signals",
+        "localFirst",
+        "redactionRequired",
+        "supportBundleRequiresConsent",
+        "rawScreenshotsUploaded",
+        "fullChatsUploaded",
+        "tokensLogged"
+      ],
+      "properties": {
+        "signals": { "type": "array", "minItems": 3, "items": { "type": "string" } },
+        "localFirst": { "type": "boolean" },
+        "redactionRequired": { "type": "boolean" },
+        "supportBundleRequiresConsent": { "type": "boolean" },
+        "rawScreenshotsUploaded": { "type": "boolean" },
+        "fullChatsUploaded": { "type": "boolean" },
+        "tokensLogged": { "type": "boolean" }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["sourceId", "file", "status", "category"],
+        "properties": {
+          "sourceId": { "type": "string" },
+          "file": { "type": "string" },
+          "status": { "type": "string" },
+          "category": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "sourcesRead",
+        "incidentsOpen",
+        "criticalIncidents",
+        "warningIncidents",
+        "traceEventsWritten",
+        "blackboxEventsRetained",
+        "bundleReady",
+        "cloudSafeEventsPrepared",
+        "redactionsApplied"
+      ],
+      "properties": {
+        "sourcesRead": { "type": "integer", "minimum": 0 },
+        "incidentsOpen": { "type": "integer", "minimum": 0 },
+        "criticalIncidents": { "type": "integer", "minimum": 0 },
+        "warningIncidents": { "type": "integer", "minimum": 0 },
+        "traceEventsWritten": { "type": "integer", "minimum": 0 },
+        "blackboxEventsRetained": { "type": "integer", "minimum": 0 },
+        "bundleReady": { "type": "boolean" },
+        "cloudSafeEventsPrepared": { "type": "integer", "minimum": 0 },
+        "redactionsApplied": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "incidents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "incidentId",
+          "createdAt",
+          "traceId",
+          "correlationId",
+          "source",
+          "severity",
+          "category",
+          "summary",
+          "detail",
+          "privacy"
+        ],
+        "properties": {
+          "incidentId": { "type": "string" },
+          "createdAt": { "type": "string" },
+          "traceId": { "type": "string" },
+          "correlationId": { "type": "string" },
+          "source": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "warning", "error", "critical"] },
+          "category": { "type": "string" },
+          "summary": { "type": "string" },
+          "detail": { "type": "string" },
+          "privacy": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "blackbox": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "retentionEvents", "retainedEvents", "maxBytes", "localOnly"],
+      "properties": {
+        "path": { "type": "string" },
+        "retentionEvents": { "type": "integer", "minimum": 0 },
+        "retainedEvents": { "type": "integer", "minimum": 0 },
+        "maxBytes": { "type": "integer", "minimum": 0 },
+        "localOnly": { "type": "boolean" }
+      }
+    },
+    "supportBundle": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["ready", "path", "manifest", "requiresConsent", "containsRawScreenshots", "containsFullChats", "containsSecrets"],
+      "properties": {
+        "ready": { "type": "boolean" },
+        "path": { "type": "string" },
+        "manifest": { "type": "string" },
+        "requiresConsent": { "type": "boolean" },
+        "containsRawScreenshots": { "type": "boolean" },
+        "containsFullChats": { "type": "boolean" },
+        "containsSecrets": { "type": "boolean" }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["redactionApplied", "sensitiveUploadBlocked", "requiresExplicitUploadConsent"],
+      "properties": {
+        "redactionApplied": { "type": "boolean" },
+        "sensitiveUploadBlocked": { "type": "boolean" },
+        "requiresExplicitUploadConsent": { "type": "boolean" }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queEstaPasando", "queQuedoListo", "queNecesitoDeBryams", "riesgos"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queEstaPasando": { "type": "array", "items": { "type": "string" } },
+        "queQuedoListo": { "type": "array", "items": { "type": "string" } },
+        "queNecesitoDeBryams": { "type": "array", "items": { "type": "string" } },
+        "riesgos": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
