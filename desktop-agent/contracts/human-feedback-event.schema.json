@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/human-feedback-event.schema.json",
+  "title": "AriadGSM Human Feedback Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventType",
+    "feedbackId",
+    "createdAt",
+    "feedbackKind",
+    "targetEventId",
+    "summary",
+    "actor"
+  ],
+  "properties": {
+    "eventType": { "type": "string", "const": "human_feedback_event" },
+    "feedbackId": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "minLength": 1 },
+    "feedbackKind": {
+      "type": "string",
+      "enum": ["correction", "approval_granted", "approval_rejected", "operator_override", "note"]
+    },
+    "targetEventId": { "type": "string", "minLength": 1 },
+    "targetEventType": { "type": "string" },
+    "channelId": { "type": ["string", "null"] },
+    "conversationId": { "type": ["string", "null"] },
+    "caseId": { "type": ["string", "null"] },
+    "customerId": { "type": ["string", "null"] },
+    "summary": { "type": "string", "minLength": 1 },
+    "correction": { "type": "string" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "requiresFollowUp": { "type": "boolean" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "type": "string", "enum": ["human"] },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
+

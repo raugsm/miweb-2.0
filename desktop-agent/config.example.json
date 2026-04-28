@@ -38,6 +38,7 @@
     "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
     "learningEventsFile": "./desktop-agent/runtime/learning-events.jsonl",
     "accountingEventsFile": "./desktop-agent/runtime/accounting-events.jsonl",
+    "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
     "stateFile": "./desktop-agent/runtime/memory-state.json",
     "db": "./desktop-agent/runtime/memory-core.sqlite",
     "limit": 500
@@ -53,10 +54,16 @@
     "learningEventsFile": "./desktop-agent/runtime/learning-events.jsonl",
     "actionEventsFile": "./desktop-agent/runtime/action-events.jsonl",
     "autonomousCycleEventsFile": "./desktop-agent/runtime/autonomous-cycle-events.jsonl",
+    "humanFeedbackEventsFile": "./desktop-agent/runtime/human-feedback-events.jsonl",
     "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
     "stateFile": "./desktop-agent/runtime/domain-events-state.json",
     "db": "./desktop-agent/runtime/domain-events.sqlite",
     "limit": 500
+  },
+  "domainContractsCore": {
+    "stateFile": "./desktop-agent/runtime/domain-contracts-final-state.json",
+    "reportFile": "./desktop-agent/runtime/domain-contracts-final-report.json",
+    "version": "0.8.2"
   },
   "autonomousCycleCore": {
     "stateFile": "./desktop-agent/runtime/autonomous-cycle-state.json",

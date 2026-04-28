@@ -198,6 +198,24 @@ class MemoryStore:
               created_at text not null,
               updated_at text not null
             );
+            create table if not exists memory_domain_events (
+              event_id text primary key,
+              event_type text not null,
+              source_domain text not null,
+              correlation_id text,
+              conversation_id text,
+              case_id text,
+              customer_id text,
+              risk_level text,
+              requires_human_review integer not null,
+              confidence real not null,
+              summary text,
+              event_json text not null,
+              created_at text not null
+            );
+            create index if not exists idx_memory_domain_events_conversation on memory_domain_events(conversation_id);
+            create index if not exists idx_memory_domain_events_case on memory_domain_events(case_id);
+            create index if not exists idx_memory_domain_events_type on memory_domain_events(event_type);
 
             -- Legacy tables used by DesktopAgentService. Kept for compatibility.
             create table if not exists observations (
@@ -568,6 +586,152 @@ class MemoryStore:
             self.mark_processed(source_key, "accounting_event", now)
         return {"events": 1, "duplicates": 0, "accounting": 1}
 
+    def ingest_domain_event(self, event: dict[str, Any]) -> dict[str, int]:
+        event_id = clean_text(event.get("eventId"))
+        if not event_id or not clean_text(event.get("sourceDomain")):
+            return {"events": 0, "duplicates": 0, "domainEvents": 0, "domainKnowledge": 0}
+        source_key = event_key(event, ("eventId",), "domain")
+        if self.has_processed_event(source_key):
+            return {"events": 0, "duplicates": 1, "domainEvents": 0, "domainKnowledge": 0}
+
+        now = utc_now()
+        event_type = clean_text(event.get("eventType"))
+        data = event.get("data") if isinstance(event.get("data"), dict) else {}
+        risk = event.get("risk") if isinstance(event.get("risk"), dict) else {}
+        evidence = event.get("evidence") if isinstance(event.get("evidence"), list) else []
+        first_evidence = evidence[0] if evidence and isinstance(evidence[0], dict) else {}
+        summary = clean_text(data.get("summary") or first_evidence.get("summary") or event_type)
+        conversation_id = clean_text(event.get("conversationId")) or "domain-only"
+        channel_id = clean_text(event.get("channelId")) or "unknown"
+        title = clean_text(data.get("conversationTitle")) or conversation_id
+        knowledge_created = 0
+
+        with self.conn:
+            self.conn.execute(
+                """
+                insert or ignore into memory_domain_events (
+                  event_id, event_type, source_domain, correlation_id, conversation_id,
+                  case_id, customer_id, risk_level, requires_human_review, confidence,
+                  summary, event_json, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_id,
+                    event_type,
+                    clean_text(event.get("sourceDomain")),
+                    clean_text(event.get("correlationId")),
+                    clean_text(event.get("conversationId")),
+                    clean_text(event.get("caseId")),
+                    clean_text(event.get("customerId")),
+                    clean_text(risk.get("riskLevel")),
+                    1 if event.get("requiresHumanReview") else 0,
+                    safe_float(event.get("confidence"), 0.0),
+                    summary,
+                    json.dumps(event, ensure_ascii=False, separators=(",", ":")),
+                    clean_text(event.get("createdAt")) or now,
+                ),
+            )
+            self.conn.execute(
+                """
+                insert into memory_conversations (
+                  conversation_id, channel_id, title, source, first_seen_at, last_seen_at,
+                  message_count, decision_count, accounting_count, learning_count,
+                  last_intent, countries_json, services_json, languages_json, updated_at
+                ) values (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, '[]', '[]', '[]', ?)
+                on conflict(conversation_id) do update set
+                  last_seen_at = excluded.last_seen_at,
+                  updated_at = excluded.updated_at
+                """,
+                (conversation_id, channel_id, title, "domain_event", now, now, event_type, now),
+            )
+
+            if event_type.startswith("Payment") or event_type.startswith("Debt") or event_type.startswith("Refund") or event_type.startswith("Quote"):
+                self.conn.execute(
+                    """
+                    insert or ignore into memory_accounting_events (
+                      accounting_id, source_key, conversation_id, client_name, kind,
+                      amount, currency, status, confidence, event_json, created_at
+                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event_id,
+                        source_key,
+                        clean_text(event.get("conversationId")),
+                        clean_text(data.get("clientName") or event.get("customerId")),
+                        event_type,
+                        data.get("amount"),
+                        clean_text(data.get("currency")),
+                        clean_text(data.get("status") or "domain_event"),
+                        safe_float(event.get("confidence"), 0.0),
+                        json.dumps(event, ensure_ascii=False, separators=(",", ":")),
+                        clean_text(event.get("createdAt")) or now,
+                    ),
+                )
+                self.conn.execute(
+                    "update memory_conversations set accounting_count = accounting_count + 1, updated_at = ? where conversation_id = ?",
+                    (now, conversation_id),
+                )
+
+            if event_type.startswith("Decision") or event_type.startswith("HumanApproval") or event_type.startswith("Action") or event_type.startswith("ChannelRoute"):
+                self.conn.execute(
+                    """
+                    insert or ignore into memory_decisions (
+                      decision_id, source_key, conversation_id, channel_id, intent,
+                      confidence, proposed_action, requires_confirmation,
+                      reasoning_summary, event_json, created_at
+                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event_id,
+                        source_key,
+                        clean_text(event.get("conversationId")),
+                        channel_id,
+                        event_type,
+                        safe_float(event.get("confidence"), 0.0),
+                        clean_text(data.get("proposedAction") or data.get("actionType") or event_type),
+                        1 if event.get("requiresHumanReview") else 0,
+                        summary,
+                        json.dumps(event, ensure_ascii=False, separators=(",", ":")),
+                        clean_text(event.get("createdAt")) or now,
+                    ),
+                )
+                self.conn.execute(
+                    "update memory_conversations set decision_count = decision_count + 1, last_intent = ?, updated_at = ? where conversation_id = ?",
+                    (event_type, now, conversation_id),
+                )
+
+            if event_type.startswith("Learning") or event_type.startswith("Memory") or event_type.startswith("HumanCorrection") or event_type == "OperatorNoteAdded":
+                knowledge_id = f"domain-knowledge-{stable_hash(event_type + '|' + conversation_id + '|' + summary)}"
+                self.conn.execute(
+                    """
+                    insert or ignore into memory_knowledge (
+                      knowledge_id, knowledge_type, source_key, conversation_id,
+                      title, summary, confidence, applies_to_json, created_at, updated_at
+                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        knowledge_id,
+                        event_type,
+                        source_key,
+                        clean_text(event.get("conversationId")),
+                        event_type,
+                        summary,
+                        safe_float(event.get("confidence"), 0.0),
+                        json.dumps([event_type], ensure_ascii=False),
+                        now,
+                        now,
+                    ),
+                )
+                if self.conn.total_changes:
+                    knowledge_created = 1
+                self.conn.execute(
+                    "update memory_conversations set learning_count = learning_count + 1, updated_at = ? where conversation_id = ?",
+                    (now, conversation_id),
+                )
+
+            self.mark_processed(source_key, "domain_event", now)
+        return {"events": 1, "duplicates": 0, "domainEvents": 1, "domainKnowledge": knowledge_created}
+
     def customer_profile(self, conversation_id: str) -> dict[str, Any] | None:
         row = self.conn.execute(
             "select * from memory_conversations where conversation_id = ? limit 1",
@@ -651,6 +815,7 @@ class MemoryStore:
             "memoryDecisions": scalar("select count(*) from memory_decisions"),
             "learningEvents": scalar("select count(*) from memory_learning_events"),
             "accountingEvents": scalar("select count(*) from memory_accounting_events"),
+            "domainEvents": scalar("select count(*) from memory_domain_events"),
             "knowledgeItems": scalar("select count(*) from memory_knowledge"),
             "observations": scalar("select count(*) from observations"),
             "latestDecision": dict(latest_decision) if latest_decision else (dict(legacy_latest) if legacy_latest else None),
@@ -755,6 +920,7 @@ def run_memory_once(
     state_file: Path,
     db_path: Path,
     limit: int = 500,
+    domain_events_file: Path | None = None,
 ) -> dict[str, Any]:
     store = MemoryStore(db_path)
     ingested: dict[str, int] = {
@@ -767,8 +933,13 @@ def run_memory_once(
         "learning": 0,
         "knowledge": 0,
         "accounting": 0,
+        "domainEvents": 0,
+        "domainKnowledge": 0,
     }
     try:
+        if domain_events_file is not None:
+            for event in read_jsonl_events(domain_events_file, None, limit):
+                add_counts(ingested, store.ingest_domain_event(event))
         for event in read_jsonl_events(conversation_events_file, "conversation_event", limit):
             add_counts(ingested, store.ingest_conversation(event))
         for event in read_jsonl_events(cognitive_decision_events_file, "decision_event", limit):
@@ -789,6 +960,7 @@ def run_memory_once(
             "operatingDecisionEventsFile": str(operating_decision_events_file),
             "learningEventsFile": str(learning_events_file),
             "accountingEventsFile": str(accounting_events_file),
+            "domainEventsFile": str(domain_events_file) if domain_events_file is not None else None,
             "ingested": ingested,
             "summary": store.summary(),
         }
@@ -805,6 +977,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--operating-decisions", default="runtime/decision-events.jsonl")
     parser.add_argument("--learning-events", default="runtime/learning-events.jsonl")
     parser.add_argument("--accounting-events", default="runtime/accounting-events.jsonl")
+    parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
     parser.add_argument("--state-file", default="runtime/memory-state.json")
     parser.add_argument("--db", default="runtime/memory-core.sqlite")
     parser.add_argument("--limit", type=int, default=500)
@@ -827,6 +1000,7 @@ def main() -> int:
         resolve_runtime_path(args.state_file),
         resolve_runtime_path(args.db),
         limit=args.limit,
+        domain_events_file=resolve_runtime_path(args.domain_events),
     )
     if args.json:
         print(json.dumps(state, ensure_ascii=False, indent=2))

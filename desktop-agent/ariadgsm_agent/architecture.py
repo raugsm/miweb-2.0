@@ -13,6 +13,7 @@ class Layer:
 
 LAYERS: tuple[Layer, ...] = (
     Layer("Stage 0 Product Foundation", "Python + Docs", "Validate product foundation, execution lock, versioning and release readiness.", "stage_zero_readiness"),
+    Layer("Domain Contract Governance", "Python", "Validate domain event registry, adapter coverage, human corrections and event-first memory readiness.", "domain_contracts_final_readiness"),
     Layer("Vision Engine", "C#/.NET", "Live desktop capture, change detection and temporary local visual evidence.", "vision_event"),
     Layer("Perception Engine", "C#/.NET + Python", "Convert pixels, OCR and accessibility into business-visible objects.", "perception_event"),
     Layer("Timeline Engine", "Python", "Unify live and historical messages into one deduplicated conversation timeline.", "conversation_event"),
@@ -39,6 +40,7 @@ AUTONOMY_LEVELS: dict[int, str] = {
 
 CONTRACT_NAMES: tuple[str, ...] = (
     "stage_zero_readiness",
+    "domain_contracts_final_readiness",
     "vision_event",
     "perception_event",
     "conversation_event",
@@ -47,6 +49,7 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "accounting_event",
     "learning_event",
     "autonomous_cycle_event",
+    "human_feedback_event",
     "domain_event",
 )
 

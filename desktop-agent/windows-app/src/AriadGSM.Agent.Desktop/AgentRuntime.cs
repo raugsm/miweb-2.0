@@ -1911,14 +1911,16 @@ internal sealed partial class AgentRuntime : IDisposable
         var modules = new[]
         {
             ("StageZero", "ariadgsm_agent.stage_zero", new[] { "--json" }),
+            ("DomainContracts", "ariadgsm_agent.domain_contracts", new[] { "--json" }),
             ("AutonomousCycleStart", "ariadgsm_agent.autonomous_cycle", new[] { "--trigger", "start", "--json" }),
             ("Timeline", "ariadgsm_agent.timeline", new[] { "--json" }),
             ("Cognitive", "ariadgsm_agent.cognitive", new[] { "--autonomy-level", "3", "--json" }),
             ("Operating", "ariadgsm_agent.operating", new[] { "--autonomy-level", "3", "--json" }),
+            ("DomainEventsBeforeMemory", "ariadgsm_agent.domain_events", new[] { "--json" }),
             ("Memory", "ariadgsm_agent.memory", new[] { "--json" }),
             ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" }),
             ("AutonomousCycle", "ariadgsm_agent.autonomous_cycle", new[] { "--json" }),
-            ("DomainEvents", "ariadgsm_agent.domain_events", new[] { "--json" })
+            ("DomainEventsAfterCycle", "ariadgsm_agent.domain_events", new[] { "--json" })
         };
 
         foreach (var (name, module, args) in modules)

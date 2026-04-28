@@ -73,12 +73,13 @@ La IA debe comportarse como Bryams a nivel operativo:
 Orden de autoridad:
 
 1. `docs/ARIADGSM_EXECUTION_LOCK.md`
-2. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
-3. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
-4. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
-5. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
-6. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
-7. Documentos tecnicos por motor dentro de `desktop-agent/`
+2. `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
+3. `docs/ARIADGSM_FINAL_PRODUCT_BLUEPRINT.md`
+4. `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
+5. `docs/ARIADGSM_BUSINESS_DOMAIN_MAP.md`
+6. `docs/ARIADGSM_BUSINESS_OPERATING_MODEL.md`
+7. `docs/ARIADGSM_AUTONOMOUS_OPERATING_SYSTEM_1.0.md`
+8. Documentos tecnicos por motor dentro de `desktop-agent/`
 
 Si hay conflicto, manda este archivo.
 
@@ -131,7 +132,7 @@ Pendiente para considerarlo producto final:
 Estado:
 
 ```text
-BASE IMPLEMENTADA
+CERRADA COMO CONTRATO OPERATIVO FINAL 0.8.2
 ```
 
 Ya existe:
@@ -139,15 +140,16 @@ Ya existe:
 - `desktop-agent/contracts/domain-event-envelope.schema.json`
 - `desktop-agent/contracts/domain-event-registry.json`
 - `desktop-agent/ariadgsm_agent/domain_events.py`
+- `desktop-agent/ariadgsm_agent/domain_contracts.py`
 - `desktop-agent/tests/domain_events_contracts.py`
+- `desktop-agent/tests/domain_contracts_finalization.py`
 - `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS.md`
+- `docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS_FINALIZATION.md`
 
 Pendiente para considerarlo producto final:
 
-- conectar todos los motores a estos eventos como fuente principal;
-- prohibir decisiones importantes fuera de domain events;
-- agregar eventos humanos/correcciones si faltan;
-- versionar contratos cuando cambien.
+- ninguno dentro de Etapa 1; Case Manager debe consumir esta columna sin crear
+  un idioma paralelo.
 
 ### 6.2 Autonomous Cycle Orchestrator
 
@@ -355,26 +357,25 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como `Product Foundation` queda cerrada y `Domain Event Contracts` solo tiene
-base implementada, el siguiente bloque activo es:
+Como `Product Foundation` y `Domain Event Contracts` quedan cerrados, y
+`Autonomous Cycle Orchestrator` ya esta implementado como ciclo central, el
+siguiente bloque activo es:
 
 ```text
-Domain Event Contracts cierre final
+Case Manager
 ```
-
-No se debe saltar a `Case Manager` hasta cerrar Etapa 1 como producto final.
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS_FINALIZATION.md
+docs/ARIADGSM_CASE_MANAGER_DESIGN.md
 ```
 
 Y el entregable tecnico minimo posterior es:
 
 ```text
+desktop-agent/ariadgsm_agent/case_manager.py
 desktop-agent/contracts/domain-event-registry.json
-desktop-agent/ariadgsm_agent/domain_events.py
-desktop-agent/tests/domain_events_contracts.py
-integracion obligatoria desde motores principales hacia domain events
+desktop-agent/tests/case_manager.py
+integracion con Operating Core / Domain Events
 ```

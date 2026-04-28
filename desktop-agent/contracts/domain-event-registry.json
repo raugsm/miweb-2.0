@@ -1,5 +1,7 @@
 {
-  "schemaVersion": "0.7.0",
+  "schemaVersion": "0.8.2",
+  "previousSchemaVersions": ["0.7.0"],
+  "compatibility": "backward_compatible",
   "eventTypes": {
     "ObservationCreated": {
       "category": "observation",
@@ -360,6 +362,30 @@
       "allowedSourceDomains": ["HumanCollaboration", "MemoryCore"],
       "defaultRiskLevel": "medium",
       "description": "A human correction was received."
+    },
+    "HumanApprovalGranted": {
+      "category": "human",
+      "allowedSourceDomains": ["HumanCollaboration"],
+      "defaultRiskLevel": "medium",
+      "description": "Bryams approved a proposed decision, action, route or accounting draft."
+    },
+    "HumanApprovalRejected": {
+      "category": "human",
+      "allowedSourceDomains": ["HumanCollaboration"],
+      "defaultRiskLevel": "medium",
+      "description": "Bryams rejected a proposed decision, action, route or accounting draft."
+    },
+    "OperatorOverrideRecorded": {
+      "category": "human",
+      "allowedSourceDomains": ["HumanCollaboration"],
+      "defaultRiskLevel": "high",
+      "description": "The operator overrode the IA path and the reason was recorded."
+    },
+    "OperatorNoteAdded": {
+      "category": "human",
+      "allowedSourceDomains": ["HumanCollaboration"],
+      "defaultRiskLevel": "low",
+      "description": "A human note was attached to the business timeline."
     },
     "EvalCaseCreated": {
       "category": "evaluation",

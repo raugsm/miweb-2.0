@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 from ariadgsm_agent.contracts import sample_event, validate_contract
 from ariadgsm_agent.domain_events import adapt_engine_event, run_domain_events_once
+from ariadgsm_agent.memory import run_memory_once
 
 
 def write_jsonl(path: Path, *events: dict[str, object]) -> None:
@@ -123,6 +124,23 @@ def main() -> int:
         "confidence": 0.9,
         "appliesTo": ["accounting_payment"],
     }
+    human_feedback_event = {
+        "eventType": "human_feedback_event",
+        "feedbackId": "human-domain-test",
+        "createdAt": "2026-04-27T19:05:00Z",
+        "feedbackKind": "correction",
+        "targetEventId": "domain-payment-test",
+        "targetEventType": "PaymentDrafted",
+        "channelId": "wa-2",
+        "conversationId": "wa-2-cliente-pago",
+        "caseId": "case-wa-2-cliente-pago",
+        "customerId": "customer-wa-2-cliente-pago",
+        "summary": "Ese pago debe seguir como borrador.",
+        "correction": "Falta comprobante.",
+        "confidence": 1.0,
+        "requiresFollowUp": True,
+        "actor": {"type": "human", "id": "bryams"},
+    }
 
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -131,17 +149,21 @@ def main() -> int:
         action_file = root / "action-events.jsonl"
         decision_file = root / "decision-events.jsonl"
         learning_file = root / "learning-events.jsonl"
+        human_file = root / "human-feedback-events.jsonl"
         domain_file = root / "domain-events.jsonl"
         state_file = root / "domain-events-state.json"
         db_file = root / "domain-events.sqlite"
+        memory_state_file = root / "memory-state.json"
+        memory_db_file = root / "memory.sqlite"
         write_jsonl(conversation_file, payment_conversation, group_conversation, browser_conversation)
         write_jsonl(accounting_file, accounting_event)
         write_jsonl(action_file, action_event)
         write_jsonl(decision_file, decision_event)
         write_jsonl(learning_file, learning_event)
+        write_jsonl(human_file, human_feedback_event)
 
         state = run_domain_events_once(
-            [conversation_file, accounting_file, action_file, decision_file, learning_file],
+            [conversation_file, accounting_file, action_file, decision_file, learning_file, human_file],
             domain_file,
             state_file,
             db_file,
@@ -153,12 +175,27 @@ def main() -> int:
         assert "PaymentDrafted" in state["summary"]["byType"], state
         assert "ActionVerified" in state["summary"]["byType"], state
         assert "LearningCandidateCreated" in state["summary"]["byType"], state
+        assert "HumanCorrectionReceived" in state["summary"]["byType"], state
         assert state["summary"]["requiresHumanReview"] >= 2, state
         assert state["humanReport"]["queNecesitoDeBryams"], state
         assert domain_file.exists()
 
+        memory_state = run_memory_once(
+            conversation_file,
+            decision_file,
+            decision_file,
+            learning_file,
+            accounting_file,
+            memory_state_file,
+            memory_db_file,
+            limit=100,
+            domain_events_file=domain_file,
+        )
+        assert memory_state["ingested"]["domainEvents"] >= state["ingested"]["domainEvents"], memory_state
+        assert memory_state["summary"]["domainEvents"] >= state["ingested"]["domainEvents"], memory_state
+
         repeated = run_domain_events_once(
-            [conversation_file, accounting_file, action_file, decision_file, learning_file],
+            [conversation_file, accounting_file, action_file, decision_file, learning_file, human_file],
             domain_file,
             state_file,
             db_file,

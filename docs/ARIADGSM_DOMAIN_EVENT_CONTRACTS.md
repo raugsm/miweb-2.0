@@ -1,7 +1,7 @@
 # AriadGSM Domain Event Contracts
 
 Fecha: 2026-04-27
-Estado: implementado como base ejecutable para `0.7.0-domain-core`
+Estado: cerrado como contrato operativo final para `0.8.2-domain-contracts`
 
 Este documento define el idioma interno que usara AriadGSM IA para que sus
 capacidades mentales no se comuniquen con texto suelto, capturas ambiguas o
@@ -1118,4 +1118,39 @@ La meta de esta capa:
 ```text
 Que AriadGSM IA deje de actuar por parches y empiece a pensar sobre una historia
 de negocio verificable.
+```
+
+---
+
+## 16. Cierre final 0.8.2
+
+La etapa `Domain Event Contracts` queda cerrada en `0.8.2` con estos cambios:
+
+1. Registro versionado `0.8.2` con compatibilidad hacia `0.7.0`.
+2. Eventos humanos/correcciones agregados:
+   - `HumanCorrectionReceived`
+   - `HumanApprovalGranted`
+   - `HumanApprovalRejected`
+   - `OperatorOverrideRecorded`
+   - `OperatorNoteAdded`
+3. Contrato tecnico `human_feedback_event`.
+4. Verificador `ariadgsm_agent.domain_contracts`.
+5. Reportes:
+   - `runtime/domain-contracts-final-state.json`
+   - `runtime/domain-contracts-final-report.json`
+6. `DomainEvents` corre antes de `Memory` para que Memory pueda proyectar
+   eventos de negocio.
+7. `Memory Core` conserva compatibilidad con eventos tecnicos, pero tambien
+   ingiere `domain-events.jsonl` como fuente de negocio.
+8. El runtime vuelve a correr `DomainEvents` despues del checkpoint autonomo
+   para capturar ciclo, acciones y nuevas correcciones.
+
+Definicion de terminado:
+
+```text
+ariadgsm_agent.domain_contracts debe reportar ok.
+domain_events_contracts.py debe pasar.
+architecture_contracts.py debe pasar.
+Memory debe registrar domainEvents.
+AgentRuntime debe ejecutar DomainEventsBeforeMemory.
 ```

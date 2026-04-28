@@ -15,7 +15,7 @@ from .text import clean_text, looks_like_browser_ui_title, normalize
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_VERSION = "0.7.0"
+SCHEMA_VERSION = "0.8.2"
 SOURCE_SYSTEM = "ariadgsm-local-agent"
 
 IGNORED_GROUP_TITLES = (
@@ -33,6 +33,7 @@ ENGINE_ID_FIELDS: dict[str, tuple[str, ...]] = {
     "accounting_event": ("accountingId",),
     "learning_event": ("learningId",),
     "autonomous_cycle_event": ("cycleId",),
+    "human_feedback_event": ("feedbackId",),
 }
 
 ACCOUNTING_DOMAIN_EVENT: dict[str, str] = {
@@ -106,6 +107,8 @@ def source_domain_for_event(event: dict[str, Any]) -> str:
         return "HandsEngine"
     if event_type == "autonomous_cycle_event":
         return "AutonomousCycle"
+    if event_type == "human_feedback_event":
+        return "HumanCollaboration"
     if event_type == "decision_event":
         decision_id = clean_text(event.get("decisionId")).lower()
         if decision_id.startswith("operating-") or event.get("caseId"):
@@ -115,6 +118,8 @@ def source_domain_for_event(event: dict[str, Any]) -> str:
 
 
 def actor_for_domain(source_domain: str) -> dict[str, str]:
+    if source_domain == "HumanCollaboration":
+        return {"type": "human", "id": "bryams"}
     if source_domain in {"CognitiveCore", "BusinessBrain", "AccountingBrain", "ChannelRoutingBrain"}:
         return {"type": "ai", "id": "ariadgsm-business-brain"}
     if source_domain in {"VisionEngine", "PerceptionEngine", "HandsEngine", "AutonomousCycle"}:
@@ -150,6 +155,11 @@ def case_id_for(event: dict[str, Any], channel_id: str | None, conversation_id: 
     value = clean_text(event.get("caseId"))
     if value:
         return value
+    target = event.get("target")
+    if isinstance(target, dict):
+        value = clean_text(target.get("caseId"))
+        if value:
+            return value
     if conversation_id:
         return f"case-{stable_hash((channel_id or 'unknown') + '|' + conversation_id, 16)}"
     return None
@@ -159,6 +169,11 @@ def customer_id_for(event: dict[str, Any], conversation_id: str | None) -> str |
     value = clean_text(event.get("customerId"))
     if value:
         return value
+    target = event.get("target")
+    if isinstance(target, dict):
+        value = clean_text(target.get("customerId"))
+        if value:
+            return value
     if conversation_id:
         return f"customer-candidate-{stable_hash(conversation_id, 16)}"
     return "customer_pending"
@@ -744,6 +759,44 @@ def adapt_cycle_event(event: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def adapt_human_feedback_event(event: dict[str, Any]) -> list[dict[str, Any]]:
+    feedback_kind = clean_text(event.get("feedbackKind") or "note").lower()
+    domain_type = {
+        "correction": "HumanCorrectionReceived",
+        "approval_granted": "HumanApprovalGranted",
+        "approval_rejected": "HumanApprovalRejected",
+        "operator_override": "OperatorOverrideRecorded",
+        "note": "OperatorNoteAdded",
+    }.get(feedback_kind, "OperatorNoteAdded")
+    summary = clean_text(event.get("summary") or event.get("correction") or "Human feedback received.")
+    data = {
+        "feedbackId": source_event_id(event),
+        "feedbackKind": feedback_kind,
+        "targetEventId": clean_text(event.get("targetEventId")),
+        "targetEventType": clean_text(event.get("targetEventType")),
+        "summary": summary,
+        "correction": clean_text(event.get("correction")),
+        "requiresFollowUp": bool(event.get("requiresFollowUp")),
+    }
+    limitations: list[str] = []
+    if domain_type in {"HumanApprovalGranted", "HumanApprovalRejected", "OperatorOverrideRecorded"}:
+        limitations.append("Human decision changes operational permission state; keep full audit trail.")
+    return [
+        make_domain_event(
+            domain_type,
+            event,
+            subject_type="human_feedback",
+            subject_id=source_event_id(event),
+            data=data,
+            confidence=clamp(event.get("confidence"), 1.0),
+            summary=summary,
+            source_domain="HumanCollaboration",
+            autonomy_level=1,
+            limitations=limitations,
+        )
+    ]
+
+
 def adapt_engine_event(event: dict[str, Any]) -> list[dict[str, Any]]:
     event_type = clean_text(event.get("eventType"))
     if event_type == "vision_event":
@@ -762,6 +815,8 @@ def adapt_engine_event(event: dict[str, Any]) -> list[dict[str, Any]]:
         return adapt_learning_event(event)
     if event_type == "autonomous_cycle_event":
         return adapt_cycle_event(event)
+    if event_type == "human_feedback_event":
+        return adapt_human_feedback_event(event)
     return []
 
 
@@ -1021,6 +1076,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-events", default="runtime/learning-events.jsonl")
     parser.add_argument("--action-events", default="runtime/action-events.jsonl")
     parser.add_argument("--autonomous-cycle-events", default="runtime/autonomous-cycle-events.jsonl")
+    parser.add_argument("--human-feedback-events", default="runtime/human-feedback-events.jsonl")
     parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
     parser.add_argument("--state-file", default="runtime/domain-events-state.json")
     parser.add_argument("--db", default="runtime/domain-events.sqlite")
@@ -1046,6 +1102,7 @@ def main() -> int:
         resolve_runtime_path(args.learning_events),
         resolve_runtime_path(args.action_events),
         resolve_runtime_path(args.autonomous_cycle_events),
+        resolve_runtime_path(args.human_feedback_events),
     ]
     state = run_domain_events_once(
         source_files,

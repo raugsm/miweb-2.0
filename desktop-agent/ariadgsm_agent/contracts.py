@@ -12,6 +12,7 @@ CONTRACT_DIR = ROOT / "contracts"
 
 CONTRACT_FILES: dict[str, str] = {
     "stage_zero_readiness": "stage-zero-readiness.schema.json",
+    "domain_contracts_final_readiness": "domain-contracts-final-readiness.schema.json",
     "vision_event": "vision-event.schema.json",
     "perception_event": "perception-event.schema.json",
     "conversation_event": "conversation-event.schema.json",
@@ -20,6 +21,7 @@ CONTRACT_FILES: dict[str, str] = {
     "accounting_event": "accounting-event.schema.json",
     "learning_event": "learning-event.schema.json",
     "autonomous_cycle_event": "autonomous-cycle-event.schema.json",
+    "human_feedback_event": "human-feedback-event.schema.json",
     "domain_event": "domain-event-envelope.schema.json",
 }
 
@@ -174,6 +176,34 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "name": "Domain Event Contracts",
             "status": "base_implemented_needs_final_closure",
             "reason": "Etapa 1 debe cerrarse como producto final.",
+        },
+    },
+    "domain_contracts_final_readiness": {
+        "contractVersion": "0.8.2",
+        "stageId": "stage_one_domain_event_contracts",
+        "createdAt": utc_now(),
+        "version": "0.8.2",
+        "status": "ok",
+        "summary": "Etapa 1 ok: Domain Event Contracts cerrados.",
+        "checks": [
+            {
+                "checkId": "registry",
+                "name": "Registro de eventos",
+                "status": "ok",
+                "detail": "Registry versionado y completo.",
+                "evidence": ["desktop-agent/contracts/domain-event-registry.json"],
+            }
+        ],
+        "humanReport": {
+            "queQuedoListo": ["Domain Event Contracts cerrados."],
+            "queFalta": [],
+            "riesgos": ["Siguiente riesgo: Case Manager debe usar estos eventos."],
+        },
+        "nextStage": {
+            "stageNumber": 2,
+            "name": "Autonomous Cycle Orchestrator",
+            "status": "implemented_as_central_cycle",
+            "reason": "Etapa 2 ya existe; despues corresponde Case Manager.",
         },
     },
     "vision_event": {
@@ -383,10 +413,27 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
         "directives": {"gateDecision": "ALLOW", "allowedEngines": {"hands": True}},
         "humanReport": {"headline": "Estoy trabajando contigo", "summary": "Ciclo listo."},
     },
+    "human_feedback_event": {
+        "eventType": "human_feedback_event",
+        "feedbackId": "human-feedback-sample-1",
+        "createdAt": utc_now(),
+        "feedbackKind": "correction",
+        "targetEventId": "domain-sample-1",
+        "targetEventType": "PaymentDrafted",
+        "channelId": "wa-2",
+        "conversationId": "wa-2-cliente",
+        "caseId": "case-sample-1",
+        "customerId": "customer-sample-1",
+        "summary": "El pago aun no esta confirmado.",
+        "correction": "Mantener como borrador hasta ver comprobante.",
+        "confidence": 1.0,
+        "requiresFollowUp": True,
+        "actor": {"type": "human", "id": "bryams"},
+    },
     "domain_event": {
         "eventId": "evt-sample-1",
         "eventType": "ConversationObserved",
-        "schemaVersion": "0.7.0",
+        "schemaVersion": "0.8.2",
         "createdAt": utc_now(),
         "sourceDomain": "TimelineEngine",
         "sourceSystem": "ariadgsm-local-agent",
