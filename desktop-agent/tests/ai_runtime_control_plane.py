@@ -46,6 +46,10 @@ def main() -> int:
     assert "control-plane-command-ledger.jsonl" in control_plane_source
     assert "control-plane-checkpoints.jsonl" in control_plane_source
     assert "RequestControlPlaneStart" in control_plane_source
+    assert "IsStartSessionActive" in control_plane_source
+    assert "startsSession)" in control_plane_source
+    assert "_stopping = false;" in control_plane_source
+    assert 'throw new OperationCanceledException(inactiveReason)' in control_plane_source
     assert "BuildControlPlaneReadiness" in control_plane_source
     assert '"read"' in control_plane_source
     assert '"think"' in control_plane_source
@@ -55,6 +59,7 @@ def main() -> int:
     assert 'Stop("operator_button", "ui.pause_button")' in ui_source
     assert 'Stop("app_closing", "ui.form_closing")' in ui_source
     assert "RequestControlPlaneStart" in ui_source
+    assert "EnsureStartStillActive(startSessionId)" in ui_source
     assert "Encender IA: orden recibida por la interfaz" in ui_source
     assert "Alistamiento terminado: Encender IA queda disponible" in ui_source
     assert "_startButton.Enabled = true;" in ui_source
@@ -66,6 +71,8 @@ def main() -> int:
     assert 'Stop("prepare_whatsapps", "ui.prepare_whatsapps_button")' in ui_source
     assert "MarkBootPhase" in runtime_source
     assert "EnsureStartSession" in runtime_source
+    assert "ThrowIfStartSessionCancelled" in runtime_source
+    assert "StartAsync(startSessionId)" in ui_source
     assert '"sessionTruthSource"] = "control-plane-state.json"' in kernel_source
     assert '"canRead"] = canRead' in kernel_source
 

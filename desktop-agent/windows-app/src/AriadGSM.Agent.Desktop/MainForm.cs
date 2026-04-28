@@ -780,10 +780,15 @@ internal sealed class MainForm : Form
         }
 
         BringControlCenterToFront();
-        _runtime.RequestControlPlaneStart(
+        var startSessionId = _runtime.RequestControlPlaneStart(
             autonomous ? "ui.start_button_autonomous" : "ui.start_button_manual",
             autonomous ? "operator_authorized_autonomous_start" : "operator_authorized_manual_start");
         var update = await _runtime.CheckForUpdatesAsync().ConfigureAwait(true);
+        if (!EnsureStartStillActive(startSessionId))
+        {
+            return;
+        }
+
         AppendLog($"Actualizaciones: {update.Detail}");
         if (update.Available && update.AutoApply && _runtime.TryLaunchUpdater(update))
         {
@@ -793,6 +798,11 @@ internal sealed class MainForm : Form
         }
 
         var report = _runtime.Preflight();
+        if (!EnsureStartStillActive(startSessionId))
+        {
+            return;
+        }
+
         RefreshStatus(report);
 
         if (report.HasBlockingErrors)
@@ -811,6 +821,11 @@ internal sealed class MainForm : Form
         {
             AppendLog("Arranque solicitado: primero alisto la cabina completa; despues enciendo ojos, memoria y manos.");
             report = await _runtime.BootstrapAutonomousWorkspaceAsync(TimeSpan.FromSeconds(45)).ConfigureAwait(true);
+            if (!EnsureStartStillActive(startSessionId))
+            {
+                return;
+            }
+
             RefreshStatus(report);
         }
 
@@ -826,7 +841,7 @@ internal sealed class MainForm : Form
             AppendLog("Cabina preparada. Si algun canal falta, trabajo en modo degradado y lo dejo visible en el panel.");
         }
 
-        await _runtime.StartAsync().ConfigureAwait(true);
+        await _runtime.StartAsync(startSessionId).ConfigureAwait(true);
         await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
         RefreshStatus();
 
@@ -842,6 +857,18 @@ internal sealed class MainForm : Form
         {
             BringControlCenterToFront();
         }
+    }
+
+    private bool EnsureStartStillActive(string startSessionId)
+    {
+        if (_runtime.IsStartSessionActive(startSessionId, out var reason))
+        {
+            return true;
+        }
+
+        AppendLog($"Arranque cancelado: {reason}");
+        RefreshStatus();
+        return false;
     }
 
     private async Task LoginAndPrimeAsync()
@@ -1084,6 +1111,11 @@ internal sealed class MainForm : Form
         try
         {
             await action().ConfigureAwait(true);
+            RefreshStatus();
+        }
+        catch (OperationCanceledException exception)
+        {
+            AppendLog($"Operacion cancelada: {exception.Message}");
             RefreshStatus();
         }
         catch (Exception exception)

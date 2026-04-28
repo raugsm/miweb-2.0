@@ -1,8 +1,8 @@
 {
-  "version": "0.9.9",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.9.zip",
-  "sha256": "b834a9a78451df2571988bf31d078c1c01b428fe9a6776043972e795fddd4c80",
+  "version": "0.9.10",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.10.zip",
+  "sha256": "fb5beeb5830e3f33402a86986dd26c5060dbd637f0539c0cecabf3d75be18387",
   "autoApply": true,
-  "notes": "Version 0.9.9 consolidates Layer 5 Event, Timeline & Durable State Backbone: Reader Core and Timeline now consume JSONL incrementally by offset/checkpoint, keep SQLite as durable truth, compact Python-owned projections, and expose bytes/backlog/cycle metrics in the app.",
-  "publishedAt": "2026-04-28T21:57:00Z"
+  "notes": "Version 0.9.10 recovery release: fixes the live boot race where a cancelled start could continue into start_engines with a stale session, keeps the same runSessionId through update/cabin/preflight, and adds the operational truth matrix.",
+  "publishedAt": "2026-04-28T23:22:49Z"
 }

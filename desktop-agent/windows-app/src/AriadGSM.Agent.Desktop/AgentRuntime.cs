@@ -111,11 +111,12 @@ internal sealed partial class AgentRuntime : IDisposable
 
     public event Action<string>? LogReceived;
 
-    public async Task StartAsync()
+    public async Task StartAsync(string runSessionId)
     {
-        var startCommand = EnsureStartSession("life_controller.start_async", "start_engines");
+        var startCommand = EnsureStartSession("life_controller.start_async", "start_engines", runSessionId);
         MarkBootPhase("preflight", "running", "Revisando base local antes de encender motores.");
         WriteLifeState("starting", "preflight", "Revisando base local antes de encender motores.", "start");
+        ThrowIfStartSessionCancelled(runSessionId, startCommand);
         if (IsRunning)
         {
             WriteLog("Agent already running.");
@@ -126,6 +127,7 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         var report = Preflight();
+        ThrowIfStartSessionCancelled(runSessionId, startCommand);
         foreach (var item in report.Items.Where(item => item.Severity != HealthSeverity.Ok && item.Severity != HealthSeverity.Info))
         {
             WriteLog($"Preflight {item.Status}: {item.Name} - {item.Detail}");
@@ -142,6 +144,7 @@ internal sealed partial class AgentRuntime : IDisposable
         MarkBootPhase("preflight", "ok", "Diagnostico base aprobado.");
         Directory.CreateDirectory(_runtimeDir);
         WriteLog("Starting AriadGSM Agent without PowerShell.");
+        ThrowIfStartSessionCancelled(runSessionId, startCommand);
         StopExternalWorkerProcesses();
         MarkBootPhase("runtime_governor", "running", "Iniciando ownership de procesos AriadGSM.");
         StartRuntimeGovernor();
@@ -161,6 +164,7 @@ internal sealed partial class AgentRuntime : IDisposable
         MarkBootPhase("workers", "running", "Encendiendo ojos y preparando permisos frescos antes de manos.");
         WriteInputArbiterHeartbeatState("startup");
         await PrimeTrustSafetyAsync(CancellationToken.None).ConfigureAwait(false);
+        ThrowIfStartSessionCancelled(runSessionId, startCommand);
         StartWorker(
             "Vision",
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "vision", "AriadGSM.Vision.Worker.exe"),
@@ -191,12 +195,26 @@ internal sealed partial class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "hands-engine", "config", "hands.example.json"));
         MarkBootPhase("workers", "ok", "Workers solicitados y registrados por Runtime Governor.");
         MarkBootPhase("supervisor", "running", "Encendiendo supervisor de confiabilidad.");
+        ThrowIfStartSessionCancelled(runSessionId, startCommand);
         StartSupervisorLoop();
         MarkBootPhase("supervisor", "ok", "Supervisor de confiabilidad activo.");
         MarkBootPhase("readiness", "ready", "Lectura, pensamiento y accion quedan separados en Control Plane.");
         WriteLifeState("running", "engines_running", "Ojos, memoria, razonamiento y manos encendidos.", "start");
         CompleteControlPlaneCommand(startCommand, "running", "Motores encendidos bajo runSessionId.");
         await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    private void ThrowIfStartSessionCancelled(string runSessionId, RuntimeCommandRecord startCommand)
+    {
+        if (IsStartSessionActive(runSessionId, out var reason))
+        {
+            return;
+        }
+
+        CompleteControlPlaneCommand(startCommand, "cancelled", reason, accepted: false);
+        WriteLog($"Start cancelled: {reason}");
+        WriteLifeState("stopped", "start_cancelled", reason, "start_cancelled");
+        throw new OperationCanceledException(reason);
     }
 
     public async Task RunOnceAsync()

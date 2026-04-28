@@ -32,18 +32,46 @@ internal sealed partial class AgentRuntime
     private string ArchitectureStateFile => Path.Combine(_runtimeDir, "architecture-0.6-state.json");
     private string DiagnosticTimelineFile => Path.Combine(_runtimeDir, "diagnostic-timeline.jsonl");
 
-    public void RequestControlPlaneStart(string source, string reason)
+    public string RequestControlPlaneStart(string source, string reason)
     {
         var command = BeginControlPlaneCommand("start", source, reason, startsSession: true);
         MarkBootPhase("operator_authorized", "ok", "Bryams autorizo encender la IA local.");
         CompleteControlPlaneCommand(command, "accepted", "La orden de inicio quedo registrada antes de revisar update, cabina y motores.");
+        return command.RunSessionId;
     }
 
-    private RuntimeCommandRecord EnsureStartSession(string source, string reason)
+    public bool IsStartSessionActive(string runSessionId, out string reason)
     {
-        if (string.IsNullOrWhiteSpace(CurrentRunSessionIdOrNull()))
+        lock (_gate)
         {
-            return BeginControlPlaneCommand("start", source, reason, startsSession: true);
+            if (string.IsNullOrWhiteSpace(runSessionId))
+            {
+                reason = "No hay sesion de arranque registrada.";
+                return false;
+            }
+
+            if (!string.Equals(_runSessionId, runSessionId, StringComparison.Ordinal))
+            {
+                reason = "La orden de inicio ya fue cancelada o reemplazada; no encendere motores con una sesion vieja.";
+                return false;
+            }
+
+            if (_stopping)
+            {
+                reason = "La IA esta pausandose; cancelo el arranque pendiente.";
+                return false;
+            }
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private RuntimeCommandRecord EnsureStartSession(string source, string reason, string expectedRunSessionId)
+    {
+        if (!IsStartSessionActive(expectedRunSessionId, out var inactiveReason))
+        {
+            throw new OperationCanceledException(inactiveReason);
         }
 
         return BeginControlPlaneCommand("start_engines", source, reason);
@@ -60,9 +88,10 @@ internal sealed partial class AgentRuntime
         RuntimeCommandRecord command;
         lock (_gate)
         {
-            if (startsSession || string.IsNullOrWhiteSpace(_runSessionId))
+            if (startsSession)
             {
                 _runSessionId = $"run-{now:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}"[..33];
+                _stopping = false;
                 ResetBootProtocolNoLock(now);
             }
 
