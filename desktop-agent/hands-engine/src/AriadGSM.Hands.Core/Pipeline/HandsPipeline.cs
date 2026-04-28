@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Globalization;
@@ -507,17 +508,21 @@ public sealed class HandsPipeline
                         _actionsExecuted++;
                     }
 
-                    var verification = _verifier.Verify(planForExecution, execution, perception);
-                    var finalStatus = execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase) && verification.Verified
-                        ? "verified"
-                        : execution.Status;
+                    var verificationOutcome = await VerifyAfterExecutionAsync(
+                        planForExecution,
+                        execution,
+                        perception,
+                        cancellationToken).ConfigureAwait(false);
+                    var verifiedPlan = EnrichPlanWithVerificationOutcome(planForExecution, verificationOutcome);
+                    var verification = verificationOutcome.Verification;
+                    var finalStatus = FinalActionStatus(verifiedPlan, execution, verification);
                     if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
                     {
                         _actionsVerified++;
                     }
 
                     actionEvent = CreateActionEvent(
-                        planForExecution,
+                        verifiedPlan,
                         actionId,
                         finalStatus,
                         verification,
@@ -555,6 +560,11 @@ public sealed class HandsPipeline
         var text = $"{actionEvent.Status} {actionEvent.Verification.Summary} {actionEvent.Target.GetValueOrDefault("safetyReason")} {actionEvent.Target.GetValueOrDefault("executionSummary")}";
         if (actionEvent.Status.Equals("failed", StringComparison.OrdinalIgnoreCase))
         {
+            if (enrichedPlan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
             return text.Contains("No visible WhatsApp", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("Could not focus", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("Cabin registry", StringComparison.OrdinalIgnoreCase);
@@ -593,10 +603,96 @@ public sealed class HandsPipeline
             ["operatorIdleMs"] = lease.OperatorIdleMs,
             ["operatorIdleRequiredMs"] = lease.RequiredIdleMs,
             ["operatorHasPriority"] = !lease.Granted,
-            ["handsPausedOnly"] = !lease.Granted
+            ["handsPausedOnly"] = !lease.Granted,
+            ["eyesContinue"] = true,
+            ["memoryContinue"] = true,
+            ["cognitiveContinue"] = true
         };
 
         return plan with { Target = target };
+    }
+
+    private async ValueTask<VerificationOutcome> VerifyAfterExecutionAsync(
+        ActionPlan plan,
+        ExecutionResult execution,
+        PerceptionContext initialContext,
+        CancellationToken cancellationToken)
+    {
+        var initialVerification = _verifier.Verify(plan, execution, initialContext);
+        if (!ShouldWaitForFreshOpenChatVerification(plan, execution, initialVerification))
+        {
+            return new VerificationOutcome(initialVerification, initialContext, 0);
+        }
+
+        var timeout = Math.Max(0, _options.OpenChatVerificationTimeoutMs);
+        var poll = Math.Max(50, _options.OpenChatVerificationPollMs);
+        var stopwatch = Stopwatch.StartNew();
+        var bestVerification = initialVerification;
+        var bestContext = initialContext;
+
+        while (stopwatch.ElapsedMilliseconds < timeout)
+        {
+            await Task.Delay(poll, cancellationToken).ConfigureAwait(false);
+            var freshContext = await _perceptionReader.ReadLatestAsync(cancellationToken).ConfigureAwait(false);
+            var freshVerification = _verifier.Verify(plan, execution, freshContext);
+            if (freshVerification.Verified)
+            {
+                return new VerificationOutcome(freshVerification, freshContext, (int)stopwatch.ElapsedMilliseconds);
+            }
+
+            if (freshVerification.Confidence >= bestVerification.Confidence)
+            {
+                bestVerification = freshVerification;
+                bestContext = freshContext;
+            }
+        }
+
+        var summary = $"No confirme el chat correcto despues de {stopwatch.ElapsedMilliseconds} ms; {bestVerification.Summary}";
+        return new VerificationOutcome(
+            new ActionVerification(false, summary, bestVerification.Confidence),
+            bestContext,
+            (int)stopwatch.ElapsedMilliseconds);
+    }
+
+    private bool ShouldWaitForFreshOpenChatVerification(ActionPlan plan, ExecutionResult execution, ActionVerification initialVerification)
+    {
+        return _options.ExecuteActions
+            && _options.OpenChatVerificationTimeoutMs > 0
+            && plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
+            && execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase)
+            && !initialVerification.Verified;
+    }
+
+    private static ActionPlan EnrichPlanWithVerificationOutcome(ActionPlan plan, VerificationOutcome outcome)
+    {
+        var target = new Dictionary<string, object?>(plan.Target, StringComparer.OrdinalIgnoreCase)
+        {
+            ["verifiedBeforeContinue"] = outcome.Verification.Verified,
+            ["verificationWaitMs"] = outcome.WaitMs,
+            ["verificationPerceptionEventId"] = outcome.Context.SourcePerceptionEventId,
+            ["verificationObservedAt"] = outcome.Context.ObservedAt == default ? null : outcome.Context.ObservedAt,
+            ["perceptionVerificationSummary"] = outcome.Verification.Summary
+        };
+
+        return plan with { Target = target };
+    }
+
+    private static string FinalActionStatus(ActionPlan plan, ExecutionResult execution, ActionVerification verification)
+    {
+        if (verification.Verified
+            && (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase)
+                || execution.Status.Equals("verified", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "verified";
+        }
+
+        if (plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
+            && execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "failed";
+        }
+
+        return execution.Status;
     }
 
     private static long VisitBucket(DateTimeOffset now, int revisitMinutes)
@@ -827,4 +923,9 @@ public sealed class HandsPipeline
             }
         }
     }
+
+    private sealed record VerificationOutcome(
+        ActionVerification Verification,
+        PerceptionContext Context,
+        int WaitMs);
 }

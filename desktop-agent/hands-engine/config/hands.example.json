@@ -32,6 +32,8 @@
   "operatorIdleRequiredMs": 1200,
   "operatorCooldownMs": 1600,
   "aiControlLeaseMs": 900,
+  "openChatVerificationTimeoutMs": 1800,
+  "openChatVerificationPollMs": 150,
   "processedDecisionCursorLimit": 2000,
   "channelMappings": [
     {

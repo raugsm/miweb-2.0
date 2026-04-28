@@ -70,6 +70,10 @@ public sealed class HandsOptions
 
     public int AiControlLeaseMs { get; init; } = 900;
 
+    public int OpenChatVerificationTimeoutMs { get; init; } = 1800;
+
+    public int OpenChatVerificationPollMs { get; init; } = 150;
+
     public int ProcessedDecisionCursorLimit { get; init; } = 2000;
 
     public IReadOnlyList<HandsChannelMapping> ChannelMappings { get; init; } =

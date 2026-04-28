@@ -116,6 +116,7 @@ public sealed class InputArbiter
                 ["phase"] = phase,
                 ["updatedAt"] = DateTimeOffset.UtcNow,
                 ["leaseId"] = lease.LeaseId,
+                ["blockedActionId"] = plan.ActionId,
                 ["actionType"] = plan.ActionType,
                 ["channelId"] = TargetString(plan, "channelId"),
                 ["conversationTitle"] = TargetString(plan, "conversationTitle") ?? TargetString(plan, "chatRowTitle"),
@@ -123,6 +124,9 @@ public sealed class InputArbiter
                 ["requiredIdleMs"] = lease.RequiredIdleMs,
                 ["operatorHasPriority"] = !lease.Granted,
                 ["handsPausedOnly"] = !lease.Granted,
+                ["eyesContinue"] = true,
+                ["memoryContinue"] = true,
+                ["cognitiveContinue"] = true,
                 ["summary"] = lease.Reason
             };
             WriteTextAtomic(

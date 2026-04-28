@@ -11,6 +11,9 @@ TestSafetyBlocksSend();
 await TestPipelineWritesAndDedupes();
 await TestInteractionNavigatorOpensVerifiedRows();
 await TestMissingChatTargetSuspendsDecisionChain();
+await TestOpenChatWaitsForFreshPerceptionVerification();
+await TestOpenChatFailsWhenPerceptionShowsDifferentChat();
+await TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory();
 TestContractValidator();
 
 Console.WriteLine("AriadGSM Hands tests OK");
@@ -439,6 +442,365 @@ static async Task TestMissingChatTargetSuspendsDecisionChain()
     }
 }
 
+static async Task TestOpenChatWaitsForFreshPerceptionVerification()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-verify-wait-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, JsonSerializer.Serialize(new
+        {
+            eventType = "decision_event",
+            decisionId = "decision-open-chat-verify-1",
+            createdAt = DateTimeOffset.UtcNow,
+            goal = "learn",
+            intent = "learning_navigation",
+            confidence = 0.9,
+            autonomyLevel = 3,
+            proposedAction = "open_visible_chat_for_learning",
+            requiresHumanConfirmation = false,
+            reasoningSummary = "open",
+            channelId = "wa-2",
+            conversationTitle = "Cliente Verificado",
+            evidence = new[] { "msg-wa-2-abc" }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(perception, string.Empty);
+        await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
+        {
+            eventType = "interaction_event",
+            interactionEventId = "interaction-open-chat-verify-1",
+            createdAt = DateTimeOffset.UtcNow,
+            source = "ariadgsm_interaction_engine",
+            latestPerceptionEventId = "perception-open-chat-verify-0",
+            perceptionEventsRead = 1,
+            targets = new object[]
+            {
+                new
+                {
+                    targetId = "target-open-chat-verify-1",
+                    targetType = "chat_row",
+                    channelId = "wa-2",
+                    sourcePerceptionEventId = "perception-open-chat-verify-0",
+                    observedAt = DateTimeOffset.UtcNow,
+                    title = "Cliente Verificado",
+                    preview = "Necesito precio",
+                    unreadCount = 1,
+                    left = 450,
+                    top = 180,
+                    width = 320,
+                    height = 72,
+                    clickX = 520,
+                    clickY = 216,
+                    confidence = 0.96,
+                    actionable = true,
+                    category = "customer_chat_candidate",
+                    rejectionReasons = Array.Empty<string>()
+                }
+            }
+        }) + Environment.NewLine);
+
+        var executor = new FreshPerceptionExecutor(perception, "wa-2", "Cliente Verificado");
+        var options = new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            CursorFile = cursor,
+            AutonomyLevel = 3,
+            ExecuteActions = true,
+            RequireCabinAuthorityForWindowActions = false,
+            InputArbiterEnabled = false,
+            RespectOrchestratorCommands = false,
+            EnableInteractionNavigator = false,
+            OpenChatVerificationTimeoutMs = 500,
+            OpenChatVerificationPollMs = 50,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10
+        };
+
+        var pipeline = new HandsPipeline(options, executor);
+        var result = await pipeline.RunOnceAsync();
+        Assert(result.Status == "ok", "fresh perception verification should complete the cycle");
+        Assert(executor.Count > 0, "executor should run the verified click");
+
+        var openChatLine = (await File.ReadAllLinesAsync(actions))
+            .First(line => line.Contains("\"actionType\":\"open_chat\"", StringComparison.Ordinal));
+        using var document = JsonDocument.Parse(openChatLine);
+        var rootElement = document.RootElement;
+        Assert(rootElement.GetProperty("status").GetString() == "verified", "open_chat should be verified before continuing");
+        Assert(rootElement.GetProperty("verification").GetProperty("verified").GetBoolean(), "verification flag should be true");
+        var target = rootElement.GetProperty("target");
+        Assert(target.GetProperty("verifiedBeforeContinue").GetBoolean(), "target should audit verified-before-continue");
+        Assert(target.GetProperty("verificationPerceptionEventId").GetString() == "perception-fresh-cliente-verificado", "fresh perception id should be recorded");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestOpenChatFailsWhenPerceptionShowsDifferentChat()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-verify-fail-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, JsonSerializer.Serialize(new
+        {
+            eventType = "decision_event",
+            decisionId = "decision-open-chat-wrong-1",
+            createdAt = DateTimeOffset.UtcNow,
+            goal = "operate",
+            intent = "price_request",
+            confidence = 0.9,
+            autonomyLevel = 3,
+            proposedAction = "prepare_price_response",
+            requiresHumanConfirmation = false,
+            reasoningSummary = "price",
+            channelId = "wa-1",
+            conversationTitle = "Cliente Correcto",
+            evidence = new[] { "msg-wa-1-abc" }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(perception, JsonSerializer.Serialize(new
+        {
+            eventType = "perception_event",
+            perceptionEventId = "perception-wrong-chat-1",
+            observedAt = DateTimeOffset.UtcNow,
+            channelId = "wa-1",
+            objects = new object[]
+            {
+                new
+                {
+                    objectType = "conversation",
+                    confidence = 0.9,
+                    text = "Cliente Equivocado",
+                    role = "active_conversation",
+                    metadata = new
+                    {
+                        channelId = "wa-1",
+                        conversationId = "wa-1-wrong"
+                    }
+                }
+            }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
+        {
+            eventType = "interaction_event",
+            interactionEventId = "interaction-open-chat-wrong-1",
+            createdAt = DateTimeOffset.UtcNow,
+            source = "ariadgsm_interaction_engine",
+            latestPerceptionEventId = "perception-wrong-chat-1",
+            perceptionEventsRead = 1,
+            targets = new object[]
+            {
+                new
+                {
+                    targetId = "target-open-chat-wrong-1",
+                    targetType = "chat_row",
+                    channelId = "wa-1",
+                    sourcePerceptionEventId = "perception-wrong-chat-1",
+                    observedAt = DateTimeOffset.UtcNow,
+                    title = "Cliente Correcto",
+                    preview = "Cuanto sale?",
+                    unreadCount = 1,
+                    left = 0,
+                    top = 160,
+                    width = 320,
+                    height = 72,
+                    clickX = 90,
+                    clickY = 196,
+                    confidence = 0.95,
+                    actionable = true,
+                    category = "customer_chat_candidate",
+                    rejectionReasons = Array.Empty<string>()
+                }
+            }
+        }) + Environment.NewLine);
+
+        var executor = new RecordingExecutor();
+        var options = new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            CursorFile = cursor,
+            AutonomyLevel = 3,
+            ExecuteActions = true,
+            RequireCabinAuthorityForWindowActions = false,
+            InputArbiterEnabled = false,
+            RespectOrchestratorCommands = false,
+            EnableInteractionNavigator = false,
+            OpenChatVerificationTimeoutMs = 0,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10
+        };
+
+        var pipeline = new HandsPipeline(options, executor);
+        var result = await pipeline.RunOnceAsync();
+        Assert(result.Status == "ok", "wrong chat should be audited without crashing");
+        Assert(executor.Count == 1, "executor should attempt only the open_chat action");
+
+        var lines = await File.ReadAllLinesAsync(actions);
+        Assert(lines.Length == 1, "failed open_chat should suspend dependent actions");
+        using var document = JsonDocument.Parse(lines[0]);
+        Assert(document.RootElement.GetProperty("status").GetString() == "failed", "open_chat should fail when perception shows another chat");
+        Assert(!document.RootElement.GetProperty("verification").GetProperty("verified").GetBoolean(), "verification should be false for wrong chat");
+        Assert(document.RootElement.GetProperty("verification").GetProperty("summary").GetString()!.Contains("Cliente Equivocado", StringComparison.Ordinal), "failure should explain the visible wrong chat");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-arbiter-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
+    var arbiter = Path.Combine(root, "input-arbiter-state.json");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, JsonSerializer.Serialize(new
+        {
+            eventType = "decision_event",
+            decisionId = "decision-arbiter-1",
+            createdAt = DateTimeOffset.UtcNow,
+            goal = "operate",
+            intent = "price_request",
+            confidence = 0.9,
+            autonomyLevel = 3,
+            proposedAction = "prepare_price_response",
+            requiresHumanConfirmation = false,
+            reasoningSummary = "price",
+            channelId = "wa-3",
+            conversationTitle = "Cliente Operador",
+            evidence = new[] { "msg-wa-3-abc" }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(perception, string.Empty);
+        await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
+        {
+            eventType = "interaction_event",
+            interactionEventId = "interaction-arbiter-1",
+            createdAt = DateTimeOffset.UtcNow,
+            source = "ariadgsm_interaction_engine",
+            latestPerceptionEventId = "perception-arbiter-1",
+            perceptionEventsRead = 1,
+            targets = new object[]
+            {
+                new
+                {
+                    targetId = "target-arbiter-1",
+                    targetType = "chat_row",
+                    channelId = "wa-3",
+                    sourcePerceptionEventId = "perception-arbiter-1",
+                    observedAt = DateTimeOffset.UtcNow,
+                    title = "Cliente Operador",
+                    preview = "Necesito servicio",
+                    unreadCount = 1,
+                    left = 900,
+                    top = 160,
+                    width = 320,
+                    height = 72,
+                    clickX = 980,
+                    clickY = 196,
+                    confidence = 0.95,
+                    actionable = true,
+                    category = "customer_chat_candidate",
+                    rejectionReasons = Array.Empty<string>()
+                }
+            }
+        }) + Environment.NewLine);
+
+        var executor = new RecordingExecutor();
+        var options = new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            CursorFile = cursor,
+            InputArbiterStateFile = arbiter,
+            AutonomyLevel = 3,
+            ExecuteActions = true,
+            RequireCabinAuthorityForWindowActions = false,
+            InputArbiterEnabled = true,
+            OperatorIdleRequiredMs = int.MaxValue,
+            RespectOrchestratorCommands = false,
+            EnableInteractionNavigator = false,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10
+        };
+
+        var pipeline = new HandsPipeline(options, executor);
+        var result = await pipeline.RunOnceAsync();
+        Assert(result.Status == "ok", "arbiter should audit handoff without crashing");
+        Assert(executor.Count == 0, "executor must not move mouse while operator has priority");
+
+        var actionLine = (await File.ReadAllLinesAsync(actions)).Single();
+        using var actionDocument = JsonDocument.Parse(actionLine);
+        var actionTarget = actionDocument.RootElement.GetProperty("target");
+        Assert(actionDocument.RootElement.GetProperty("status").GetString() == "blocked", "operator handoff should block the mouse action only");
+        Assert(actionTarget.GetProperty("operatorHasPriority").GetBoolean(), "action should audit operator priority");
+        Assert(actionTarget.GetProperty("handsPausedOnly").GetBoolean(), "action should mark only hands as paused");
+        Assert(actionTarget.GetProperty("eyesContinue").GetBoolean(), "eyes should keep running");
+        Assert(actionTarget.GetProperty("memoryContinue").GetBoolean(), "memory should keep running");
+
+        using var arbiterDocument = JsonDocument.Parse(await File.ReadAllTextAsync(arbiter));
+        Assert(arbiterDocument.RootElement.GetProperty("phase").GetString() == "operator_control", "arbiter state should show operator control");
+        Assert(arbiterDocument.RootElement.GetProperty("handsPausedOnly").GetBoolean(), "arbiter state should pause only hands");
+        Assert(arbiterDocument.RootElement.GetProperty("eyesContinue").GetBoolean(), "arbiter state should keep eyes on");
+        Assert(arbiterDocument.RootElement.GetProperty("memoryContinue").GetBoolean(), "arbiter state should keep memory on");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
 static void TestContractValidator()
 {
     var actionEvent = new ActionEvent(
@@ -467,6 +829,54 @@ internal sealed class RecordingExecutor : IHandsExecutor
     public ValueTask<ExecutionResult> ExecuteAsync(ActionPlan plan, CancellationToken cancellationToken = default)
     {
         Count++;
+        return ValueTask.FromResult(new ExecutionResult("executed", $"Recorded {plan.ActionType}.", 0.95));
+    }
+}
+
+internal sealed class FreshPerceptionExecutor : IHandsExecutor
+{
+    private readonly string _perceptionPath;
+    private readonly string _channelId;
+    private readonly string _title;
+
+    public FreshPerceptionExecutor(string perceptionPath, string channelId, string title)
+    {
+        _perceptionPath = perceptionPath;
+        _channelId = channelId;
+        _title = title;
+    }
+
+    public int Count { get; private set; }
+
+    public ValueTask<ExecutionResult> ExecuteAsync(ActionPlan plan, CancellationToken cancellationToken = default)
+    {
+        Count++;
+        if (plan.ActionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase))
+        {
+            File.AppendAllText(_perceptionPath, JsonSerializer.Serialize(new
+            {
+                eventType = "perception_event",
+                perceptionEventId = "perception-fresh-cliente-verificado",
+                observedAt = DateTimeOffset.UtcNow,
+                channelId = _channelId,
+                objects = new object[]
+                {
+                    new
+                    {
+                        objectType = "conversation",
+                        confidence = 0.97,
+                        text = _title,
+                        role = "active_conversation",
+                        metadata = new
+                        {
+                            channelId = _channelId,
+                            conversationId = $"{_channelId}-fresh"
+                        }
+                    }
+                }
+            }) + Environment.NewLine);
+        }
+
         return ValueTask.FromResult(new ExecutionResult("executed", $"Recorded {plan.ActionType}.", 0.95));
     }
 }

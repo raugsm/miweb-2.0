@@ -435,7 +435,7 @@ Queda cerrado con:
 - perfil fijo desactivado por defecto
 - prueba `desktop-agent/tests/cabin_authority_final.py`
 
-El siguiente bloque recomendado para producto final es:
+El bloque recomendado para producto final ya cerrado en `0.8.7` es:
 
 ```text
 Hands Engine avanzado + accion sobre chat verificada
@@ -455,4 +455,39 @@ ceder mouse al operador sin apagar ojos ni memoria
 verificar accion por percepcion antes de continuar
 reportar fallo accionable en lenguaje humano
 pruebas sin depender de sesiones reales
+```
+
+Queda cerrado con:
+
+- `docs/ARIADGSM_HANDS_ENGINE_ADVANCED_DESIGN.md`
+- `desktop-agent/tests/hands_engine_advanced.py`
+- `SendInput` en Hands para mouse en vez de `mouse_event`
+- verificacion fresca de Perception antes de continuar despues de `open_chat`
+- fallo `failed` y suspension de acciones dependientes si el chat visible no
+  coincide con el esperado
+- Input Arbiter con cesion de mouse al operador sin apagar ojos, memoria ni
+  cognicion
+- pruebas C# de verificacion correcta, chat equivocado y prioridad humana
+
+El siguiente bloque recomendado para producto final es:
+
+```text
+Trust & Safety Core completo
+```
+
+El entregable documental minimo es:
+
+```text
+docs/ARIADGSM_TRUST_SAFETY_CORE_DESIGN.md
+```
+
+Y el entregable tecnico minimo posterior es:
+
+```text
+politica central de niveles de autonomia
+matriz de riesgo por accion de negocio
+permisos explicitos para enviar mensajes, tocar herramientas y registrar pagos
+bloqueo verificable de acciones irreversibles
+reporte humano de por que una accion fue permitida, pausada o bloqueada
+pruebas sin ejecutar acciones reales sobre clientes
 ```

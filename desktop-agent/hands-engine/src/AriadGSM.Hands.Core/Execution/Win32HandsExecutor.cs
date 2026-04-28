@@ -8,6 +8,7 @@ namespace AriadGSM.Hands.Execution;
 
 public sealed class Win32HandsExecutor : IHandsExecutor
 {
+    private const uint InputMouse = 0;
     private const uint MouseEventWheel = 0x0800;
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
@@ -70,18 +71,39 @@ public sealed class Win32HandsExecutor : IHandsExecutor
         if (hasClickCoordinates)
         {
             Thread.Sleep(80);
-            SetCursorPos(clickX, clickY);
+            if (!SetCursorPos(clickX, clickY))
+            {
+                return ValueTask.FromResult(new ExecutionResult(
+                    "failed",
+                    $"Could not move cursor to verified chat-row coordinates {clickX},{clickY}. Win32={Marshal.GetLastWin32Error()}.",
+                    0.1));
+            }
+
             Thread.Sleep(40);
-            mouse_event(MouseEventLeftDown, 0, 0, 0, UIntPtr.Zero);
-            Thread.Sleep(35);
-            mouse_event(MouseEventLeftUp, 0, 0, 0, UIntPtr.Zero);
+            if (!TrySendMouseInput(out var clickError,
+                    CreateMouseInput(MouseEventLeftDown),
+                    CreateMouseInput(MouseEventLeftUp)))
+            {
+                return ValueTask.FromResult(new ExecutionResult(
+                    "failed",
+                    $"Could not click verified chat-row coordinates {clickX},{clickY}. {clickError}",
+                    0.1));
+            }
         }
 
         if (plan.ActionType.Equals("scroll_history", StringComparison.OrdinalIgnoreCase))
         {
             for (var index = 0; index < 6; index++)
             {
-                mouse_event(MouseEventWheel, 0, 0, WheelDelta, UIntPtr.Zero);
+                if (!TrySendMouseInput(out var wheelError, CreateMouseInput(MouseEventWheel, WheelDelta)))
+                {
+                    return ValueTask.FromResult(new ExecutionResult(
+                        "failed",
+                        $"Could not scroll chat history. {wheelError}",
+                        0.1));
+                }
+
+                Thread.Sleep(20);
             }
         }
 
@@ -348,6 +370,35 @@ public sealed class Win32HandsExecutor : IHandsExecutor
             : new WindowBounds(0, 0, 0, 0);
     }
 
+    private static Input CreateMouseInput(uint flags, int mouseData = 0)
+    {
+        return new Input
+        {
+            Type = InputMouse,
+            Mouse = new MouseInput
+            {
+                MouseData = unchecked((uint)mouseData),
+                Flags = flags
+            }
+        };
+    }
+
+    private static bool TrySendMouseInput(out string error, params Input[] inputs)
+    {
+        error = string.Empty;
+        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
+        if (sent == (uint)inputs.Length)
+        {
+            return true;
+        }
+
+        var lastError = Marshal.GetLastWin32Error();
+        error = sent == 0
+            ? $"SendInput was blocked or failed. Win32={lastError}."
+            : $"SendInput inserted {sent}/{inputs.Length} mouse events. Win32={lastError}.";
+        return false;
+    }
+
     private sealed record BrowserWindow(
         IntPtr Handle,
         int ProcessId,
@@ -366,6 +417,24 @@ public sealed class Win32HandsExecutor : IHandsExecutor
     private sealed record WindowResolution(BrowserWindow? Window, string FailureReason);
 
     private sealed record WindowBounds(int Left, int Top, int Width, int Height);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Input
+    {
+        public uint Type;
+        public MouseInput Mouse;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInput
+    {
+        public int X;
+        public int Y;
+        public uint MouseData;
+        public uint Flags;
+        public uint Time;
+        public UIntPtr ExtraInfo;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect
@@ -417,7 +486,7 @@ public sealed class Win32HandsExecutor : IHandsExecutor
     [DllImport("user32.dll")]
     private static extern bool AttachThreadInput(uint currentThreadId, uint targetThreadId, bool attach);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetCursorPos(int x, int y);
 
     [DllImport("user32.dll")]
@@ -426,6 +495,6 @@ public sealed class Win32HandsExecutor : IHandsExecutor
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr handle, out Rect rect);
 
-    [DllImport("user32.dll")]
-    private static extern void mouse_event(uint flags, int dx, int dy, int data, UIntPtr extraInfo);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint inputsCount, Input[] inputs, int inputSize);
 }
