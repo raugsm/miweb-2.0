@@ -246,6 +246,7 @@ internal sealed partial class AgentRuntime : IDisposable
             ReadJsonStatus("cognitive-state.json"),
             ReadJsonStatus("operating-state.json"),
             ReadJsonStatus("memory-state.json"),
+            ReadJsonStatus("business-brain-state.json"),
             ReadJsonStatus("hands-state.json"),
             ReadJsonStatus("supervisor-state.json"),
             ReadJsonStatus("autonomous-cycle-state.json"),
@@ -304,6 +305,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Channel Routing", "channel-routing-state.json", "PythonCoreLoop"),
             StateHealth("Accounting Core", "accounting-core-state.json", "PythonCoreLoop"),
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
+            StateHealth("Business Brain", "business-brain-state.json", "PythonCoreLoop"),
             StateHealth("Domain Events", "domain-events-state.json", "PythonCoreLoop"),
             StateHealth("Trust & Safety", "trust-safety-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
@@ -378,6 +380,7 @@ internal sealed partial class AgentRuntime : IDisposable
         using var channelRouting = ReadJsonStatus("channel-routing-state.json");
         using var accountingCore = ReadJsonStatus("accounting-core-state.json");
         using var memory = ReadJsonStatus("memory-state.json");
+        using var businessBrain = ReadJsonStatus("business-brain-state.json");
         using var hands = ReadJsonStatus("hands-state.json");
         using var inputArbiter = ReadJsonStatus("input-arbiter-state.json");
         using var supervisor = ReadJsonStatus("supervisor-state.json");
@@ -421,6 +424,7 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Case Manager: abiertos={NestedNumber(caseManager, "summary", "openCases")} | humano={NestedNumber(caseManager, "summary", "needsHuman")} | eventos={NestedNumber(caseManager, "summary", "emittedCaseEvents")}",
             $"Channel Routing: propuestas={NestedNumber(channelRouting, "summary", "proposedRoutes")} | aprobadas={NestedNumber(channelRouting, "summary", "approvedRoutes")} | humano={NestedNumber(channelRouting, "summary", "needsHuman")}",
             $"Accounting Core: registros={NestedNumber(accountingCore, "summary", "accountingRecords")} | confirmados={NestedNumber(accountingCore, "summary", "confirmedRecords")} | falta evidencia={NestedNumber(accountingCore, "summary", "needsEvidence")}",
+            $"Business Brain: propuestas={NestedNumber(businessBrain, "summary", "recommendations")} | humano={NestedNumber(businessBrain, "summary", "requiresHuman")} | memoria={NestedNumber(businessBrain, "summary", "memoryItemsRead")}",
             $"Input Arbiter: {Text(inputArbiter, "phase")} | idle={Number(inputArbiter, "operatorIdleMs")}ms | {Text(inputArbiter, "summary")}",
             $"Hands: ejecutadas={Number(hands, "actionsExecuted")} | verificadas={Number(hands, "actionsVerified")} | bloqueadas={Number(hands, "actionsBlocked")} | ultimo={Text(hands, "lastSummary")}",
             $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}",
@@ -1943,6 +1947,8 @@ internal sealed partial class AgentRuntime : IDisposable
             ("AccountingCore", "ariadgsm_agent.accounting_evidence", new[] { "--json" }),
             ("DomainEventsBeforeMemory", "ariadgsm_agent.domain_events", new[] { "--json" }),
             ("Memory", "ariadgsm_agent.memory", new[] { "--json" }),
+            ("BusinessBrain", "ariadgsm_agent.business_brain", new[] { "--autonomy-level", "3", "--json" }),
+            ("DomainEventsAfterBusinessBrain", "ariadgsm_agent.domain_events", new[] { "--json" }),
             ("TrustSafety", "ariadgsm_agent.trust_safety", new[] { "--autonomy-level", "3", "--json" }),
             ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" }),
             ("AutonomousCycle", "ariadgsm_agent.autonomous_cycle", new[] { "--json" }),
@@ -3352,6 +3358,7 @@ internal sealed record AgentSnapshot(
     JsonDocument? Cognitive,
     JsonDocument? Operating,
     JsonDocument? Memory,
+    JsonDocument? BusinessBrain,
     JsonDocument? Hands,
     JsonDocument? Supervisor,
     JsonDocument? AutonomousCycle,

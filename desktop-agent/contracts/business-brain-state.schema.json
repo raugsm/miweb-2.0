@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/business-brain-state.schema.json",
+  "title": "AriadGSM Business Brain State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "contract",
+    "policy",
+    "sourceFiles",
+    "outputFiles",
+    "ingested",
+    "summary",
+    "mentalModel",
+    "recommendations",
+    "emittedDecisionEvents",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked", "error"] },
+    "engine": { "type": "string", "const": "ariadgsm_business_brain" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "contract": { "type": "string", "const": "business_brain_state" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["objectives", "decisionMode", "usesLivingMemory", "requiresTrustSafetyBeforeAction", "customerFacingDraftsRequireHuman"],
+      "properties": {
+        "objectives": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "decisionMode": { "type": "string", "const": "recommend_only_no_physical_action" },
+        "usesLivingMemory": { "type": "boolean" },
+        "requiresTrustSafetyBeforeAction": { "type": "boolean" },
+        "customerFacingDraftsRequireHuman": { "type": "boolean" }
+      }
+    },
+    "sourceFiles": { "type": "object", "additionalProperties": true },
+    "outputFiles": { "type": "object", "additionalProperties": true },
+    "ingested": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["casesRead", "memoryItemsRead", "routeDecisionsRead", "accountingRecordsRead", "recommendations", "emittedDecisionEvents"],
+      "properties": {
+        "casesRead": { "type": "integer", "minimum": 0 },
+        "memoryItemsRead": { "type": "integer", "minimum": 0 },
+        "routeDecisionsRead": { "type": "integer", "minimum": 0 },
+        "accountingRecordsRead": { "type": "integer", "minimum": 0 },
+        "recommendations": { "type": "integer", "minimum": 0 },
+        "emittedDecisionEvents": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["activeCases", "recommendations", "requiresHuman", "emittedDecisionEvents", "memoryItemsRead"],
+      "properties": {
+        "activeCases": { "type": "integer", "minimum": 0 },
+        "recommendations": { "type": "integer", "minimum": 0 },
+        "requiresHuman": { "type": "integer", "minimum": 0 },
+        "emittedDecisionEvents": { "type": "integer", "minimum": 0 },
+        "memoryItemsRead": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "mentalModel": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["activeCases", "customers", "services", "markets", "memoryItemsConsulted", "uncertainties", "topPriorities"],
+      "properties": {
+        "activeCases": { "type": "integer", "minimum": 0 },
+        "customers": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "services": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "markets": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "memoryItemsConsulted": { "type": "integer", "minimum": 0 },
+        "uncertainties": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "topPriorities": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/recommendation" }
+    },
+    "emittedDecisionEvents": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queEntendi", "quePropongo", "queDudo", "queNecesitoDeBryams"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queEntendi": { "type": "array", "items": { "type": "string" } },
+        "quePropongo": { "type": "array", "items": { "type": "string" } },
+        "queDudo": { "type": "array", "items": { "type": "string" } },
+        "queNecesitoDeBryams": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "recommendationId",
+        "caseId",
+        "intent",
+        "priority",
+        "riskLevel",
+        "confidence",
+        "proposedAction",
+        "requiresHumanConfirmation",
+        "rationale",
+        "missingInformation",
+        "replyDraft",
+        "evidence"
+      ],
+      "properties": {
+        "recommendationId": { "type": "string", "minLength": 1 },
+        "caseId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "title": { "type": "string" },
+        "intent": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "riskLevel": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "proposedAction": { "type": "string" },
+        "requiresHumanConfirmation": { "type": "boolean" },
+        "rationale": { "type": "string" },
+        "missingInformation": { "type": "array", "items": { "type": "string" } },
+        "replyDraft": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

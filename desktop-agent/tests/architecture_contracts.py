@@ -390,7 +390,8 @@ def main() -> int:
         )
         assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
         assert cycle_state["status"] in {"ok", "attention", "blocked"}
-        assert len(cycle_state["stages"]) == 9
+        assert len(cycle_state["stages"]) == 10
+        assert any(stage["stageId"] == "business_brain" for stage in cycle_state["stages"])
         assert [step["stepId"] for step in cycle_state["steps"]] == [
             "observe",
             "understand",

@@ -505,7 +505,7 @@ Pendiente para autonomia final:
 Estado:
 
 ```text
-SIGUIENTE ETAPA PENDIENTE
+CERRADA COMO BASE OPERATIVA EN 0.8.13
 ```
 
 Objetivo:
@@ -523,12 +523,49 @@ Definicion de terminado:
 - no envia ni ejecuta acciones de riesgo sin Trust & Safety;
 - tiene pruebas sin WhatsApps reales ni herramientas GSM reales.
 
+Ya existe:
+
+- `docs/ARIADGSM_BUSINESS_BRAIN_DESIGN.md`
+- `desktop-agent/contracts/business-brain-state.schema.json`
+- `desktop-agent/ariadgsm_agent/business_brain.py`
+- `desktop-agent/tests/business_brain.py`
+- integracion en el ciclo local despues de Living Memory y antes de Trust &
+  Safety.
+
+Pendiente para autonomia final:
+
+- conectar Tool Registry para escoger herramientas GSM reales;
+- integrar modelos LLM locales/cloud para razonamiento flexible bajo contrato;
+- evaluacion prolongada con conversaciones reales;
+- politica final de respuestas automaticas por nivel de autonomia.
+
+### 6.11 Trust & Safety + Input Arbiter
+
+Estado:
+
+```text
+SIGUIENTE ETAPA PENDIENTE
+```
+
+Objetivo:
+
+Cerrar la capa de permisos, niveles de autonomia, arbitraje de mouse/teclado y
+confirmaciones humanas para que Business Brain pueda pasar de propuesta a
+accion segura sin pelear con Bryams ni ejecutar riesgos.
+
+Definicion de terminado:
+
+- Trust & Safety evalua decisiones de Cognitive, Operating y Business Brain;
+- Input Arbiter protege el control humano del mouse/teclado;
+- se separan acciones permitidas, limitadas, pausadas y bloqueadas;
+- toda accion riesgosa exige evidencia y confirmacion;
+- pruebas repetibles cubren propuestas de negocio, manos y control humano.
+
 ## 7. Bloques que NO pueden adelantarse
 
 Estos bloques son importantes, pero no deben sustituir el orden de la nueva
 etapa salvo que Bryams lo autorice:
 
-- Business Brain.
 - Trust & Safety + Input Arbiter final.
 - Hands & Verification final.
 - Tool Registry.
@@ -538,9 +575,10 @@ etapa salvo que Bryams lo autorice:
 
 Motivo:
 
-Son necesarios para producto, pero si se hacen antes de cerrar `Business Brain`,
-volvemos al patron de parches: la IA guardaria memoria sin tener un cerebro de
-negocio que la use con contexto, evidencia e incertidumbre.
+Son necesarios para producto, pero si se hacen antes de cerrar `Trust & Safety
++ Input Arbiter`, volvemos al patron de parches: el cerebro podria proponer
+bien, pero las manos no tendrian un contrato final de permiso, pausa y control
+humano.
 
 Excepcion:
 
@@ -580,26 +618,26 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0` a `9` quedan cerradas como base operativa, la siguiente
+Como las etapas `0` a `10` quedan cerradas como base operativa, la siguiente
 etapa pendiente del mapa maestro es:
 
 ```text
-Etapa 10: Business Brain
+Etapa 11: Trust & Safety + Input Arbiter
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_BUSINESS_BRAIN_DESIGN.md
+docs/ARIADGSM_TRUST_SAFETY_INPUT_ARBITER_FINAL.md
 ```
 
 El entregable tecnico minimo posterior es:
 
 ```text
-contrato de salida del Business Brain
-consulta de Living Memory con evidencia
-modelo mental de clientes, precios, servicios, paises y proveedores
-razonamiento con incertidumbre y riesgos
-propuesta de respuesta, cotizacion o derivacion sin enviar automaticamente
-pruebas sin sesiones reales ni acciones externas
+contrato final de permisos y arbitraje
+lectura de decisiones Cognitive, Operating y Business Brain
+proteccion del control humano del mouse/teclado
+gates por nivel de autonomia
+acciones permitidas, limitadas, pausadas y bloqueadas
+pruebas sin acciones reales peligrosas
 ```

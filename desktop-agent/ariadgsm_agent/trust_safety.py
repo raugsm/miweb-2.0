@@ -538,6 +538,7 @@ def run_trust_safety_once(
     domain_events_file: Path,
     state_file: Path,
     *,
+    business_decision_events_file: Path | None = None,
     input_arbiter_state_file: Path | None = None,
     permissions_file: Path | None = None,
     permissions: dict[str, Any] | None = None,
@@ -546,6 +547,8 @@ def run_trust_safety_once(
 ) -> dict[str, Any]:
     decisions = read_jsonl_events(cognitive_decision_events_file, "decision_event", limit)
     decisions.extend(read_jsonl_events(operating_decision_events_file, "decision_event", limit))
+    if business_decision_events_file is not None:
+        decisions.extend(read_jsonl_events(business_decision_events_file, "decision_event", limit))
     actions = read_jsonl_events(action_events_file, "action_event", limit)
     domain_events = read_jsonl_events(domain_events_file, "", limit)
     input_state = read_json(input_arbiter_state_file) if input_arbiter_state_file else {}
@@ -563,6 +566,7 @@ def run_trust_safety_once(
     state["inputs"] = {
         "cognitiveDecisionEventsFile": str(cognitive_decision_events_file),
         "operatingDecisionEventsFile": str(operating_decision_events_file),
+        "businessDecisionEventsFile": str(business_decision_events_file or ""),
         "actionEventsFile": str(action_events_file),
         "domainEventsFile": str(domain_events_file),
         "inputArbiterStateFile": str(input_arbiter_state_file or ""),
@@ -776,6 +780,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AriadGSM Trust & Safety Core")
     parser.add_argument("--cognitive-decisions", default="runtime/cognitive-decision-events.jsonl")
     parser.add_argument("--operating-decisions", default="runtime/decision-events.jsonl")
+    parser.add_argument("--business-decisions", default="runtime/business-decision-events.jsonl")
     parser.add_argument("--actions", default="runtime/action-events.jsonl")
     parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
     parser.add_argument("--input-arbiter-state", default="runtime/input-arbiter-state.json")
@@ -795,6 +800,7 @@ def main() -> int:
         resolve_runtime_path(args.actions),
         resolve_runtime_path(args.domain_events),
         resolve_runtime_path(args.state_file),
+        business_decision_events_file=resolve_runtime_path(args.business_decisions),
         input_arbiter_state_file=resolve_runtime_path(args.input_arbiter_state),
         permissions_file=resolve_runtime_path(args.permissions_file),
         autonomy_level=args.autonomy_level,

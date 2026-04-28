@@ -250,7 +250,14 @@ Pendiente para autonomia final:
 El cerebro de negocio: clientes, precios, servicios, mercado, proveedores,
 herramientas, riesgos y estilo AriadGSM.
 
-Estado actual: `siguiente etapa pendiente`.
+Estado actual: `cerrada como base operativa en 0.8.13`.
+
+Existe:
+
+- `docs/ARIADGSM_BUSINESS_BRAIN_DESIGN.md`
+- `desktop-agent/contracts/business-brain-state.schema.json`
+- `desktop-agent/ariadgsm_agent/business_brain.py`
+- `desktop-agent/tests/business_brain.py`
 
 Debe cerrar:
 
@@ -260,12 +267,18 @@ Debe cerrar:
 - razonamiento con incertidumbre;
 - propuesta de respuesta, no envio autonomo sin permiso.
 
+Pendiente para autonomia final:
+
+- conectar Tool Registry;
+- habilitar razonamiento LLM bajo contrato;
+- validar con conversaciones reales largas.
+
 ### Etapa 11: Trust & Safety + Input Arbiter
 
 Permisos, niveles de autonomia, no pelear con tu mouse, pedir confirmacion
 cuando haya riesgo.
 
-Estado actual: `avanzada como base`.
+Estado actual: `siguiente etapa pendiente`.
 
 Existe:
 

@@ -103,6 +103,12 @@ def seed_runtime(root: Path, *, operator_control: bool = False, critical: bool =
             },
         },
     )
+    business_brain_state = sample_event("business_brain_state")
+    business_brain_state["status"] = "ok"
+    business_brain_state["summary"]["requiresHuman"] = 0
+    business_brain_state["summary"]["recommendations"] = 1
+    business_brain_state["humanReport"]["queNecesitoDeBryams"] = []
+    write_json(root / "business-brain-state.json", business_brain_state)
     write_json(
         root / "supervisor-state.json",
         {

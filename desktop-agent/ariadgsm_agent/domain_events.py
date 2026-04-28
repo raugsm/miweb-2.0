@@ -112,6 +112,8 @@ def source_domain_for_event(event: dict[str, Any]) -> str:
         return "HumanCollaboration"
     if event_type == "decision_event":
         decision_id = clean_text(event.get("decisionId")).lower()
+        if decision_id.startswith("business-"):
+            return "BusinessBrain"
         if decision_id.startswith("operating-") or event.get("caseId"):
             return "OperatingCore"
         return "CognitiveCore"
@@ -1075,6 +1077,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--raw-conversation-events", default="runtime/conversation-events.jsonl")
     parser.add_argument("--decision-events", default="runtime/decision-events.jsonl")
     parser.add_argument("--cognitive-decision-events", default="runtime/cognitive-decision-events.jsonl")
+    parser.add_argument("--business-decision-events", default="runtime/business-decision-events.jsonl")
     parser.add_argument("--accounting-events", default="runtime/accounting-events.jsonl")
     parser.add_argument("--accounting-core-events", default="runtime/accounting-core-events.jsonl")
     parser.add_argument("--learning-events", default="runtime/learning-events.jsonl")
@@ -1104,6 +1107,7 @@ def main() -> int:
         resolve_runtime_path(args.raw_conversation_events),
         resolve_runtime_path(args.decision_events),
         resolve_runtime_path(args.cognitive_decision_events),
+        resolve_runtime_path(args.business_decision_events),
         resolve_runtime_path(args.accounting_events),
         resolve_runtime_path(args.accounting_core_events),
         resolve_runtime_path(args.learning_events),

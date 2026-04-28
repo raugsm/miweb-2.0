@@ -1,8 +1,8 @@
 {
-  "version": "0.8.12",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.12.zip",
-  "sha256": "070c542512dd70d21167c5fe63931c329f7a5722214f3f78ff2fb41eb551968a",
+  "version": "0.8.13",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.13.zip",
+  "sha256": "070817d251383696d4b39a8cf6852147bd5e5371bde50a15e2c99641aafcf2ed",
   "autoApply": true,
-  "notes": "Version 0.8.12 closes Living Memory as a base: living-memory contract, episodic/semantic/procedural/accounting/style/correction layers, evidence-first uncertainty, human feedback ingestion, unsafe knowledge degradation, and human-readable learning report.",
-  "publishedAt": "2026-04-28T03:25:08Z"
+  "notes": "Version 0.8.13 closes Business Brain as a base: business-brain contract, evidence-first recommendations from cases, memory, routing and accounting, decision events, Trust/Safety ingestion, autonomous-cycle integration and Product Shell status.",
+  "publishedAt": "2026-04-28T03:45:44Z"
 }
