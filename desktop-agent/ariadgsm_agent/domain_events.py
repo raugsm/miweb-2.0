@@ -220,7 +220,7 @@ def risk_profile(event_type: str, source_event: dict[str, Any], autonomy_level: 
     if level in {"high", "critical"}:
         reasons.append("sensitive_business_action")
         blocked.extend(["send_message", "confirm_payment", "execute_external_tool"])
-    if event_type in {"PaymentDrafted", "DebtDetected", "RefundCandidate", "QuoteProposed", "QuoteRecorded"}:
+    if event_type in {"PaymentDrafted", "DebtDetected", "RefundCandidate", "QuoteProposed", "QuoteRecorded", "AccountingEvidenceAttached"}:
         reasons.append("accounting_or_pricing")
         allowed = ["record_draft", "ask_human", "reason"]
         blocked.extend(["confirm_payment", "close_debt"])
@@ -236,7 +236,7 @@ def risk_profile(event_type: str, source_event: dict[str, Any], autonomy_level: 
         level = "high"
         allowed = ["ask_bryams"]
         blocked.extend(["continue_without_human"])
-    if event_type == "PaymentConfirmed":
+    if event_type in {"PaymentConfirmed", "AccountingRecordConfirmed"}:
         level = "critical"
         reasons.append("payment_confirmation")
         blocked.extend(["confirm_without_level_a_evidence"])
@@ -267,7 +267,7 @@ def privacy_profile(event_type: str, source_event: dict[str, Any], data: dict[st
     retention = "case_lifetime"
     reason = "Business event summary."
 
-    if event_type in {"PaymentDrafted", "PaymentEvidenceAttached", "PaymentConfirmed", "DebtDetected", "DebtUpdated", "RefundCandidate"}:
+    if event_type in {"PaymentDrafted", "PaymentEvidenceAttached", "PaymentConfirmed", "DebtDetected", "DebtUpdated", "RefundCandidate", "AccountingEvidenceAttached", "AccountingRecordConfirmed"}:
         classification = "payment"
         contains.add("payment")
         redaction_required = True
@@ -306,7 +306,7 @@ def privacy_profile(event_type: str, source_event: dict[str, Any], data: dict[st
 def requires_human_review(event_type: str, risk: dict[str, Any], source_event: dict[str, Any]) -> bool:
     if bool(source_event.get("requiresHumanConfirmation")):
         return True
-    if event_type in {"PaymentDrafted", "DebtDetected", "RefundCandidate", "ChannelRouteProposed", "HumanApprovalRequired"}:
+    if event_type in {"PaymentDrafted", "DebtDetected", "RefundCandidate", "AccountingEvidenceAttached", "AccountingRecordConfirmed", "ChannelRouteProposed", "HumanApprovalRequired"}:
         return True
     return risk.get("riskLevel") in {"high", "critical"}
 
@@ -1076,6 +1076,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--decision-events", default="runtime/decision-events.jsonl")
     parser.add_argument("--cognitive-decision-events", default="runtime/cognitive-decision-events.jsonl")
     parser.add_argument("--accounting-events", default="runtime/accounting-events.jsonl")
+    parser.add_argument("--accounting-core-events", default="runtime/accounting-core-events.jsonl")
     parser.add_argument("--learning-events", default="runtime/learning-events.jsonl")
     parser.add_argument("--action-events", default="runtime/action-events.jsonl")
     parser.add_argument("--autonomous-cycle-events", default="runtime/autonomous-cycle-events.jsonl")
@@ -1104,6 +1105,7 @@ def main() -> int:
         resolve_runtime_path(args.decision_events),
         resolve_runtime_path(args.cognitive_decision_events),
         resolve_runtime_path(args.accounting_events),
+        resolve_runtime_path(args.accounting_core_events),
         resolve_runtime_path(args.learning_events),
         resolve_runtime_path(args.action_events),
         resolve_runtime_path(args.autonomous_cycle_events),

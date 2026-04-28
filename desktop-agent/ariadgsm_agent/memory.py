@@ -645,7 +645,7 @@ class MemoryStore:
                 (conversation_id, channel_id, title, "domain_event", now, now, event_type, now),
             )
 
-            if event_type.startswith("Payment") or event_type.startswith("Debt") or event_type.startswith("Refund") or event_type.startswith("Quote"):
+            if event_type.startswith("Payment") or event_type.startswith("Debt") or event_type.startswith("Refund") or event_type.startswith("Quote") or event_type.startswith("Accounting"):
                 self.conn.execute(
                     """
                     insert or ignore into memory_accounting_events (

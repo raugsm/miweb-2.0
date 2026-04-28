@@ -25,6 +25,7 @@ CONTRACT_FILES: dict[str, str] = {
     "domain_event": "domain-event-envelope.schema.json",
     "case_manager_state": "case-manager-state.schema.json",
     "channel_routing_state": "channel-routing-state.schema.json",
+    "accounting_core_state": "accounting-core-state.schema.json",
 }
 
 
@@ -140,14 +141,14 @@ def validate_contract(event: dict[str, Any], contract_name: str) -> list[str]:
         risk = event.get("risk") if isinstance(event.get("risk"), dict) else {}
         if risk.get("riskLevel") == "critical" and not event.get("requiresHumanReview"):
             errors.append("$.requiresHumanReview: critical events require human review")
-        if event_type == "PaymentConfirmed":
+        if event_type in {"PaymentConfirmed", "AccountingRecordConfirmed"}:
             levels = [
                 evidence.get("evidenceLevel")
                 for evidence in event.get("evidence", [])
                 if isinstance(evidence, dict)
             ]
             if "A" not in levels:
-                errors.append("$.evidence: PaymentConfirmed requires level A evidence")
+                errors.append(f"$.evidence: {event_type} requires level A evidence")
     return errors
 
 
@@ -181,10 +182,10 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
         },
     },
     "domain_contracts_final_readiness": {
-        "contractVersion": "0.8.2",
+        "contractVersion": "0.8.5",
         "stageId": "stage_one_domain_event_contracts",
         "createdAt": utc_now(),
-        "version": "0.8.2",
+        "version": "0.8.5",
         "status": "ok",
         "summary": "Etapa 1 ok: Domain Event Contracts cerrados.",
         "checks": [
@@ -556,6 +557,50 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "rutasAprobadas": [{"caseId": "case-sample-2", "targetChannelId": "wa-2"}],
             "necesitanBryams": [{"caseId": "case-sample-1", "reason": "Cruza canales."}],
             "riesgos": ["No mover contexto entre WhatsApps sin confirmacion humana."],
+        },
+    },
+    "accounting_core_state": {
+        "status": "attention",
+        "engine": "ariadgsm_accounting_core_evidence_first",
+        "version": "0.8.5",
+        "updatedAt": utc_now(),
+        "domainEventsFile": "desktop-agent/runtime/domain-events.jsonl",
+        "caseManagerDb": "desktop-agent/runtime/case-manager.sqlite",
+        "accountingEventsFile": "desktop-agent/runtime/accounting-core-events.jsonl",
+        "db": "desktop-agent/runtime/accounting-core.sqlite",
+        "evidencePolicy": {
+            "version": "ariadgsm-accounting-evidence-policy-0.8.5",
+            "levels": ["A", "B", "C", "D", "E", "F"],
+            "confirmationRequires": ["evidence_level_A"],
+        },
+        "ingested": {
+            "domainEvents": 4,
+            "accountingEvents": 2,
+            "duplicates": 0,
+            "invalid": 0,
+            "records": 2,
+            "emittedEvents": 2,
+        },
+        "summary": {
+            "domainEventsRead": 4,
+            "accountingRecords": 2,
+            "drafts": 1,
+            "needsEvidence": 0,
+            "needsHuman": 1,
+            "confirmedRecords": 1,
+            "payments": 1,
+            "debts": 1,
+            "refunds": 0,
+            "evidenceAttached": 2,
+            "emittedAccountingEvents": 2,
+            "ambiguousRecords": 0,
+        },
+        "humanReport": {
+            "quePaso": "Accounting Core proceso eventos contables y separo borradores de confirmados.",
+            "pendientes": [{"record_id": "acct-sample-1", "status": "draft"}],
+            "confirmados": [{"record_id": "acct-sample-2", "status": "confirmed"}],
+            "necesitanBryams": [{"record_id": "acct-sample-1", "reason": "falta evidencia A"}],
+            "riesgos": ["No confirmar pagos sin evidencia A."],
         },
     },
 }

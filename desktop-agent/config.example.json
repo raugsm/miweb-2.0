@@ -60,6 +60,15 @@
     "policyFile": "./desktop-agent/runtime/channel-routing-policy.json",
     "limit": 500
   },
+  "accountingEvidenceCore": {
+    "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
+    "caseManagerDb": "./desktop-agent/runtime/case-manager.sqlite",
+    "accountingEventsFile": "./desktop-agent/runtime/accounting-core-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/accounting-core-state.json",
+    "reportFile": "./desktop-agent/runtime/accounting-core-report.json",
+    "db": "./desktop-agent/runtime/accounting-core.sqlite",
+    "limit": 500
+  },
   "domainEventCore": {
     "visionEventsFile": "./desktop-agent/runtime/vision-events.jsonl",
     "perceptionEventsFile": "./desktop-agent/runtime/perception-events.jsonl",
@@ -68,6 +77,7 @@
     "operatingDecisionEventsFile": "./desktop-agent/runtime/decision-events.jsonl",
     "cognitiveDecisionEventsFile": "./desktop-agent/runtime/cognitive-decision-events.jsonl",
     "accountingEventsFile": "./desktop-agent/runtime/accounting-events.jsonl",
+    "accountingCoreEventsFile": "./desktop-agent/runtime/accounting-core-events.jsonl",
     "learningEventsFile": "./desktop-agent/runtime/learning-events.jsonl",
     "actionEventsFile": "./desktop-agent/runtime/action-events.jsonl",
     "autonomousCycleEventsFile": "./desktop-agent/runtime/autonomous-cycle-events.jsonl",
@@ -82,7 +92,7 @@
   "domainContractsCore": {
     "stateFile": "./desktop-agent/runtime/domain-contracts-final-state.json",
     "reportFile": "./desktop-agent/runtime/domain-contracts-final-report.json",
-    "version": "0.8.2"
+    "version": "0.8.5"
   },
   "autonomousCycleCore": {
     "stateFile": "./desktop-agent/runtime/autonomous-cycle-state.json",

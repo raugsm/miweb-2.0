@@ -56,7 +56,9 @@ BUSINESS_TYPES = {
     "DemandPatternDetected",
     "PaymentDrafted",
     "PaymentEvidenceAttached",
+    "AccountingEvidenceAttached",
     "PaymentConfirmed",
+    "AccountingRecordConfirmed",
     "DebtDetected",
     "DebtUpdated",
     "RefundCandidate",
@@ -82,7 +84,9 @@ BUSINESS_TYPES = {
 ACCOUNTING_TYPES = {
     "PaymentDrafted",
     "PaymentEvidenceAttached",
+    "AccountingEvidenceAttached",
     "PaymentConfirmed",
+    "AccountingRecordConfirmed",
     "DebtDetected",
     "DebtUpdated",
     "RefundCandidate",
@@ -334,9 +338,9 @@ def status_for_event(kind: str, current: str) -> str:
         return "blocked"
     if kind in {"HumanApprovalRequired", "HumanCorrectionReceived", "OperatorOverrideRecorded"}:
         return "needs_human"
-    if kind in {"PaymentDrafted", "PaymentEvidenceAttached", "DebtDetected", "RefundCandidate", "AccountingCorrectionReceived"}:
+    if kind in {"PaymentDrafted", "PaymentEvidenceAttached", "AccountingEvidenceAttached", "DebtDetected", "RefundCandidate", "AccountingCorrectionReceived"}:
         return "accounting_review"
-    if kind in {"PaymentConfirmed", "DebtUpdated"}:
+    if kind in {"PaymentConfirmed", "AccountingRecordConfirmed", "DebtUpdated"}:
         return "in_progress"
     if kind in {"QuoteRequested", "QuoteProposed", "QuoteRecorded"}:
         return "needs_quote"
@@ -350,9 +354,9 @@ def status_for_event(kind: str, current: str) -> str:
 
 
 def payment_state_for_event(kind: str, current: str) -> str:
-    if kind in {"PaymentDrafted", "PaymentEvidenceAttached"}:
+    if kind in {"PaymentDrafted", "PaymentEvidenceAttached", "AccountingEvidenceAttached"}:
         return "draft_needs_evidence"
-    if kind == "PaymentConfirmed":
+    if kind in {"PaymentConfirmed", "AccountingRecordConfirmed"}:
         return "confirmed"
     if kind in {"DebtDetected", "DebtUpdated"}:
         return "debt_review"
@@ -414,7 +418,7 @@ def next_action_for(kind: str, status: str) -> str:
         return "Pedir ayuda a Bryams antes de continuar."
     if status == "needs_human":
         return "Mostrar el caso a Bryams para contexto o aprobacion."
-    if kind in {"PaymentDrafted", "PaymentEvidenceAttached", "DebtDetected", "RefundCandidate"}:
+    if kind in {"PaymentDrafted", "PaymentEvidenceAttached", "AccountingEvidenceAttached", "DebtDetected", "RefundCandidate"}:
         return "Revisar evidencia contable antes de confirmar."
     if kind in {"QuoteRequested", "QuoteProposed", "QuoteRecorded"}:
         return "Preparar respuesta de precio y pedir aprobacion si cambia dinero."

@@ -11,7 +11,7 @@ from .contracts import sample_event, validate_contract
 from .domain_events import adapt_engine_event
 
 
-CONTRACT_VERSION = "0.8.2"
+CONTRACT_VERSION = "0.8.5"
 STAGE_ID = "stage_one_domain_event_contracts"
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,7 +43,9 @@ REQUIRED_DOMAIN_EVENTS: tuple[str, ...] = (
     "ChannelRouteRejected",
     "PaymentDrafted",
     "PaymentEvidenceAttached",
+    "AccountingEvidenceAttached",
     "PaymentConfirmed",
+    "AccountingRecordConfirmed",
     "DebtDetected",
     "DebtUpdated",
     "RefundCandidate",

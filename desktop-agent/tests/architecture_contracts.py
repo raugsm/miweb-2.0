@@ -378,6 +378,10 @@ def main() -> int:
             json.dumps(sample_event("channel_routing_state"), ensure_ascii=False),
             encoding="utf-8",
         )
+        (root / "accounting-core-state.json").write_text(
+            json.dumps(sample_event("accounting_core_state"), ensure_ascii=False),
+            encoding="utf-8",
+        )
         cycle_state = run_autonomous_cycle_once(
             root,
             autonomous_cycle_state_file,
@@ -386,7 +390,7 @@ def main() -> int:
         )
         assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
         assert cycle_state["status"] in {"ok", "attention", "blocked"}
-        assert len(cycle_state["stages"]) == 8
+        assert len(cycle_state["stages"]) == 9
         assert [step["stepId"] for step in cycle_state["steps"]] == [
             "observe",
             "understand",

@@ -84,6 +84,12 @@ def seed_runtime(root: Path, *, operator_control: bool = False, critical: bool =
     channel_routing_state["humanReport"]["rutasPropuestas"] = []
     channel_routing_state["humanReport"]["necesitanBryams"] = []
     write_json(root / "channel-routing-state.json", channel_routing_state)
+    accounting_core_state = sample_event("accounting_core_state")
+    accounting_core_state["status"] = "ok"
+    accounting_core_state["summary"]["needsEvidence"] = 0
+    accounting_core_state["summary"]["needsHuman"] = 0
+    accounting_core_state["humanReport"]["necesitanBryams"] = []
+    write_json(root / "accounting-core-state.json", accounting_core_state)
     write_json(
         root / "memory-state.json",
         {

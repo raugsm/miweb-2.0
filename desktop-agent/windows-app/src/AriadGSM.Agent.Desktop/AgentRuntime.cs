@@ -301,6 +301,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Operating", "operating-state.json", "PythonCoreLoop"),
             StateHealth("Case Manager", "case-manager-state.json", "PythonCoreLoop"),
             StateHealth("Channel Routing", "channel-routing-state.json", "PythonCoreLoop"),
+            StateHealth("Accounting Core", "accounting-core-state.json", "PythonCoreLoop"),
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
             StateHealth("Domain Events", "domain-events-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
@@ -372,6 +373,7 @@ internal sealed partial class AgentRuntime : IDisposable
         using var operating = ReadJsonStatus("operating-state.json");
         using var caseManager = ReadJsonStatus("case-manager-state.json");
         using var channelRouting = ReadJsonStatus("channel-routing-state.json");
+        using var accountingCore = ReadJsonStatus("accounting-core-state.json");
         using var memory = ReadJsonStatus("memory-state.json");
         using var hands = ReadJsonStatus("hands-state.json");
         using var inputArbiter = ReadJsonStatus("input-arbiter-state.json");
@@ -414,6 +416,7 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
             $"Case Manager: abiertos={NestedNumber(caseManager, "summary", "openCases")} | humano={NestedNumber(caseManager, "summary", "needsHuman")} | eventos={NestedNumber(caseManager, "summary", "emittedCaseEvents")}",
             $"Channel Routing: propuestas={NestedNumber(channelRouting, "summary", "proposedRoutes")} | aprobadas={NestedNumber(channelRouting, "summary", "approvedRoutes")} | humano={NestedNumber(channelRouting, "summary", "needsHuman")}",
+            $"Accounting Core: registros={NestedNumber(accountingCore, "summary", "accountingRecords")} | confirmados={NestedNumber(accountingCore, "summary", "confirmedRecords")} | falta evidencia={NestedNumber(accountingCore, "summary", "needsEvidence")}",
             $"Input Arbiter: {Text(inputArbiter, "phase")} | idle={Number(inputArbiter, "operatorIdleMs")}ms | {Text(inputArbiter, "summary")}",
             $"Hands: ejecutadas={Number(hands, "actionsExecuted")} | verificadas={Number(hands, "actionsVerified")} | bloqueadas={Number(hands, "actionsBlocked")} | ultimo={Text(hands, "lastSummary")}",
             $"Supervisor: hallazgos={NestedNumber(supervisor, "summary", "findings")} | requiere humano={NestedNumber(supervisor, "summary", "requiresHumanConfirmation")} | bloqueadas={NestedNumber(supervisor, "summary", "blocked")}",
@@ -1925,6 +1928,8 @@ internal sealed partial class AgentRuntime : IDisposable
             ("DomainEventsBeforeCaseManager", "ariadgsm_agent.domain_events", new[] { "--json" }),
             ("CaseManager", "ariadgsm_agent.case_manager", new[] { "--json" }),
             ("ChannelRouting", "ariadgsm_agent.channel_routing", new[] { "--json" }),
+            ("DomainEventsBeforeAccounting", "ariadgsm_agent.domain_events", new[] { "--json" }),
+            ("AccountingCore", "ariadgsm_agent.accounting_evidence", new[] { "--json" }),
             ("DomainEventsBeforeMemory", "ariadgsm_agent.domain_events", new[] { "--json" }),
             ("Memory", "ariadgsm_agent.memory", new[] { "--json" }),
             ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" }),

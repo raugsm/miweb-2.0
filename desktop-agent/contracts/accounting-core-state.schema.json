@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/accounting-core-state.schema.json",
+  "title": "AriadGSM Accounting Core State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "domainEventsFile",
+    "caseManagerDb",
+    "accountingEventsFile",
+    "db",
+    "evidencePolicy",
+    "ingested",
+    "summary",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked"] },
+    "engine": { "type": "string", "const": "ariadgsm_accounting_core_evidence_first" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "domainEventsFile": { "type": "string", "minLength": 1 },
+    "caseManagerDb": { "type": "string", "minLength": 1 },
+    "accountingEventsFile": { "type": "string", "minLength": 1 },
+    "db": { "type": "string", "minLength": 1 },
+    "evidencePolicy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "levels", "confirmationRequires"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "levels": { "type": "array", "items": { "type": "string" } },
+        "confirmationRequires": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ingested": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domainEvents", "accountingEvents", "duplicates", "invalid", "records", "emittedEvents"],
+      "properties": {
+        "domainEvents": { "type": "integer", "minimum": 0 },
+        "accountingEvents": { "type": "integer", "minimum": 0 },
+        "duplicates": { "type": "integer", "minimum": 0 },
+        "invalid": { "type": "integer", "minimum": 0 },
+        "records": { "type": "integer", "minimum": 0 },
+        "emittedEvents": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "domainEventsRead",
+        "accountingRecords",
+        "drafts",
+        "needsEvidence",
+        "needsHuman",
+        "confirmedRecords",
+        "payments",
+        "debts",
+        "refunds",
+        "evidenceAttached",
+        "emittedAccountingEvents",
+        "ambiguousRecords"
+      ],
+      "properties": {
+        "domainEventsRead": { "type": "integer", "minimum": 0 },
+        "accountingRecords": { "type": "integer", "minimum": 0 },
+        "drafts": { "type": "integer", "minimum": 0 },
+        "needsEvidence": { "type": "integer", "minimum": 0 },
+        "needsHuman": { "type": "integer", "minimum": 0 },
+        "confirmedRecords": { "type": "integer", "minimum": 0 },
+        "payments": { "type": "integer", "minimum": 0 },
+        "debts": { "type": "integer", "minimum": 0 },
+        "refunds": { "type": "integer", "minimum": 0 },
+        "evidenceAttached": { "type": "integer", "minimum": 0 },
+        "emittedAccountingEvents": { "type": "integer", "minimum": 0 },
+        "ambiguousRecords": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["quePaso", "pendientes", "confirmados", "necesitanBryams", "riesgos"],
+      "properties": {
+        "quePaso": { "type": "string" },
+        "pendientes": { "type": "array" },
+        "confirmados": { "type": "array" },
+        "necesitanBryams": { "type": "array" },
+        "riesgos": { "type": "array" }
+      }
+    }
+  }
+}

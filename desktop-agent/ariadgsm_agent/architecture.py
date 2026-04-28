@@ -22,7 +22,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("Channel Routing Brain", "Python", "Decide whether a case stays, transfers or merges across WhatsApp channels with evidence and approval gates.", "channel_routing_state"),
     Layer("Memory Core", "Python", "Store clients, facts, procedures, slang, failures and conversation memory.", "learning_event"),
     Layer("Operating Core", "Python", "Track business state, cases, tasks, priorities and queues.", "decision_event"),
-    Layer("Accounting Core", "Python", "Create payment, debt and quote records with evidence and confidence.", "accounting_event"),
+    Layer("Accounting Core", "Python", "Create payment, debt and refund records with evidence-first confirmation gates.", "accounting_core_state"),
     Layer("Cognitive Core", "Python", "Reason, plan, learn, ask for confirmation and choose the next action.", "decision_event"),
     Layer("Hands Engine", "C#/.NET", "Move mouse, keyboard, windows and scroll, then verify the action.", "action_event"),
     Layer("Supervisor", "C#/.NET + Python", "Enforce autonomy, confidence, permissions, audit and safety policy.", "action_event"),
@@ -55,6 +55,7 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "domain_event",
     "case_manager_state",
     "channel_routing_state",
+    "accounting_core_state",
 )
 
 

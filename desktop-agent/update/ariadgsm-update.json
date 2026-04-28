@@ -1,8 +1,8 @@
 {
-  "version": "0.8.4",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.4.zip",
-  "sha256": "49291ed33f13ab897be693d5091b4133611755eda6ad8459830becf99d4ada28",
+  "version": "0.8.5",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.5.zip",
+  "sha256": "e63d8e8c98b7de59f6f4d336065d917eaebac6cdf6d5d034174f8e1f06e42da8",
   "autoApply": true,
-  "notes": "Version 0.8.4 closes Channel Routing Brain: cases now produce channel route decisions, proposed/approved/rejected route events, human review for cross-channel moves, route-events stream, routing state contract, and runtime ordering before Memory.",
-  "publishedAt": "2026-04-28T00:58:34Z"
+  "notes": "Version 0.8.5 closes Accounting Core evidence-first: payments, debts and refunds now become case-linked accounting records with evidence levels, draft vs confirmed separation, AccountingEvidenceAttached/AccountingRecordConfirmed events, human review for weak evidence, and runtime ordering before Memory.",
+  "publishedAt": "2026-04-28T01:16:28Z"
 }

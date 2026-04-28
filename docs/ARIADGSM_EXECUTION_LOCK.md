@@ -292,7 +292,7 @@ Pendiente para considerarlo producto final:
 Estado:
 
 ```text
-PARCIAL / NECESITA EVIDENCIA COMO REGLA CENTRAL
+CERRADO COMO ACCOUNTING CORE EVIDENCE-FIRST OPERATIVO 0.8.5
 ```
 
 Objetivo:
@@ -329,6 +329,22 @@ Definicion de terminado:
 - existe razon cuando falta evidencia;
 - hay reporte humano de contabilidad pendiente;
 - hay pruebas de pagos ambiguos, repetidos y confirmados.
+
+Ya existe:
+
+- `docs/ARIADGSM_ACCOUNTING_CORE_EVIDENCE_FIRST_DESIGN.md`
+- `desktop-agent/contracts/accounting-core-state.schema.json`
+- `desktop-agent/ariadgsm_agent/accounting_evidence.py`
+- `desktop-agent/tests/accounting_core_evidence.py`
+- eventos `AccountingEvidenceAttached` y `AccountingRecordConfirmed`;
+- integracion con Case Manager, Domain Events, Channel Routing, Memory,
+  Autonomous Cycle y `AgentRuntime.cs`.
+
+Pendiente para considerarlo producto final:
+
+- ninguno dentro de este bloque; la siguiente fase debe fortalecer la cabina,
+  seguridad visual, interfaz final y manos sin volver a mezclarlo con la
+  columna mental del negocio.
 
 ## 7. Bloques que NO pueden adelantarse
 
@@ -385,25 +401,27 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como `Product Foundation`, `Domain Event Contracts`, `Case Manager` y
-`Channel Routing Brain` quedan cerrados, y `Autonomous Cycle Orchestrator` ya
-esta implementado como ciclo central, el siguiente bloque activo es:
+Como `Product Foundation`, `Domain Event Contracts`, `Case Manager`,
+`Channel Routing Brain` y `Accounting Core evidence-first` quedan cerrados, la
+columna mental inicial del negocio queda completa.
+
+El siguiente bloque recomendado para producto final es:
 
 ```text
-Accounting Core evidence-first
+Cabin Authority final
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_ACCOUNTING_CORE_EVIDENCE_FIRST_DESIGN.md
+docs/ARIADGSM_CABIN_AUTHORITY_FINAL_DESIGN.md
 ```
 
 Y el entregable tecnico minimo posterior es:
 
 ```text
-desktop-agent/ariadgsm_agent/accounting_evidence.py
-desktop-agent/contracts/accounting-core-state.schema.json
-desktop-agent/tests/accounting_core_evidence.py
-integracion con Case Manager / Domain Events / Channel Routing / Autonomous Cycle
+alistamiento determinista de Edge/Chrome/Firefox
+verificacion de 3 WhatsApps visibles sin cerrar ventanas del usuario
+estado visible para Bryams antes de Encender IA
+pruebas sin mover/cerrar sesiones reales
 ```

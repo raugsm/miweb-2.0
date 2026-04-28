@@ -1,6 +1,6 @@
 {
-  "schemaVersion": "0.8.2",
-  "previousSchemaVersions": ["0.7.0"],
+  "schemaVersion": "0.8.5",
+  "previousSchemaVersions": ["0.8.2", "0.7.0"],
   "compatibility": "backward_compatible",
   "eventTypes": {
     "ObservationCreated": {
@@ -225,11 +225,23 @@
       "defaultRiskLevel": "high",
       "description": "Payment evidence was attached to a payment draft."
     },
+    "AccountingEvidenceAttached": {
+      "category": "accounting",
+      "allowedSourceDomains": ["AccountingBrain", "BusinessBrain", "HumanCollaboration"],
+      "defaultRiskLevel": "high",
+      "description": "Accounting evidence was attached to a draft record."
+    },
     "PaymentConfirmed": {
       "category": "accounting",
       "allowedSourceDomains": ["AccountingBrain", "HumanCollaboration"],
       "defaultRiskLevel": "critical",
       "description": "A payment was confirmed with strong evidence."
+    },
+    "AccountingRecordConfirmed": {
+      "category": "accounting",
+      "allowedSourceDomains": ["AccountingBrain", "HumanCollaboration"],
+      "defaultRiskLevel": "critical",
+      "description": "An accounting record was confirmed with level A evidence."
     },
     "DebtDetected": {
       "category": "accounting",
