@@ -62,6 +62,8 @@ def main() -> int:
     assert "HandsVerificationStateFile" in options
 
     assert "GetLastInputInfo" in arbiter
+    assert "WriteHeartbeat" in arbiter
+    assert "Hands ciclo vivo" in pipeline
     assert "contractVersion" in arbiter
     assert "activeOwner" in arbiter
     assert "businessBrainContinue" in arbiter

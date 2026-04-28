@@ -83,6 +83,7 @@ public sealed class HandsPipeline
             var suspendedChannels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var writtenThisCycle = 0;
             var cursorDirty = false;
+            _inputArbiter.WriteHeartbeat("Hands ciclo vivo: refresco prioridad de mouse antes de Trust & Safety.");
 
             if (!orchestrator.ActionsAllowed)
             {

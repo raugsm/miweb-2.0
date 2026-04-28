@@ -1,8 +1,8 @@
 {
-  "version": "0.9.4",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.4.zip",
-  "sha256": "2a4bb3e2877060fe32f53b6d8a49bd89428c978b34924d8b68c73a5719197831",
+  "version": "0.9.5",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.5.zip",
+  "sha256": "96e33cc0bbf1204d0b35f2823d6e15219fdbf57aecf65753bb647ee92c1ced70",
   "autoApply": true,
-  "notes": "Version 0.9.4 fixes silent start intake: Encender IA remains available after cabin setup and every accepted click logs a Control Plane-visible human signal.",
-  "publishedAt": "2026-04-28T19:20:00Z"
+  "notes": "Version 0.9.5 primes Trust & Safety before Hands, refreshes Input Arbiter heartbeat every hands cycle and keeps safe navigation alive while risky accounting actions remain blocked.",
+  "publishedAt": "2026-04-28T19:35:00Z"
 }

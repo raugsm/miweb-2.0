@@ -276,6 +276,7 @@ class TrustSafetyCore:
         critical = [item for item in findings if item.risk_level == "critical" or item.severity == "critical"]
 
         gate_decision = decide_gate(blocked, ask_human, paused, limited)
+        hands_can_run = decide_hands_can_run(gate_decision, blocked, paused)
         status = "blocked" if gate_decision == "BLOCK" else "attention" if gate_decision in {"ASK_HUMAN", "PAUSE_FOR_OPERATOR", "ALLOW_WITH_LIMIT"} else "ok"
         human_report = self.human_report(gate_decision, findings, blocked, ask_human, paused)
         return {
@@ -322,14 +323,15 @@ class TrustSafetyCore:
             "permissionGate": {
                 "decision": gate_decision,
                 "reason": human_report["resumenDecision"],
-                "canHandsRun": gate_decision in {"ALLOW", "ALLOW_WITH_LIMIT"},
+                "canHandsRun": hands_can_run,
+                "actionabilityMode": "safe_subset" if hands_can_run and gate_decision not in {"ALLOW", "ALLOW_WITH_LIMIT"} else "normal",
                 "allowedEngines": {
                     "vision": True,
                     "perception": True,
                     "memory": True,
                     "cognitive": True,
                     "businessBrain": True,
-                    "hands": gate_decision in {"ALLOW", "ALLOW_WITH_LIMIT"},
+                    "hands": hands_can_run,
                 },
             },
             "summary": {
@@ -731,6 +733,24 @@ def decide_gate(
     if limited:
         return "ALLOW_WITH_LIMIT"
     return "ALLOW"
+
+
+def decide_hands_can_run(
+    gate_decision: str,
+    blocked: list[TrustFinding],
+    paused: list[TrustFinding],
+) -> bool:
+    if paused:
+        return False
+    if gate_decision in {"ALLOW", "ALLOW_WITH_LIMIT"}:
+        return True
+
+    critical_or_irreversible = [
+        item
+        for item in blocked
+        if item.risk_level == "critical" or item.severity == "critical" or not item.reversible
+    ]
+    return not critical_or_irreversible
 
 
 def permission_value(permissions: TrustSafetyPermissions, permission: str) -> bool:

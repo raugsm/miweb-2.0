@@ -157,7 +157,9 @@ internal sealed partial class AgentRuntime : IDisposable
         MarkBootPhase("workspace_guardian", "running", "Activando guardian de cabina bajo la sesion actual.");
         StartWorkspaceGuardianLoop();
         MarkBootPhase("workspace_guardian", "ok", "Workspace Guardian activo.");
-        MarkBootPhase("workers", "running", "Encendiendo Vision, Perception, Interaction, Orchestrator y Hands.");
+        MarkBootPhase("workers", "running", "Encendiendo ojos y preparando permisos frescos antes de manos.");
+        WriteInputArbiterHeartbeatState("startup");
+        await PrimeTrustSafetyAsync(CancellationToken.None).ConfigureAwait(false);
         StartWorker(
             "Vision",
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "vision", "AriadGSM.Vision.Worker.exe"),
@@ -178,15 +180,15 @@ internal sealed partial class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "orchestrator", "AriadGSM.Orchestrator.Worker.exe"),
             Path.Combine("desktop-agent", "orchestrator-engine", "src", "AriadGSM.Orchestrator.Worker", "AriadGSM.Orchestrator.Worker.csproj"),
             Path.Combine("desktop-agent", "orchestrator-engine", "config", "orchestrator.example.json"));
+        MarkBootPhase("python_core", "running", "Encendiendo ciclo mental local.");
+        StartCoreLoop();
+        MarkBootPhase("python_core", "ok", "Python Core Loop solicitado.");
         StartWorker(
             "Hands",
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "hands", "AriadGSM.Hands.Worker.exe"),
             Path.Combine("desktop-agent", "hands-engine", "src", "AriadGSM.Hands.Worker", "AriadGSM.Hands.Worker.csproj"),
             Path.Combine("desktop-agent", "hands-engine", "config", "hands.example.json"));
         MarkBootPhase("workers", "ok", "Workers solicitados y registrados por Runtime Governor.");
-        MarkBootPhase("python_core", "running", "Encendiendo ciclo mental local.");
-        StartCoreLoop();
-        MarkBootPhase("python_core", "ok", "Python Core Loop solicitado.");
         MarkBootPhase("supervisor", "running", "Encendiendo supervisor de confiabilidad.");
         StartSupervisorLoop();
         MarkBootPhase("supervisor", "ok", "Supervisor de confiabilidad activo.");
@@ -2099,6 +2101,97 @@ internal sealed partial class AgentRuntime : IDisposable
         return candidates.FirstOrDefault(File.Exists);
     }
 
+    private async Task PrimeTrustSafetyAsync(CancellationToken cancellationToken)
+    {
+        var python = ResolvePython();
+        if (python is null)
+        {
+            WriteLog("TrustSafety prime skipped: Python was not found.");
+            return;
+        }
+
+        WriteLog("TrustSafety prime: refreshing permission gate before Hands starts.");
+        await RunProcessToExitAsync(
+            "TrustSafetyPrime",
+            python,
+            ["-m", "ariadgsm_agent.trust_safety", "--autonomy-level", "3", "--json"],
+            _desktopRoot,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private void WriteInputArbiterHeartbeatState(string phase)
+    {
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var requiredIdleMs = 1200;
+            var operatorIdleMs = GetOperatorIdleMilliseconds();
+            var operatorActive = operatorIdleMs < requiredIdleMs;
+            var state = new Dictionary<string, object?>
+            {
+                ["contractVersion"] = "0.8.14",
+                ["status"] = operatorActive ? "attention" : "ok",
+                ["engine"] = "ariadgsm_input_arbiter",
+                ["version"] = "0.8.14",
+                ["phase"] = operatorActive ? "operator_control" : "operator_idle",
+                ["decision"] = operatorActive ? "PAUSE_FOR_OPERATOR" : "ALLOW",
+                ["activeOwner"] = operatorActive ? "operator" : "none",
+                ["updatedAt"] = now,
+                ["leaseId"] = operatorActive ? "operator_active" : "operator_idle",
+                ["blockedActionId"] = "",
+                ["actionType"] = "heartbeat",
+                ["channelId"] = "",
+                ["conversationTitle"] = "",
+                ["operatorIdleMs"] = operatorIdleMs,
+                ["requiredIdleMs"] = requiredIdleMs,
+                ["operatorHasPriority"] = operatorActive,
+                ["handsPausedOnly"] = operatorActive,
+                ["eyesContinue"] = true,
+                ["memoryContinue"] = true,
+                ["cognitiveContinue"] = true,
+                ["businessBrainContinue"] = true,
+                ["lease"] = new Dictionary<string, object?>
+                {
+                    ["leaseId"] = operatorActive ? "operator_active" : "operator_idle",
+                    ["granted"] = !operatorActive,
+                    ["requiresInput"] = false,
+                    ["issuedAt"] = now,
+                    ["expiresAt"] = now.AddMilliseconds(1000),
+                    ["ttlMs"] = 1000,
+                    ["actionId"] = "",
+                    ["actionType"] = "heartbeat",
+                    ["reason"] = $"Control Plane {phase}: refresco Input Arbiter antes de manos."
+                },
+                ["operator"] = new Dictionary<string, object?>
+                {
+                    ["hasPriority"] = operatorActive,
+                    ["idleMs"] = operatorIdleMs,
+                    ["requiredIdleMs"] = requiredIdleMs,
+                    ["cooldownUntil"] = operatorActive ? now.AddMilliseconds(1600) : now,
+                    ["cooldownMs"] = operatorActive ? 1600 : 0
+                },
+                ["continuation"] = new Dictionary<string, object?>
+                {
+                    ["hands"] = !operatorActive,
+                    ["eyes"] = true,
+                    ["memory"] = true,
+                    ["cognitive"] = true,
+                    ["businessBrain"] = true
+                },
+                ["summary"] = operatorActive
+                    ? "Tu estas usando mouse o teclado; manos esperan pero ojos y memoria siguen."
+                    : "Operador inactivo; manos disponibles para acciones verificadas."
+            };
+            WriteAllTextAtomicShared(
+                Path.Combine(_runtimeDir, "input-arbiter-state.json"),
+                JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception exception)
+        {
+            WriteLog($"Input Arbiter heartbeat failed: {exception.Message}");
+        }
+    }
+
     private void StartCoreLoop()
     {
         if (_coreLoopTask is { IsCompleted: false })
@@ -2204,6 +2297,7 @@ internal sealed partial class AgentRuntime : IDisposable
             ("Timeline", "ariadgsm_agent.timeline", new[] { "--json" }),
             ("Cognitive", "ariadgsm_agent.cognitive", new[] { "--autonomy-level", "3", "--json" }),
             ("Operating", "ariadgsm_agent.operating", new[] { "--autonomy-level", "3", "--json" }),
+            ("TrustSafetyFast", "ariadgsm_agent.trust_safety", new[] { "--autonomy-level", "3", "--json" }),
             ("DomainEventsBeforeCaseManager", "ariadgsm_agent.domain_events", new[] { "--json" }),
             ("CaseManager", "ariadgsm_agent.case_manager", new[] { "--json" }),
             ("ChannelRouting", "ariadgsm_agent.channel_routing", new[] { "--json" }),
@@ -3591,6 +3685,32 @@ internal sealed partial class AgentRuntime : IDisposable
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect lpRect);
 
+    private static long GetOperatorIdleMilliseconds()
+    {
+        try
+        {
+            var lastInput = new LastInputInfo { CbSize = (uint)Marshal.SizeOf<LastInputInfo>() };
+            if (!GetLastInputInfo(ref lastInput))
+            {
+                return int.MaxValue - 1L;
+            }
+
+            var now = GetTickCount64();
+            var idle = now >= lastInput.DwTime ? now - lastInput.DwTime : 0;
+            return idle >= int.MaxValue ? int.MaxValue - 1L : (long)idle;
+        }
+        catch
+        {
+            return int.MaxValue - 1L;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LastInputInfo plii);
+
+    [DllImport("kernel32.dll")]
+    private static extern ulong GetTickCount64();
+
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
     {
@@ -3598,6 +3718,13 @@ internal sealed partial class AgentRuntime : IDisposable
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LastInputInfo
+    {
+        public uint CbSize;
+        public uint DwTime;
     }
 
     private sealed record ManagedProcess(string Name, Process Process, WorkerSpec? Spec);

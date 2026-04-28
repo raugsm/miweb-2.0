@@ -78,6 +78,27 @@ def verified_open_chat(action_id: str) -> dict[str, object]:
     }
 
 
+def blocked_accounting_action(action_id: str) -> dict[str, object]:
+    return {
+        "eventType": "action_event",
+        "actionId": action_id,
+        "createdAt": "2026-04-28T12:00:02Z",
+        "actionType": "record_accounting",
+        "target": {
+            "channelId": "wa-2",
+            "conversationTitle": "Cliente pago",
+            "requiresHumanConfirmation": True,
+            "requiredAutonomyLevel": 4,
+        },
+        "status": "blocked",
+        "verification": {
+            "verified": False,
+            "summary": "Autonomy level 3 is below required level 4.",
+            "confidence": 0.0,
+        },
+    }
+
+
 def accounting_domain_event(event_id: str, event_type: str, evidence_level: str = "B") -> dict[str, object]:
     return {
         "eventId": event_id,
@@ -183,6 +204,24 @@ def test_send_message_without_explicit_permission_is_blocked() -> None:
         assert any("allowMessageSend" in item["reason"] for item in state["blockedActions"]), state
 
 
+def test_reversible_accounting_block_does_not_freeze_safe_hands() -> None:
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        write_jsonl(root / "cognitive-decision-events.jsonl")
+        write_jsonl(root / "decision-events.jsonl")
+        write_jsonl(
+            root / "action-events.jsonl",
+            verified_open_chat("action-open-safe"),
+            blocked_accounting_action("action-accounting-blocked"),
+        )
+        write_jsonl(root / "domain-events.jsonl")
+        write_json(root / "input-arbiter-state.json", {"phase": "operator_idle", "operatorHasPriority": False, "operatorIdleMs": 3000})
+        state = run_core(root, autonomy_level=3)
+        assert state["permissionGate"]["decision"] == "BLOCK", state
+        assert state["permissionGate"]["actionabilityMode"] == "safe_subset", state
+        assert state["permissionGate"]["allowedEngines"]["hands"] is True, state
+
+
 def test_send_message_with_permission_still_requires_per_action_approval() -> None:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -286,6 +325,7 @@ def main() -> int:
     test_contract_sample()
     test_local_verified_chat_is_allowed_with_limits()
     test_send_message_without_explicit_permission_is_blocked()
+    test_reversible_accounting_block_does_not_freeze_safe_hands()
     test_send_message_with_permission_still_requires_per_action_approval()
     test_accounting_confirmation_requires_evidence_a_and_permission()
     test_operator_control_pauses_hands_only()

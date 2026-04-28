@@ -58,6 +58,10 @@ def main() -> int:
     assert "Encender IA: orden recibida por la interfaz" in ui_source
     assert "Alistamiento terminado: Encender IA queda disponible" in ui_source
     assert "_startButton.Enabled = true;" in ui_source
+    assert "WriteInputArbiterHeartbeatState" in runtime_source
+    assert "PrimeTrustSafetyAsync" in runtime_source
+    assert "TrustSafetyFast" in runtime_source
+    assert runtime_source.index("TrustSafetyFast") < runtime_source.index("DomainEventsBeforeCaseManager")
     assert 'Stop("dispose", "runtime.dispose")' in runtime_source
     assert 'Stop("prepare_whatsapps", "ui.prepare_whatsapps_button")' in ui_source
     assert "MarkBootPhase" in runtime_source

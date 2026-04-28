@@ -86,6 +86,76 @@ public sealed class InputArbiter
         return granted;
     }
 
+    public void WriteHeartbeat(string reason)
+    {
+        if (!_options.InputArbiterEnabled || !_options.ExecuteActions)
+        {
+            return;
+        }
+
+        var operatorIdleMs = GetOperatorIdleMilliseconds();
+        var operatorActive = operatorIdleMs < Math.Max(100, _options.OperatorIdleRequiredMs);
+        var now = DateTimeOffset.UtcNow;
+        var state = new Dictionary<string, object?>
+        {
+            ["contractVersion"] = "0.8.14",
+            ["status"] = operatorActive ? "attention" : "ok",
+            ["engine"] = "ariadgsm_input_arbiter",
+            ["version"] = "0.8.14",
+            ["phase"] = operatorActive ? "operator_control" : "operator_idle",
+            ["decision"] = operatorActive ? "PAUSE_FOR_OPERATOR" : "ALLOW",
+            ["activeOwner"] = operatorActive ? "operator" : "none",
+            ["updatedAt"] = now,
+            ["leaseId"] = operatorActive ? "operator_active" : "operator_idle",
+            ["blockedActionId"] = "",
+            ["actionType"] = "heartbeat",
+            ["channelId"] = "",
+            ["conversationTitle"] = "",
+            ["operatorIdleMs"] = operatorIdleMs,
+            ["requiredIdleMs"] = _options.OperatorIdleRequiredMs,
+            ["operatorHasPriority"] = operatorActive,
+            ["handsPausedOnly"] = operatorActive,
+            ["eyesContinue"] = true,
+            ["memoryContinue"] = true,
+            ["cognitiveContinue"] = true,
+            ["businessBrainContinue"] = true,
+            ["lease"] = new Dictionary<string, object?>
+            {
+                ["leaseId"] = operatorActive ? "operator_active" : "operator_idle",
+                ["granted"] = !operatorActive,
+                ["requiresInput"] = false,
+                ["issuedAt"] = now,
+                ["expiresAt"] = now.AddMilliseconds(Math.Max(500, _options.PollIntervalMs * 2)),
+                ["ttlMs"] = Math.Max(500, _options.PollIntervalMs * 2),
+                ["actionId"] = "",
+                ["actionType"] = "heartbeat",
+                ["reason"] = reason
+            },
+            ["operator"] = new Dictionary<string, object?>
+            {
+                ["hasPriority"] = operatorActive,
+                ["idleMs"] = operatorIdleMs,
+                ["requiredIdleMs"] = _options.OperatorIdleRequiredMs,
+                ["cooldownUntil"] = operatorActive ? now.AddMilliseconds(Math.Max(250, _options.OperatorCooldownMs)) : now,
+                ["cooldownMs"] = operatorActive ? Math.Max(250, _options.OperatorCooldownMs) : 0
+            },
+            ["continuation"] = new Dictionary<string, object?>
+            {
+                ["hands"] = !operatorActive,
+                ["eyes"] = true,
+                ["memory"] = true,
+                ["cognitive"] = true,
+                ["businessBrain"] = true
+            },
+            ["summary"] = operatorActive
+                ? "Tu estas usando mouse o teclado; la IA espera sin bloquear ojos ni memoria."
+                : "Operador inactivo; manos disponibles para acciones verificadas."
+        };
+        WriteTextAtomic(
+            _options.InputArbiterStateFile,
+            JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     public void Complete(InputLease lease, ActionPlan plan, ExecutionResult execution)
     {
         if (!lease.RequiresInput || !_options.InputArbiterEnabled || !_options.ExecuteActions)

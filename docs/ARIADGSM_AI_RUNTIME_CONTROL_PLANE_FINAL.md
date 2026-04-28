@@ -10,6 +10,14 @@ Actualizacion 0.9.4:
 - Al terminar `Alistar WhatsApps`, el boton de arranque vuelve a quedar disponible.
 - La decision real de arrancar o bloquear queda en Control Plane, no en validaciones visuales del boton.
 
+Actualizacion 0.9.5:
+
+- El arranque publica un heartbeat fresco de Input Arbiter antes de encender Hands.
+- `Trust & Safety` se ejecuta en modo prime antes de que Hands pueda actuar.
+- El ciclo Python refresca `Trust & Safety` temprano, antes de los modulos pesados.
+- Hands actualiza Input Arbiter en cada ciclo aunque todavia no pueda mover mouse.
+- Una accion contable riesgosa queda bloqueada por accion, pero no congela la navegacion segura verificada.
+
 ## 1. Capa afectada
 
 ```text
