@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from ariadgsm_agent.autonomous_cycle import run_autonomous_cycle_once
-from ariadgsm_agent.contracts import validate_contract
+from ariadgsm_agent.contracts import sample_event, validate_contract
 from ariadgsm_agent.domain_events import adapt_engine_event
 
 
@@ -71,6 +71,12 @@ def seed_runtime(root: Path, *, operator_control: bool = False, critical: bool =
         root / "operating-state.json",
         {"status": "ok", "summary": {"cases": 1, "openTasks": 1, "accountingDrafts": 1}},
     )
+    case_manager_state = sample_event("case_manager_state")
+    case_manager_state["status"] = "ok"
+    case_manager_state["summary"]["needsHuman"] = 0
+    case_manager_state["summary"]["openCases"] = 1
+    case_manager_state["humanReport"]["necesitanBryams"] = []
+    write_json(root / "case-manager-state.json", case_manager_state)
     write_json(
         root / "memory-state.json",
         {

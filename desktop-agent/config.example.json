@@ -43,6 +43,14 @@
     "db": "./desktop-agent/runtime/memory-core.sqlite",
     "limit": 500
   },
+  "caseManagerCore": {
+    "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
+    "caseEventsFile": "./desktop-agent/runtime/case-events.jsonl",
+    "stateFile": "./desktop-agent/runtime/case-manager-state.json",
+    "reportFile": "./desktop-agent/runtime/case-manager-report.json",
+    "db": "./desktop-agent/runtime/case-manager.sqlite",
+    "limit": 500
+  },
   "domainEventCore": {
     "visionEventsFile": "./desktop-agent/runtime/vision-events.jsonl",
     "perceptionEventsFile": "./desktop-agent/runtime/perception-events.jsonl",
@@ -55,6 +63,7 @@
     "actionEventsFile": "./desktop-agent/runtime/action-events.jsonl",
     "autonomousCycleEventsFile": "./desktop-agent/runtime/autonomous-cycle-events.jsonl",
     "humanFeedbackEventsFile": "./desktop-agent/runtime/human-feedback-events.jsonl",
+    "caseEventsFile": "./desktop-agent/runtime/case-events.jsonl",
     "domainEventsFile": "./desktop-agent/runtime/domain-events.jsonl",
     "stateFile": "./desktop-agent/runtime/domain-events-state.json",
     "db": "./desktop-agent/runtime/domain-events.sqlite",

@@ -23,6 +23,7 @@ CONTRACT_FILES: dict[str, str] = {
     "autonomous_cycle_event": "autonomous-cycle-event.schema.json",
     "human_feedback_event": "human-feedback-event.schema.json",
     "domain_event": "domain-event-envelope.schema.json",
+    "case_manager_state": "case-manager-state.schema.json",
 }
 
 
@@ -478,6 +479,40 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
         },
         "requiresHumanReview": False,
         "data": {"messageCount": 1},
+    },
+    "case_manager_state": {
+        "status": "ok",
+        "engine": "ariadgsm_case_manager",
+        "version": "0.8.3",
+        "updatedAt": utc_now(),
+        "domainEventsFile": "desktop-agent/runtime/domain-events.jsonl",
+        "caseEventsFile": "desktop-agent/runtime/case-events.jsonl",
+        "db": "desktop-agent/runtime/case-manager.sqlite",
+        "ingested": {
+            "events": 3,
+            "duplicates": 0,
+            "skipped": 1,
+            "casesCreated": 1,
+            "casesUpdated": 1,
+            "caseEvents": 2,
+        },
+        "summary": {
+            "processedEvents": 3,
+            "eventsRead": 3,
+            "cases": 1,
+            "openCases": 1,
+            "needsHuman": 1,
+            "ignoredCases": 0,
+            "linkedEvents": 2,
+            "emittedCaseEvents": 2,
+        },
+        "humanReport": {
+            "quePaso": "Case Manager agrupo eventos de dominio en 1 caso operativo.",
+            "casosAbiertos": [{"caseId": "case-sample-1", "title": "Cliente prueba", "status": "needs_quote"}],
+            "necesitanBryams": [{"caseId": "case-sample-1", "reason": "Precio o pago requiere validacion humana."}],
+            "proximasAcciones": [{"caseId": "case-sample-1", "action": "Revisar evidencia y responder."}],
+            "riesgos": ["No confirmar pagos sin evidencia fuerte."],
+        },
     },
 }
 

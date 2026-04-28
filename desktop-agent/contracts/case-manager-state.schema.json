@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/case-manager-state.schema.json",
+  "title": "AriadGSM Case Manager State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "domainEventsFile",
+    "caseEventsFile",
+    "db",
+    "ingested",
+    "summary",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked"] },
+    "engine": { "type": "string", "const": "ariadgsm_case_manager" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "domainEventsFile": { "type": "string", "minLength": 1 },
+    "caseEventsFile": { "type": "string", "minLength": 1 },
+    "db": { "type": "string", "minLength": 1 },
+    "ingested": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["events", "duplicates", "skipped", "casesCreated", "casesUpdated", "caseEvents"],
+      "properties": {
+        "events": { "type": "integer", "minimum": 0 },
+        "duplicates": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "casesCreated": { "type": "integer", "minimum": 0 },
+        "casesUpdated": { "type": "integer", "minimum": 0 },
+        "caseEvents": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "processedEvents",
+        "eventsRead",
+        "cases",
+        "openCases",
+        "needsHuman",
+        "ignoredCases",
+        "linkedEvents",
+        "emittedCaseEvents"
+      ],
+      "properties": {
+        "processedEvents": { "type": "integer", "minimum": 0 },
+        "eventsRead": { "type": "integer", "minimum": 0 },
+        "cases": { "type": "integer", "minimum": 0 },
+        "openCases": { "type": "integer", "minimum": 0 },
+        "needsHuman": { "type": "integer", "minimum": 0 },
+        "ignoredCases": { "type": "integer", "minimum": 0 },
+        "linkedEvents": { "type": "integer", "minimum": 0 },
+        "emittedCaseEvents": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["quePaso", "casosAbiertos", "necesitanBryams", "proximasAcciones", "riesgos"],
+      "properties": {
+        "quePaso": { "type": "string" },
+        "casosAbiertos": { "type": "array" },
+        "necesitanBryams": { "type": "array" },
+        "proximasAcciones": { "type": "array" },
+        "riesgos": { "type": "array" }
+      }
+    }
+  }
+}

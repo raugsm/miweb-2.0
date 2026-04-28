@@ -18,6 +18,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("Perception Engine", "C#/.NET + Python", "Convert pixels, OCR and accessibility into business-visible objects.", "perception_event"),
     Layer("Timeline Engine", "Python", "Unify live and historical messages into one deduplicated conversation timeline.", "conversation_event"),
     Layer("Domain Event Contracts", "Python", "Translate engine events into validated business events with evidence, risk, privacy and traceability.", "domain_event"),
+    Layer("Case Manager", "Python", "Project validated domain events into durable customer/business cases with audit and next actions.", "case_manager_state"),
     Layer("Memory Core", "Python", "Store clients, facts, procedures, slang, failures and conversation memory.", "learning_event"),
     Layer("Operating Core", "Python", "Track business state, cases, tasks, priorities and queues.", "decision_event"),
     Layer("Accounting Core", "Python", "Create payment, debt and quote records with evidence and confidence.", "accounting_event"),
@@ -51,6 +52,7 @@ CONTRACT_NAMES: tuple[str, ...] = (
     "autonomous_cycle_event",
     "human_feedback_event",
     "domain_event",
+    "case_manager_state",
 )
 
 

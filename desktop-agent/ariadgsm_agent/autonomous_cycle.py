@@ -470,6 +470,38 @@ def build_business_memory_stage(memory: dict[str, Any], timeline: dict[str, Any]
     return stage
 
 
+def build_case_manager_stage(case_manager: dict[str, Any]) -> dict[str, Any]:
+    summary = case_manager.get("summary") if isinstance(case_manager.get("summary"), dict) else {}
+    open_cases = as_int(summary.get("openCases"))
+    needs_human = as_int(summary.get("needsHuman"))
+    ignored = as_int(summary.get("ignoredCases"))
+    emitted = as_int(summary.get("emittedCaseEvents"))
+    status = normalize_status(case_manager.get("status") if case_manager else "attention")
+    if needs_human > 0:
+        status = worst_status([status, "attention"])
+    detail = text(
+        nested(case_manager, "humanReport", "quePaso"),
+        f"Casos abiertos={open_cases}; necesitan Bryams={needs_human}; ignorados={ignored}; eventos={emitted}.",
+    )
+    return make_stage(
+        "case_manager",
+        "AriadGSM Case Manager",
+        status,
+        detail,
+        {
+            "cases": as_int(summary.get("cases")),
+            "openCases": open_cases,
+            "needsHuman": needs_human,
+            "ignoredCases": ignored,
+            "accountingCases": as_int(summary.get("accountingCases")),
+            "priceCases": as_int(summary.get("priceCases")),
+            "serviceCases": as_int(summary.get("serviceCases")),
+            "emittedCaseEvents": emitted,
+        },
+        ["case-manager-state.json", "case-manager.sqlite", "case-events.jsonl"],
+    )
+
+
 def make_step(
     step_id: str,
     name: str,
@@ -557,11 +589,13 @@ def build_operating_steps(
     timeline = states["timeline"]
     cognitive = states["cognitive"]
     operating = states["operating"]
+    case_manager = states["case_manager"]
     memory = states["memory"]
 
     timeline_ingested = timeline.get("ingested") if isinstance(timeline.get("ingested"), dict) else {}
     cognitive_summary = cognitive.get("summary") if isinstance(cognitive.get("summary"), dict) else {}
     operating_summary = operating.get("summary") if isinstance(operating.get("summary"), dict) else {}
+    case_summary = case_manager.get("summary") if isinstance(case_manager.get("summary"), dict) else {}
     memory_summary = memory.get("summary") if isinstance(memory.get("summary"), dict) else {}
     supervisor_summary = supervisor.get("summary") if isinstance(supervisor.get("summary"), dict) else {}
 
@@ -569,6 +603,7 @@ def build_operating_steps(
     timelines = as_int(timeline_ingested.get("timelines"))
     decisions = as_int(cognitive_summary.get("decisions"))
     cases = as_int(operating_summary.get("cases"))
+    case_manager_cases = as_int(case_summary.get("openCases"))
     actions_written = as_int(hands_stage.get("metrics", {}).get("actionsWritten"))
     actions_executed = as_int(hands_stage.get("metrics", {}).get("actionsExecuted"))
     actions_verified = as_int(hands_stage.get("metrics", {}).get("actionsVerified"))
@@ -578,7 +613,7 @@ def build_operating_steps(
 
     observe_status = normalize_status(reader.get("status"))
     understand_status = step_status([observe_status, "ok" if messages > 0 and timelines > 0 else "attention"])
-    plan_status = "ok" if decisions > 0 or cases > 0 else "attention"
+    plan_status = "ok" if decisions > 0 or cases > 0 or case_manager_cases > 0 else "attention"
     if observe_status == "blocked":
         plan_status = "blocked"
 
@@ -950,6 +985,7 @@ def run_autonomous_cycle_once(
         "timeline": read_json(runtime / "timeline-state.json"),
         "cognitive": read_json(runtime / "cognitive-state.json"),
         "operating": read_json(runtime / "operating-state.json"),
+        "case_manager": read_json(runtime / "case-manager-state.json"),
         "memory": read_json(runtime / "memory-state.json"),
         "supervisor": read_json(runtime / "supervisor-state.json"),
         "hands": read_json(runtime / "hands-state.json"),
@@ -969,6 +1005,7 @@ def run_autonomous_cycle_once(
         build_workspace_guardian_stage(states["workspace_setup"], states["cabin_manager"], states["workspace_guardian"], states["cabin"], states["orchestrator"]),
         build_input_arbiter_stage(states["input_arbiter"]),
         build_reader_core_stage(states),
+        build_case_manager_stage(states["case_manager"]),
         build_business_memory_stage(states["memory"], states["timeline"], states["cognitive"], states["operating"]),
         build_verified_hands_stage(states["hands"], states["input_arbiter"]),
     ]

@@ -370,6 +370,10 @@ def main() -> int:
             ),
             encoding="utf-8",
         )
+        (root / "case-manager-state.json").write_text(
+            json.dumps(sample_event("case_manager_state"), ensure_ascii=False),
+            encoding="utf-8",
+        )
         cycle_state = run_autonomous_cycle_once(
             root,
             autonomous_cycle_state_file,
@@ -378,7 +382,7 @@ def main() -> int:
         )
         assert cycle_state["engine"] == "ariadgsm_autonomous_cycle"
         assert cycle_state["status"] in {"ok", "attention", "blocked"}
-        assert len(cycle_state["stages"]) == 6
+        assert len(cycle_state["stages"]) == 7
         assert [step["stepId"] for step in cycle_state["steps"]] == [
             "observe",
             "understand",

@@ -209,11 +209,15 @@ def check_config(repo_root: Path) -> dict[str, Any]:
 def check_versioning(repo_root: Path) -> dict[str, Any]:
     version = read_text(repo_root / "desktop-agent/windows-app/VERSION").strip()
     manifest = read_json(repo_root / "desktop-agent/update/ariadgsm-update.json")
-    if version != CONTRACT_VERSION:
-        return make_check("versioning", "Versionado", "attention", f"VERSION={version}, esperado={CONTRACT_VERSION}.", ["desktop-agent/windows-app/VERSION"])
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        return make_check("versioning", "Versionado", "attention", f"VERSION invalido={version}.", ["desktop-agent/windows-app/VERSION"])
+    contract_tuple = tuple(int(part) for part in CONTRACT_VERSION.split("."))
+    version_tuple = tuple(int(part) for part in version.split("."))
+    if version_tuple < contract_tuple:
+        return make_check("versioning", "Versionado", "attention", f"VERSION={version}, minimo={CONTRACT_VERSION}.", ["desktop-agent/windows-app/VERSION"])
     if manifest.get("version") != version:
         return make_check("versioning", "Versionado", "attention", f"Manifest version={manifest.get('version')} no coincide con VERSION={version}.", ["desktop-agent/update/ariadgsm-update.json"])
-    return make_check("versioning", "Versionado", "ok", f"Version {version} coherente.", ["desktop-agent/windows-app/VERSION", "desktop-agent/update/ariadgsm-update.json"])
+    return make_check("versioning", "Versionado", "ok", f"Version {version} mantiene contrato minimo {CONTRACT_VERSION}.", ["desktop-agent/windows-app/VERSION", "desktop-agent/update/ariadgsm-update.json"])
 
 
 def build_human_report(checks: list[dict[str, Any]]) -> dict[str, list[str]]:

@@ -1,8 +1,8 @@
 {
-  "version": "0.8.2",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.2.zip",
-  "sha256": "e959815460cf3d087daff56c2b7e03e1a9c7fecaaca50d735d322168d0910a0a",
+  "version": "0.8.3",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.3.zip",
+  "sha256": "c7af93014522b3ff9605be97a6b0b911edf9f3dc722bdc91c40cf6c911167110",
   "autoApply": true,
-  "notes": "Version 0.8.2 closes Domain Event Contracts finalization: registry versioning, human feedback contract, correction/approval events, adapter coverage verifier, domain contract readiness report, Memory domain-event projection, and runtime ordering with DomainEvents before Memory.",
-  "publishedAt": "2026-04-28T00:35:00Z"
+  "notes": "Version 0.8.3 closes Case Manager: domain events become durable business cases, case-manager-state contract, SQLite case projection, case-events stream, human report, and runtime ordering before Memory.",
+  "publishedAt": "2026-04-28T00:45:00Z"
 }

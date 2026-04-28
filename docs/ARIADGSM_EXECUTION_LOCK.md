@@ -195,7 +195,7 @@ Entregables:
 Estado:
 
 ```text
-NO CERRADO / PARCIAL EN OPERATING CORE
+CERRADO COMO CASE MANAGER OPERATIVO 0.8.3
 ```
 
 Objetivo:
@@ -222,6 +222,20 @@ Definicion de terminado:
 - cada pago, precio, accion y aprendizaje se puede asociar a un caso;
 - la IA deja de tratar chats como mensajes sueltos;
 - existe vista humana de casos abiertos.
+
+Ya existe:
+
+- `docs/ARIADGSM_CASE_MANAGER_DESIGN.md`
+- `desktop-agent/contracts/case-manager-state.schema.json`
+- `desktop-agent/ariadgsm_agent/case_manager.py`
+- `desktop-agent/tests/case_manager.py`
+- integracion de `CaseManager` entre Domain Events y Memory en `AgentRuntime.cs`
+- integracion de Case Manager al Autonomous Cycle.
+
+Pendiente para considerarlo producto final:
+
+- ninguno dentro de este bloque; Channel Routing Brain debe usar los casos para
+  decidir derivacion/fusion entre WhatsApp 1/2/3.
 
 ### 6.4 Channel Routing Brain
 
@@ -357,25 +371,25 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como `Product Foundation` y `Domain Event Contracts` quedan cerrados, y
-`Autonomous Cycle Orchestrator` ya esta implementado como ciclo central, el
-siguiente bloque activo es:
+Como `Product Foundation`, `Domain Event Contracts` y `Case Manager` quedan
+cerrados, y `Autonomous Cycle Orchestrator` ya esta implementado como ciclo
+central, el siguiente bloque activo es:
 
 ```text
-Case Manager
+Channel Routing Brain
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_CASE_MANAGER_DESIGN.md
+docs/ARIADGSM_CHANNEL_ROUTING_BRAIN_DESIGN.md
 ```
 
 Y el entregable tecnico minimo posterior es:
 
 ```text
-desktop-agent/ariadgsm_agent/case_manager.py
+desktop-agent/ariadgsm_agent/channel_routing.py
 desktop-agent/contracts/domain-event-registry.json
-desktop-agent/tests/case_manager.py
-integracion con Operating Core / Domain Events
+desktop-agent/tests/channel_routing.py
+integracion con Case Manager / Domain Events / Autonomous Cycle
 ```

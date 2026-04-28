@@ -25,6 +25,7 @@ IGNORED_GROUP_TITLES = (
 )
 
 ENGINE_ID_FIELDS: dict[str, tuple[str, ...]] = {
+    "domain_event": ("eventId",),
     "vision_event": ("visionEventId",),
     "perception_event": ("perceptionEventId",),
     "conversation_event": ("conversationEventId",),
@@ -799,6 +800,8 @@ def adapt_human_feedback_event(event: dict[str, Any]) -> list[dict[str, Any]]:
 
 def adapt_engine_event(event: dict[str, Any]) -> list[dict[str, Any]]:
     event_type = clean_text(event.get("eventType"))
+    if event.get("eventId") and event.get("schemaVersion") and event.get("sourceDomain"):
+        return [event]
     if event_type == "vision_event":
         return adapt_vision_event(event)
     if event_type == "perception_event":
@@ -1077,6 +1080,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-events", default="runtime/action-events.jsonl")
     parser.add_argument("--autonomous-cycle-events", default="runtime/autonomous-cycle-events.jsonl")
     parser.add_argument("--human-feedback-events", default="runtime/human-feedback-events.jsonl")
+    parser.add_argument("--case-events", default="runtime/case-events.jsonl")
     parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
     parser.add_argument("--state-file", default="runtime/domain-events-state.json")
     parser.add_argument("--db", default="runtime/domain-events.sqlite")
@@ -1103,6 +1107,7 @@ def main() -> int:
         resolve_runtime_path(args.action_events),
         resolve_runtime_path(args.autonomous_cycle_events),
         resolve_runtime_path(args.human_feedback_events),
+        resolve_runtime_path(args.case_events),
     ]
     state = run_domain_events_once(
         source_files,
