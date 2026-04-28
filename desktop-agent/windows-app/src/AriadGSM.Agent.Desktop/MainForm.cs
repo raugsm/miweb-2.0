@@ -41,6 +41,7 @@ internal sealed class MainForm : Form
     private readonly Label _whatsAppStatusLabel = new();
     private readonly Label _learningStatusLabel = new();
     private readonly Label _accountingStatusLabel = new();
+    private readonly Label _safetyStatusLabel = new();
     private readonly Label _handsStatusLabel = new();
     private readonly TextBox _problemBox = new();
     private readonly ListView _healthList = new();
@@ -332,17 +333,19 @@ internal sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             RowCount = 1,
-            ColumnCount = 4,
+            ColumnCount = 5,
             BackColor = Color.White
         };
-        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        cards.Controls.Add(BuildMetricCard("WhatsApps", _whatsAppStatusLabel, Color.FromArgb(24, 120, 242)), 0, 0);
-        cards.Controls.Add(BuildMetricCard("Aprendizaje", _learningStatusLabel, Color.FromArgb(31, 151, 170)), 1, 0);
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        cards.Controls.Add(BuildMetricCard("Cabina", _whatsAppStatusLabel, Color.FromArgb(24, 120, 242)), 0, 0);
+        cards.Controls.Add(BuildMetricCard("Memoria", _learningStatusLabel, Color.FromArgb(31, 151, 170)), 1, 0);
         cards.Controls.Add(BuildMetricCard("Contabilidad", _accountingStatusLabel, Color.FromArgb(17, 145, 101)), 2, 0);
-        cards.Controls.Add(BuildMetricCard("Manos", _handsStatusLabel, Color.FromArgb(82, 97, 120)), 3, 0);
+        cards.Controls.Add(BuildMetricCard("Seguridad", _safetyStatusLabel, Color.FromArgb(67, 91, 142)), 3, 0);
+        cards.Controls.Add(BuildMetricCard("Manos", _handsStatusLabel, Color.FromArgb(82, 97, 120)), 4, 0);
         assistantPanel.Controls.Add(cards, 0, 2);
 
         var needsPanel = new TableLayoutPanel
@@ -382,9 +385,9 @@ internal sealed class MainForm : Form
         _healthList.GridLines = false;
         _healthList.HideSelection = false;
         _healthList.BackColor = Color.FromArgb(252, 254, 255);
-        _healthList.Columns.Add("Motor", 230);
+        _healthList.Columns.Add("Area de la IA", 230);
         _healthList.Columns.Add("Estado", 110);
-        _healthList.Columns.Add("Que significa", 860);
+        _healthList.Columns.Add("Que significa para operar", 860);
         EnableDoubleBuffering(_healthList);
         _dashboardRoot.Controls.Add(_healthList, 0, 4);
 
@@ -401,7 +404,7 @@ internal sealed class MainForm : Form
 
         var activityTitle = new Label
         {
-            Text = "Caja negra de la IA",
+            Text = "Lo que la IA hizo",
             Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 11, FontStyle.Bold),
             ForeColor = Color.FromArgb(22, 44, 72),
@@ -416,7 +419,7 @@ internal sealed class MainForm : Form
         _activityBox.BorderStyle = BorderStyle.None;
         _activityBox.BackColor = Color.FromArgb(252, 254, 255);
         _activityBox.ForeColor = Color.FromArgb(35, 55, 82);
-        _activityBox.Font = new Font("Cascadia Mono", 10);
+        _activityBox.Font = new Font("Segoe UI Variable Text", 10);
         activityPanel.Controls.Add(_activityBox, 0, 1);
     }
 
@@ -815,24 +818,21 @@ internal sealed class MainForm : Form
         if (autonomous)
         {
             AppendLog("Cabina preparada. Si algun canal falta, trabajo en modo degradado y lo dejo visible en el panel.");
-            WindowState = FormWindowState.Minimized;
-            ShowInTaskbar = true;
-            await Task.Delay(TimeSpan.FromMilliseconds(350)).ConfigureAwait(true);
         }
 
         await _runtime.StartAsync().ConfigureAwait(true);
         await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
         RefreshStatus();
 
-        var hasBlockingProblems = HasBlockingVisibleProblems();
-        if (autonomous && !hasBlockingProblems)
+        var hasVisibleProblems = HasVisibleProblems();
+        if (autonomous && !hasVisibleProblems)
         {
             WindowState = FormWindowState.Minimized;
             ShowInTaskbar = true;
             return;
         }
 
-        if (!autonomous || hasBlockingProblems)
+        if (!autonomous || hasVisibleProblems)
         {
             BringControlCenterToFront();
         }
@@ -1399,6 +1399,13 @@ internal sealed class MainForm : Form
         var accountingDrafts = StateNumber("operating-state.json", "summary", "accountingDrafts");
         _accountingStatusLabel.Text = $"{accountingEvents} registros{Environment.NewLine}{accountingDrafts} borradores";
 
+        var safetyStatus = StateText("trust-safety-state.json", "status");
+        var safetyDecision = StateText("trust-safety-state.json", "permissionGate", "decision");
+        var blockedActions = StateNumber("trust-safety-state.json", "summary", "blocked");
+        _safetyStatusLabel.Text = blockedActions > 0
+            ? $"{blockedActions} bloqueos{Environment.NewLine}pide permiso"
+            : HumanSafetyMetric(safetyStatus, safetyDecision);
+
         var actionsExecuted = StateNumber("hands-state.json", "actionsExecuted");
         var actionsVerified = StateNumber("hands-state.json", "actionsVerified");
         var inputPhase = StateText("input-arbiter-state.json", "phase");
@@ -1433,48 +1440,47 @@ internal sealed class MainForm : Form
         IReadOnlyList<string> active)
     {
         var lines = new List<string>();
+        var now = DateTimeOffset.Now;
         var phase = StateText("autonomous-cycle-state.json", "phase");
         if (!string.IsNullOrWhiteSpace(phase))
         {
-            lines.Add($"Estado mental: {HumanPhase(phase)}.");
+            lines.Add($"{now:HH:mm:ss} | Ahora estoy {HumanPhase(phase)}.");
         }
 
         var whatsappItems = preflight.Items
             .Where(item => item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
             .ToArray();
         var ready = whatsappItems.Count(item => item.Severity == HealthSeverity.Ok);
-        lines.Add($"{DateTimeOffset.Now:HH:mm:ss} | WhatsApps: {ready}/{Math.Max(3, whatsappItems.Length)} canales listos para leer.");
+        lines.Add($"{now:HH:mm:ss} | Cabina: {ready}/{Math.Max(3, whatsappItems.Length)} WhatsApps listos para leer.");
         var cabinSummary = StateText("cabin-manager-state.json", "summary");
         if (_cabinSetupPanel.Visible && !string.IsNullOrWhiteSpace(cabinSummary))
         {
-            lines.Add($"{DateTimeOffset.Now:HH:mm:ss} | Cabina: {cabinSummary}");
+            lines.Add($"{now:HH:mm:ss} | Preparacion: {cabinSummary}");
         }
 
         var statusBus = StateText("status-bus-state.json", "summary");
         var statusPhase = StateText("status-bus-state.json", "phase");
         if (!string.IsNullOrWhiteSpace(statusBus) && (_cabinSetupPanel.Visible || !IsCabinSetupPhase(statusPhase)))
         {
-            lines.Add($"{DateTimeOffset.Now:HH:mm:ss} | Estado actual: {statusBus}");
+            lines.Add($"{now:HH:mm:ss} | Estado: {statusBus}");
         }
 
-        lines.Add($"{DateTimeOffset.Now:HH:mm:ss} | Memoria: {StateNumber("memory-state.json", "summary", "memoryMessages")} mensajes guardados y {StateNumber("memory-state.json", "summary", "learningEvents")} aprendizajes.");
-        lines.Add($"{DateTimeOffset.Now:HH:mm:ss} | Contabilidad: {StateNumber("memory-state.json", "summary", "accountingEvents")} eventos detectados.");
+        lines.Add($"{now:HH:mm:ss} | Memoria: {StateNumber("memory-state.json", "summary", "memoryMessages")} mensajes guardados y {StateNumber("memory-state.json", "summary", "learningEvents")} aprendizajes.");
+        lines.Add($"{now:HH:mm:ss} | Contabilidad: {StateNumber("memory-state.json", "summary", "accountingEvents")} eventos detectados.");
+        var safetySummary = StateText("trust-safety-state.json", "humanReport", "resumenDecision");
+        if (!string.IsNullOrWhiteSpace(safetySummary))
+        {
+            lines.Add($"{now:HH:mm:ss} | Seguridad: {safetySummary}");
+        }
+
         var inputPhase = StateText("input-arbiter-state.json", "phase");
         var inputSummary = StateText("input-arbiter-state.json", "summary");
         if (!string.IsNullOrWhiteSpace(inputPhase))
         {
-            lines.Add($"{DateTimeOffset.Now:HH:mm:ss} | Mouse/teclado: {HumanPhase(inputPhase)}. {inputSummary}");
+            lines.Add($"{now:HH:mm:ss} | Mouse/teclado: {HumanPhase(inputPhase)}. {inputSummary}");
         }
-        lines.Add($"{DateTimeOffset.Now:HH:mm:ss} | Manos: {StateNumber("hands-state.json", "actionsExecuted")} acciones ejecutadas, {StateNumber("hands-state.json", "actionsVerified")} verificadas.");
-        lines.Add($"{DateTimeOffset.Now:HH:mm:ss} | Procesos activos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}.");
-
-        var timeline = DiagnosticTimelineLines().ToArray();
-        if (timeline.Length > 0)
-        {
-            lines.Add(string.Empty);
-            lines.Add("Linea de tiempo 0.6:");
-            lines.AddRange(timeline.Select(line => $"> {line}"));
-        }
+        lines.Add($"{now:HH:mm:ss} | Manos: {StateNumber("hands-state.json", "actionsExecuted")} acciones ejecutadas, {StateNumber("hands-state.json", "actionsVerified")} verificadas.");
+        lines.Add($"{now:HH:mm:ss} | Motores: {(active.Count == 0 ? "apagados" : "encendidos")}.");
 
         var usefulLogs = _recentLogLines
             .Where(line => !string.IsNullOrWhiteSpace(line))
@@ -1483,7 +1489,7 @@ internal sealed class MainForm : Form
         if (usefulLogs.Length > 0)
         {
             lines.Add(string.Empty);
-            lines.Add("Ultimos movimientos:");
+            lines.Add("Ultimos avisos:");
             lines.AddRange(usefulLogs.Select(line => $"- {HumanizeLogLine(line)}"));
         }
 
@@ -1496,6 +1502,33 @@ internal sealed class MainForm : Form
         }
 
         return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string HumanSafetyMetric(string status, string decision)
+    {
+        if (decision.Equals("PAUSE_FOR_OPERATOR", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"te cedo control{Environment.NewLine}manos pausadas";
+        }
+
+        if (decision.Equals("ASK_HUMAN", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"revisa permiso{Environment.NewLine}antes de actuar";
+        }
+
+        if (decision.Equals("ALLOW_WITH_LIMIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"con limites{Environment.NewLine}solo local";
+        }
+
+        if (decision.Equals("ALLOW", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"lista{Environment.NewLine}sin riesgo";
+        }
+
+        return status.Equals("ok", StringComparison.OrdinalIgnoreCase)
+            ? $"lista{Environment.NewLine}vigilando"
+            : $"esperando{Environment.NewLine}sin decision";
     }
 
     private IEnumerable<string> DiagnosticTimelineLines()
@@ -1572,6 +1605,13 @@ internal sealed class MainForm : Form
             "Action Queue" => $"Cola de acciones: {item.Detail}",
             "Autoridad de cabina" => $"Cabina: {item.Detail}",
             "Ciclo autonomo" => $"Ciclo autonomo: {StateText("autonomous-cycle-state.json", new[] { "summary" }, item.Detail)}",
+            "Trust & Safety" => $"Seguridad: {StateText("trust-safety-state.json", new[] { "humanReport", "resumenDecision" }, item.Detail)}",
+            "Agent Supervisor" => $"Supervisor interno: {item.Detail}",
+            "Accounting Core" => $"Contabilidad: {item.Detail}",
+            "Case Manager" => $"Casos: {item.Detail}",
+            "Channel Routing" => $"Ruteo de canales: {item.Detail}",
+            "Domain Events" => $"Eventos del negocio: {item.Detail}",
+            "Interaction" => $"Interaccion: {item.Detail}",
             "Hands" => $"Manos: {item.Detail}",
             "Supervisor" => $"Supervisor: {item.Detail}",
             "Actualizaciones" => $"Actualizaciones: {item.Detail}",
@@ -1702,31 +1742,82 @@ internal sealed class MainForm : Form
         }
     }
 
-    private static IEnumerable<HealthItem> BuildVisibleHealthItems(IReadOnlyList<HealthItem> items)
+    private IEnumerable<HealthItem> BuildVisibleHealthItems(IReadOnlyList<HealthItem> items)
     {
-        var priority = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Status Bus",
-            "Control Plane",
-            "Cabin Manager",
+        var allItems = items.ToArray();
+        yield return AreaFrom(
             "Cabina WhatsApp",
-            "Life Controller",
-            "Action Queue",
-            "Input Arbiter",
-            "Autoridad de cabina",
-            "Vision",
-            "Perception",
-            "Memory",
-            "Hands",
-            "Actualizaciones",
-            "WebPanel"
-        };
+            allItems.Where(item =>
+                item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase)
+                || NameIs(item, "Cabina WhatsApp", "Cabin Manager", "Alistamiento cabina", "Autoridad de cabina")),
+            "Los 3 canales se estan revisando sin ruido tecnico.");
+        yield return AreaFrom(
+            "Ojos y lectura",
+            allItems.Where(item => NameIs(item, "Vision", "Perception", "Interaction")),
+            "Ojos locales listos para leer lo visible.");
+        yield return AreaFrom(
+            "Cerebro y memoria",
+            allItems.Where(item => NameIs(item, "Ciclo autonomo", "Cognitive", "Operating", "Case Manager", "Channel Routing", "Memory", "Domain Events")),
+            "La IA puede ordenar conversaciones, casos y memoria.");
+        yield return AreaFrom(
+            "Contabilidad",
+            allItems.Where(item => NameIs(item, "Accounting Core")),
+            "Pagos, deudas y borradores contables quedan ligados a evidencia.");
+        yield return AreaFrom(
+            "Seguridad",
+            allItems.Where(item => NameIs(item, "Trust & Safety", "Input Arbiter", "Supervisor", "Agent Supervisor")),
+            "Permisos, riesgos y control humano estan vigilados.");
+        yield return AreaFrom(
+            "Manos",
+            allItems.Where(item => NameIs(item, "Hands", "Action Queue")),
+            "Mouse y teclado solo actuan si hay permiso y verificacion.");
+        yield return AreaFrom(
+            "Nube y panel",
+            allItems.Where(item => NameIs(item, "Actualizaciones", "WebPanel", "Panel local", "AriadGSM Updater")),
+            "Panel, version y actualizaciones quedan visibles para soporte.");
+    }
 
-        return items
-            .Where(item => item.Severity != HealthSeverity.Ok || priority.Contains(item.Name) || item.Name.StartsWith("WhatsApp ", StringComparison.OrdinalIgnoreCase))
+    private HealthItem AreaFrom(string name, IEnumerable<HealthItem> sourceItems, string okDetail)
+    {
+        var grouped = sourceItems.Where(item => item is not null).ToArray();
+        if (grouped.Length == 0)
+        {
+            return new HealthItem(name, "ESPERANDO", HealthSeverity.Info, null, okDetail);
+        }
+
+        var severity = grouped
+            .Select(item => item.Severity)
+            .OrderBy(SeverityRank)
+            .FirstOrDefault();
+        var status = severity switch
+        {
+            HealthSeverity.Error => "REVISA",
+            HealthSeverity.Warning => "ATENCION",
+            HealthSeverity.Info => "ESPERANDO",
+            HealthSeverity.Ok => "LISTO",
+            _ => "ESPERANDO"
+        };
+        var problems = grouped
+            .Where(item => item.Severity == HealthSeverity.Error || item.Severity == HealthSeverity.Warning)
             .OrderBy(item => SeverityRank(item.Severity))
             .ThenBy(item => item.Name)
-            .Take(9);
+            .Take(2)
+            .Select(HumanizeHealthItem)
+            .ToArray();
+        var detail = problems.Length > 0
+            ? string.Join(" ", problems)
+            : okDetail;
+        var updatedAt = grouped
+            .Where(item => item.UpdatedAt.HasValue)
+            .Select(item => item.UpdatedAt)
+            .OrderByDescending(item => item)
+            .FirstOrDefault();
+        return new HealthItem(name, status, severity, updatedAt, detail);
+    }
+
+    private static bool NameIs(HealthItem item, params string[] names)
+    {
+        return names.Any(name => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
     }
 
     private static int SeverityRank(HealthSeverity severity)

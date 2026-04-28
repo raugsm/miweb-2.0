@@ -527,3 +527,23 @@ progreso real para alistar WhatsApps
 errores accionables sin cajas tecnicas largas
 pruebas visuales sin mover sesiones reales
 ```
+
+Queda cerrado con:
+
+- `docs/ARIADGSM_PRODUCT_SHELL_FINAL_DESIGN.md`
+- `desktop-agent/windows-app/src/AriadGSM.Agent.Desktop/MainForm.cs`
+- `desktop-agent/tests/product_shell_visual_final.py`
+- login con inicio manual explicito
+- version visible en cabina
+- progreso de alistamiento monotono de 0 a 100
+- estado humano por areas: cabina, ojos, cerebro/memoria, contabilidad,
+  seguridad, manos, nube/panel
+- Trust & Safety visible en tarjetas y salud operativa
+- errores accionables sin tabla tecnica larga
+- la app solo se minimiza si no hay errores ni avisos visibles
+
+El siguiente bloque recomendado para producto final es:
+
+```text
+Updater final
+```

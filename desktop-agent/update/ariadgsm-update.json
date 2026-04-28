@@ -1,8 +1,8 @@
 {
-  "version": "0.8.8",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.8.zip",
-  "sha256": "02ecccc3ea37c1d90b46549d9150d0ff51eee2c451c39b197b24fa57a40008c7",
+  "version": "0.8.9",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.9.zip",
+  "sha256": "69b8c6702399f5646ffb05ccc5d2b536ffd95e63cd071d527f5c2e0c9013458a",
   "autoApply": true,
-  "notes": "Version 0.8.8 closes Trust & Safety Core completo: central autonomy policy, risk matrix, explicit permissions, irreversible-action blocking, accounting evidence gates, operator handoff decisions, supervisor compatibility, and a visible Trust & Safety health state.",
-  "publishedAt": "2026-04-28T02:15:00Z"
+  "notes": "Version 0.8.9 closes Product Shell visual final: operator-friendly interface, visible version, human states for cabina/memory/accounting/safety/hands, monotonic WhatsApp setup progress, actionable errors, and no auto-minimize when warnings remain.",
+  "publishedAt": "2026-04-28T02:31:24Z"
 }
