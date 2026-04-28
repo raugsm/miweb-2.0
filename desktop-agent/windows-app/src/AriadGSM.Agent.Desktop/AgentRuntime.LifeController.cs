@@ -18,6 +18,7 @@ internal sealed partial class AgentRuntime
                 ["phase"] = phase,
                 ["summary"] = summary,
                 ["reason"] = reason,
+                ["runSessionId"] = CurrentRunSessionIdNoLock(),
                 ["updatedAt"] = DateTimeOffset.UtcNow,
                 ["desiredRunning"] = _desiredRunning,
                 ["isRunning"] = IsRunning,

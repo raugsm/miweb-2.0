@@ -83,6 +83,7 @@ AUTONOMY_LEVELS: dict[int, str] = {
 
 CONTRACT_NAMES: tuple[str, ...] = (
     "stage_zero_readiness",
+    "control_plane_state",
     "runtime_kernel_state",
     "runtime_governor_state",
     "domain_contracts_final_readiness",

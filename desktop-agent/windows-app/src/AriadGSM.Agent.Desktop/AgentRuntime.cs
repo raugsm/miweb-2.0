@@ -112,11 +112,15 @@ internal sealed partial class AgentRuntime : IDisposable
 
     public async Task StartAsync()
     {
+        var startCommand = EnsureStartSession("life_controller.start_async", "start_engines");
+        MarkBootPhase("preflight", "running", "Revisando base local antes de encender motores.");
         WriteLifeState("starting", "preflight", "Revisando base local antes de encender motores.", "start");
         if (IsRunning)
         {
             WriteLog("Agent already running.");
+            MarkBootPhase("readiness", "ok", "La IA ya estaba encendida; mantengo la misma sesion.");
             WriteLifeState("running", "already_running", "La IA ya estaba encendida.", "start");
+            CompleteControlPlaneCommand(startCommand, "already_running", "La IA ya estaba encendida; no duplique motores.");
             return;
         }
 
@@ -128,14 +132,19 @@ internal sealed partial class AgentRuntime : IDisposable
 
         if (report.HasBlockingErrors)
         {
+            MarkBootPhase("preflight", "blocked", "No encendi motores porque el diagnostico base tiene errores.");
             WriteLifeState("blocked", "preflight_blocked", "No encendi motores porque el diagnostico base tiene errores.", "start");
+            CompleteControlPlaneCommand(startCommand, "blocked", "Preflight bloqueo el encendido.", accepted: false);
             throw new InvalidOperationException("No puedo iniciar: hay errores base en el diagnostico previo.");
         }
 
+        MarkBootPhase("preflight", "ok", "Diagnostico base aprobado.");
         Directory.CreateDirectory(_runtimeDir);
         WriteLog("Starting AriadGSM Agent without PowerShell.");
         StopExternalWorkerProcesses();
+        MarkBootPhase("runtime_governor", "running", "Iniciando ownership de procesos AriadGSM.");
         StartRuntimeGovernor();
+        MarkBootPhase("runtime_governor", "ok", "Runtime Governor activo para procesos propios AriadGSM.");
         lock (_gate)
         {
             _desiredRunning = true;
@@ -145,7 +154,10 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         StartWebPanel();
+        MarkBootPhase("workspace_guardian", "running", "Activando guardian de cabina bajo la sesion actual.");
         StartWorkspaceGuardianLoop();
+        MarkBootPhase("workspace_guardian", "ok", "Workspace Guardian activo.");
+        MarkBootPhase("workers", "running", "Encendiendo Vision, Perception, Interaction, Orchestrator y Hands.");
         StartWorker(
             "Vision",
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "vision", "AriadGSM.Vision.Worker.exe"),
@@ -171,14 +183,22 @@ internal sealed partial class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "hands", "AriadGSM.Hands.Worker.exe"),
             Path.Combine("desktop-agent", "hands-engine", "src", "AriadGSM.Hands.Worker", "AriadGSM.Hands.Worker.csproj"),
             Path.Combine("desktop-agent", "hands-engine", "config", "hands.example.json"));
+        MarkBootPhase("workers", "ok", "Workers solicitados y registrados por Runtime Governor.");
+        MarkBootPhase("python_core", "running", "Encendiendo ciclo mental local.");
         StartCoreLoop();
+        MarkBootPhase("python_core", "ok", "Python Core Loop solicitado.");
+        MarkBootPhase("supervisor", "running", "Encendiendo supervisor de confiabilidad.");
         StartSupervisorLoop();
+        MarkBootPhase("supervisor", "ok", "Supervisor de confiabilidad activo.");
+        MarkBootPhase("readiness", "ready", "Lectura, pensamiento y accion quedan separados en Control Plane.");
         WriteLifeState("running", "engines_running", "Ojos, memoria, razonamiento y manos encendidos.", "start");
+        CompleteControlPlaneCommand(startCommand, "running", "Motores encendidos bajo runSessionId.");
         await Task.CompletedTask.ConfigureAwait(false);
     }
 
     public async Task RunOnceAsync()
     {
+        var command = BeginControlPlaneCommand("run_once", "ui.read_once", "operator_requested_single_cycle");
         WriteLifeState("running", "single_cycle", "Ejecutando una lectura completa bajo demanda.", "run_once");
         WriteLog("Running one full read cycle.");
         await RunWorkerOnceAsync(
@@ -207,17 +227,23 @@ internal sealed partial class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "hands", "AriadGSM.Hands.Worker.exe"),
             Path.Combine("desktop-agent", "hands-engine", "src", "AriadGSM.Hands.Worker", "AriadGSM.Hands.Worker.csproj"),
             Path.Combine("desktop-agent", "hands-engine", "config", "hands.example.json")).ConfigureAwait(false);
+        CompleteControlPlaneCommand(command, "completed", "Lectura bajo demanda finalizada.");
     }
 
-    public void Stop(string reason = "operator_or_app_shutdown")
+    public void Stop(string reason = "operator_or_app_shutdown", string source = "unknown")
     {
+        var stopCommand = BeginControlPlaneCommand("stop", source, reason, endsSession: true);
+        RegisterControlPlaneStopCause(reason, source, $"Apagado solicitado desde {source}.");
         if (_stopping && !IsRunning)
         {
             WriteLifeState("stopped", "already_stopped", $"IA local ya estaba detenida: {reason}.", reason);
+            CompleteControlPlaneCommand(stopCommand, "already_stopped", "La IA ya estaba detenida; causa registrada.");
+            EndRunSession(reason, source);
             return;
         }
 
         WriteLog("Stopping AriadGSM Agent.");
+        MarkBootPhase("readiness", "stopping", $"Apagando por {source}: {reason}.");
         WriteLifeState("stopping", "shutdown_requested", "Apagando motores locales de forma ordenada.", reason);
         _stopping = true;
         _desiredRunning = false;
@@ -238,6 +264,8 @@ internal sealed partial class AgentRuntime : IDisposable
         StopRuntimeGovernor(reason);
         WriteSupervisorState("stopped", $"Agent stopped: {reason}.");
         WriteLifeState("stopped", "engines_stopped", $"IA local detenida: {reason}.", reason);
+        CompleteControlPlaneCommand(stopCommand, "stopped", $"IA local detenida por {source}: {reason}.");
+        EndRunSession(reason, source);
     }
 
     public AgentSnapshot Snapshot()
@@ -487,6 +515,7 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         var currentVersion = ReadCurrentVersion();
         var manifestSource = ResolveUpdateManifestSource();
+        MarkBootPhase("update_check", "running", "Revisando si hay una version nueva antes de encender IA.");
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
@@ -510,6 +539,7 @@ internal sealed partial class AgentRuntime : IDisposable
                     ? $"Version {latestVersion} disponible."
                     : $"Version {currentVersion} al dia.");
             WriteUpdateState(result, available ? "available" : "current");
+            MarkBootPhase("update_check", available ? "attention" : "ok", result.Detail);
             return result;
         }
         catch (Exception exception)
@@ -525,26 +555,31 @@ internal sealed partial class AgentRuntime : IDisposable
                 $"No pude revisar actualizaciones: {exception.Message}");
             WriteUpdateState(result, "unavailable");
             WriteLog(result.Detail);
+            MarkBootPhase("update_check", "attention", result.Detail);
             return result;
         }
     }
 
     public bool TryLaunchUpdater(UpdateCheckResult update)
     {
+        var command = BeginControlPlaneCommand("update", "runtime.updater", $"auto_apply={update.AutoApply}; latest={update.LatestVersion}");
         if (!update.Available)
         {
+            CompleteControlPlaneCommand(command, "skipped", "No hay actualizacion disponible.");
             return false;
         }
 
         if (!update.AutoApply)
         {
             WriteLog($"Update available but not auto-applied: {update.LatestVersion}.");
+            CompleteControlPlaneCommand(command, "skipped", "Hay actualizacion, pero autoApply esta desactivado.");
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(update.PackageUrl))
         {
             WriteLog("Update available but packageUrl is empty.");
+            CompleteControlPlaneCommand(command, "blocked", "Hay actualizacion, pero packageUrl esta vacio.", accepted: false);
             return false;
         }
 
@@ -552,6 +587,7 @@ internal sealed partial class AgentRuntime : IDisposable
         if (updaterExe is null)
         {
             WriteLog("Updater executable not found.");
+            CompleteControlPlaneCommand(command, "blocked", "No encontre AriadGSM Updater.", accepted: false);
             return false;
         }
 
@@ -597,7 +633,10 @@ internal sealed partial class AgentRuntime : IDisposable
         startInfo.ArgumentList.Add(_updateStateFile);
 
         Process.Start(startInfo);
+        RegisterControlPlaneStopCause("update", "runtime.updater", $"Updater iniciado para version {update.LatestVersion}.");
+        MarkBootPhase("update_check", "ok", $"Updater iniciado para version {update.LatestVersion}.");
         WriteLifeState("updating", "updater_launched", $"Actualizador iniciado para version {update.LatestVersion}.", "update");
+        CompleteControlPlaneCommand(command, "launched", $"Updater iniciado para version {update.LatestVersion}.");
         WriteLog($"Updater launched for version {update.LatestVersion}.");
         return true;
     }
@@ -878,6 +917,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
     public async Task<PreflightReport> BootstrapAutonomousWorkspaceAsync(TimeSpan timeout)
     {
+        MarkBootPhase("workspace_bootstrap", "running", "Preparando WhatsApp 1/2/3 antes de encender IA.");
         WriteLifeState("starting", "workspace_bootstrap", "Preparando WhatsApp 1/2/3 antes de encender IA.", "bootstrap");
         WriteWorkspaceSetupState(
             "preparing",
@@ -923,6 +963,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
         if (readyChannels == 0)
         {
+            MarkBootPhase("workspace_bootstrap", "blocked", "La cabina necesita revision humana antes de encender IA.");
             WriteLifeState("attention", "workspace_attention", "La IA no arranco porque la cabina necesita revision humana.", "bootstrap");
             WriteWorkspaceSetupState(
                 "attention",
@@ -935,6 +976,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
         if (blockers.Length > 0)
         {
+            MarkBootPhase("workspace_bootstrap", "attention", $"Cabina parcial: {readyChannels}/3 WhatsApps listos.");
             WriteWorkspaceSetupState(
                 "degraded",
                 $"Arranco en modo degradado: {readyChannels}/3 WhatsApps listos. Sigo trabajando con canales disponibles.",
@@ -951,6 +993,7 @@ internal sealed partial class AgentRuntime : IDisposable
             "Cabina lista: Edge=WhatsApp 1, Chrome=WhatsApp 2, Firefox=WhatsApp 3.",
             100,
             []);
+        MarkBootPhase("workspace_bootstrap", "ok", "Cabina lista: Edge=WhatsApp 1, Chrome=WhatsApp 2, Firefox=WhatsApp 3.");
         WriteLifeState("ready", "workspace_ready", "Cabina lista para encender motores autonomos.", "bootstrap");
         WriteStatusBusState("ready", "workspace_ready", "Cabina lista: los 3 WhatsApp pueden leer y aprender.", []);
         WriteLog("Workspace setup: cabin ready; engines may start now.");
@@ -1691,7 +1734,15 @@ internal sealed partial class AgentRuntime : IDisposable
 
     public void Dispose()
     {
-        Stop("dispose");
+        if (IsRunning || _desiredRunning)
+        {
+            Stop("dispose", "runtime.dispose");
+        }
+        else
+        {
+            WriteControlPlaneCheckpoint("dispose", "already_stopped", "Dispose libero recursos sin cambiar la causa real del ultimo stop.");
+        }
+
         _coreLoopCts?.Dispose();
         _supervisorCts?.Dispose();
         _workspaceGuardianCts?.Dispose();

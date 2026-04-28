@@ -112,7 +112,7 @@ internal sealed class MainForm : Form
         }
 
         _timer.Stop();
-        _runtime.Stop("app_closing");
+        _runtime.Stop("app_closing", "ui.form_closing");
         _runtime.Dispose();
         base.OnFormClosing(e);
     }
@@ -706,7 +706,7 @@ internal sealed class MainForm : Form
                 }
             }
 
-            _runtime.Stop("operator_button");
+            _runtime.Stop("operator_button", "ui.pause_button");
             RefreshStatus();
         };
         _onceButton.Click += async (_, _) => await RunButtonAsync(_onceButton, () => _runtime.RunOnceAsync()).ConfigureAwait(true);
@@ -777,6 +777,9 @@ internal sealed class MainForm : Form
         }
 
         BringControlCenterToFront();
+        _runtime.RequestControlPlaneStart(
+            autonomous ? "ui.start_button_autonomous" : "ui.start_button_manual",
+            autonomous ? "operator_authorized_autonomous_start" : "operator_authorized_manual_start");
         var update = await _runtime.CheckForUpdatesAsync().ConfigureAwait(true);
         AppendLog($"Actualizaciones: {update.Detail}");
         if (update.Available && update.AutoApply && _runtime.TryLaunchUpdater(update))
@@ -1100,7 +1103,7 @@ internal sealed class MainForm : Form
         SetCabinProgressValue(0);
         TopMost = true;
         BringControlCenterToFront();
-        _runtime.Stop("prepare_whatsapps");
+        _runtime.Stop("prepare_whatsapps", "ui.prepare_whatsapps_button");
         UpdateCabinSetupProgress(new CabinSetupProgress(
             5,
             "iniciando",
@@ -1455,6 +1458,13 @@ internal sealed class MainForm : Form
         var now = DateTimeOffset.Now;
         var kernelHeadline = StateText("runtime-kernel-state.json", "humanReport", "headline");
         var kernelBlocker = StateText("runtime-kernel-state.json", "authority", "mainBlocker");
+        var controlPlaneHeadline = StateText("control-plane-state.json", "humanReport", "headline");
+        var runSessionId = StateText("control-plane-state.json", "runSessionId");
+        if (!string.IsNullOrWhiteSpace(controlPlaneHeadline))
+        {
+            lines.Add($"{now:HH:mm:ss} | Control Plane: {controlPlaneHeadline}{(string.IsNullOrWhiteSpace(runSessionId) ? string.Empty : $" ({runSessionId})")}");
+        }
+
         if (!string.IsNullOrWhiteSpace(kernelHeadline) || !string.IsNullOrWhiteSpace(kernelBlocker))
         {
             lines.Add($"{now:HH:mm:ss} | Kernel: {kernelHeadline}{(string.IsNullOrWhiteSpace(kernelBlocker) ? string.Empty : $" - {kernelBlocker}")}");
@@ -1617,7 +1627,7 @@ internal sealed class MainForm : Form
                 : "Ejecuta la app como administrador para mover ventanas y mouse sin fallar.",
             "Cabina WhatsApp" => $"Cabina WhatsApp: {item.Detail}",
             "Cabin Manager" => $"Cabina: {item.Detail}",
-            "Control Plane" => $"Arquitectura 0.6: {item.Detail}",
+            "Control Plane" => $"Control Plane: {item.Detail}",
             "Status Bus" => $"Estado actual: {item.Detail}",
             "Life Controller" => $"Vida de la IA: {item.Detail}",
             "Input Arbiter" => $"Mouse/teclado: {item.Detail}",

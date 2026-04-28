@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "0.9.2"
+VERSION = "0.9.3"
 ENGINE = "ariadgsm_runtime_kernel"
 CONTRACT = "runtime_kernel_state"
 

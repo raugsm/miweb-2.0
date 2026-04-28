@@ -101,6 +101,7 @@ internal sealed partial class AgentRuntime
                 ["version"] = CurrentVersion,
                 ["updatedAt"] = DateTimeOffset.UtcNow,
                 ["contract"] = "runtime_governor_state",
+                ["runSessionId"] = CurrentRunSessionIdNoLock(),
                 ["desiredRunning"] = _desiredRunning,
                 ["policy"] = new Dictionary<string, object?>
                 {

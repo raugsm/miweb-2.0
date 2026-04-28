@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/control-plane-state.schema.json",
+  "title": "AriadGSM AI Runtime Control Plane State",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "engine",
+    "contract",
+    "version",
+    "updatedAt",
+    "runSessionId",
+    "phase",
+    "summary",
+    "bootProtocol",
+    "readiness",
+    "lastStopCause",
+    "commandLedger",
+    "owners",
+    "humanReport"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["idle", "command", "starting", "running", "updating", "stopping", "stopped", "blocked", "attention", "ok", "ready", "error"]
+    },
+    "engine": { "type": "string", "const": "ariadgsm_control_plane" },
+    "contract": { "type": "string", "const": "control_plane_state" },
+    "version": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "runSessionId": { "type": "string", "minLength": 1 },
+    "phase": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string" },
+    "isRunning": { "type": "boolean" },
+    "desiredRunning": { "type": "boolean" },
+    "bootProtocol": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["protocolVersion", "currentPhase", "phases"],
+      "properties": {
+        "protocolVersion": { "type": "string", "const": "ai-runtime-control-plane-v1" },
+        "currentPhase": { "type": "string" },
+        "phases": {
+          "type": "array",
+          "minItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["phaseId", "status", "summary", "updatedAt"],
+            "properties": {
+              "phaseId": { "type": "string" },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "running", "ok", "ready", "attention", "blocked", "error", "stopping"]
+              },
+              "summary": { "type": "string" },
+              "updatedAt": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["read", "think", "act"],
+      "properties": {
+        "read": { "$ref": "#/$defs/readinessGate" },
+        "think": { "$ref": "#/$defs/readinessGate" },
+        "act": { "$ref": "#/$defs/readinessGate" },
+        "sync": { "$ref": "#/$defs/readinessGate" }
+      }
+    },
+    "lastStopCause": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["reason", "source", "runSessionId", "at", "detail"],
+      "properties": {
+        "reason": { "type": "string" },
+        "source": { "type": "string" },
+        "runSessionId": { "type": "string" },
+        "at": { "type": "string" },
+        "detail": { "type": "string" }
+      }
+    },
+    "lastCommand": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "commandLedger": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/runtimeCommand" }
+    },
+    "owners": { "type": "object", "additionalProperties": true },
+    "humanReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["headline", "queEstaPasando", "queHice", "queNecesitoDeBryams"],
+      "properties": {
+        "headline": { "type": "string" },
+        "queEstaPasando": { "type": "array", "items": { "type": "string" } },
+        "queHice": { "type": "array", "items": { "type": "string" } },
+        "queNecesitoDeBryams": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "readinessGate": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["ready", "reason"],
+      "properties": {
+        "ready": { "type": "boolean" },
+        "reason": { "type": "string" }
+      }
+    },
+    "runtimeCommand": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["commandId", "commandType", "source", "reason", "runSessionId", "status", "accepted", "createdAt"],
+      "properties": {
+        "commandId": { "type": "string" },
+        "commandType": { "type": "string" },
+        "source": { "type": "string" },
+        "reason": { "type": "string" },
+        "runSessionId": { "type": "string" },
+        "status": { "type": "string" },
+        "accepted": { "type": "boolean" },
+        "result": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "completedAt": { "type": ["string", "null"] },
+        "endsSession": { "type": "boolean" }
+      }
+    }
+  }
+}

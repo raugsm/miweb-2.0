@@ -1,8 +1,8 @@
 {
-  "version": "0.9.2",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.2.zip",
-  "sha256": "4b2929d3f0afb5a49b347e249ae37d1d7b0bc5fd8896b49cf4681dc4c919b731",
+  "version": "0.9.3",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.3.zip",
+  "sha256": "576744c1cc03832665da5bbf701dcb7e3331a9c409fb9d8ec294da9a108a2060",
   "autoApply": true,
-  "notes": "Version 0.9.2 adds Support & Telemetry Core: local blackbox, traceId/correlationId, redacted support bundle, safe cloud telemetry summaries and EventSource diagnostics.",
-  "publishedAt": "2026-04-28T17:38:30Z"
+  "notes": "Version 0.9.3 consolidates Capa 2 AI Runtime Control Plane: runSessionId, boot phases, command ledger, separated readiness and exact stop/update causes.",
+  "publishedAt": "2026-04-28T18:45:00Z"
 }

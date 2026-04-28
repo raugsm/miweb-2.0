@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "0.9.2"
+VERSION = "0.9.3"
 ENGINE = "ariadgsm_support_telemetry_core"
 CONTRACT = "support_telemetry_state"
 EVENT_CONTRACT = "support_telemetry_event"

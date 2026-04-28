@@ -90,6 +90,18 @@ de `ARIADGSM_MASTER_EXECUTION_ROADMAP.md` se mantienen como entregables e
 historial de construccion, pero no pueden crear capas nuevas ni cambiar la
 arquitectura madre.
 
+Consolidacion de Capa 2:
+
+```text
+docs/ARIADGSM_AI_RUNTIME_CONTROL_PLANE_FINAL.md
+```
+
+Estado:
+
+```text
+Capa 2 AI Runtime Control Plane consolidada en 0.9.3 como autoridad de sesion
+```
+
 Toda recomendacion futura debe indicar:
 
 - capa afectada;

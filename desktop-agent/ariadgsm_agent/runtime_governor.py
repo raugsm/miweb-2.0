@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "0.9.2"
+VERSION = "0.9.3"
 ENGINE = "ariadgsm_runtime_governor"
 CONTRACT = "runtime_governor_state"
 OWNED_PROCESS_NAMES = {

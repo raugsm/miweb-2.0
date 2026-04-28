@@ -210,17 +210,19 @@ Componentes actuales a fusionar:
 Estado actual:
 
 ```text
-BASE AVANZADA, NO CONSOLIDADA FINAL
+CONSOLIDADA COMO AUTORIDAD DE SESION EN 0.9.3
 ```
 
 Para consolidar:
 
-- toda orden debe pasar por Control Plane;
-- cada orden debe guardar `commandId`, `runSessionId`, origen, control UI,
-  foco, momento y resultado;
-- lectura, pensamiento y accion deben tener readiness separada;
-- si Hands falla, ojos y memoria siguen;
-- detener IA requiere causa verificable, no etiqueta generica.
+- documento final: `docs/ARIADGSM_AI_RUNTIME_CONTROL_PLANE_FINAL.md`;
+- contrato: `desktop-agent/contracts/control-plane-state.schema.json`;
+- estado: `desktop-agent/runtime/control-plane-state.json`;
+- ledger: `desktop-agent/runtime/control-plane-command-ledger.jsonl`;
+- checkpoints: `desktop-agent/runtime/control-plane-checkpoints.jsonl`;
+- UI, Life Controller, Runtime Kernel, Runtime Governor, Workspace Guardian y
+  Updater quedan bajo `runSessionId`;
+- lectura, pensamiento, accion y sync publican readiness separada.
 
 ### Capa 3: Cabin Reality Authority
 

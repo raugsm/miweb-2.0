@@ -43,6 +43,7 @@ internal sealed partial class AgentRuntime
         var cabinReady = RuntimeKernelCabinReady();
         var trustBlocked = RuntimeKernelTrustGateBlocked();
         var canObserve = engineStates.Any(item => IsEngineLifecycle(item, "vision", "running", "ready", "degraded"));
+        var canRead = IsRunning && cabinReady && engineStates.Any(item => IsEngineLifecycle(item, "reader_core", "running", "ready", "degraded"));
         var canThink = engineStates.Any(item => IsEngineLifecycle(item, "cognitive", "running", "ready", "degraded"));
         var canAct = IsRunning && dead == 0 && blocked == 0 && cabinReady && !operatorHasPriority && !trustBlocked;
         var canSync = IsRunning && dead == 0 && incidents.All(item => !IsIncidentSeverity(item, "critical"));
@@ -63,14 +64,18 @@ internal sealed partial class AgentRuntime
             ["version"] = CurrentVersion,
             ["updatedAt"] = DateTimeOffset.UtcNow,
             ["contract"] = "runtime_kernel_state",
+            ["runSessionId"] = CurrentRunSessionIdNoLock(),
             ["source"] = source,
             ["trigger"] = trigger,
             ["authority"] = new Dictionary<string, object?>
             {
                 ["truthSource"] = "runtime-kernel-state.json",
+                ["sessionTruthSource"] = "control-plane-state.json",
+                ["runSessionId"] = CurrentRunSessionIdNoLock(),
                 ["desiredRunning"] = _desiredRunning,
                 ["isRunning"] = IsRunning,
                 ["canObserve"] = canObserve,
+                ["canRead"] = canRead,
                 ["canThink"] = canThink,
                 ["canAct"] = canAct,
                 ["canSync"] = canSync,

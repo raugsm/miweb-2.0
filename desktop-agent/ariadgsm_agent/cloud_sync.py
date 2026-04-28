@@ -13,7 +13,7 @@ from typing import Any
 from urllib import error, request
 
 
-VERSION = "0.9.2"
+VERSION = "0.9.3"
 ENGINE = "ariadgsm_cloud_sync"
 CONTRACT = "cloud_sync_state"
 DEFAULT_CLOUD_URL = "https://ariadgsm.com"
