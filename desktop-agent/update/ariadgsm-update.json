@@ -1,8 +1,8 @@
 {
-  "version": "0.8.10",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.10.zip",
-  "sha256": "ec484e7ad635f2c30353aac4ae5b604be2fc70a43971ee0e5ff3f651144f60ed",
+  "version": "0.8.11",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.11.zip",
+  "sha256": "e5adb92934829411f8d2bf192fefed1febb832323b70baa176f16a71836f5b61",
   "autoApply": true,
-  "notes": "Version 0.8.10 aligns Execution Lock with the 16-stage master roadmap, blocks premature updater/release work, and sets Safe Eyes / Reader Core as the next pending stage.",
-  "publishedAt": "2026-04-28T02:50:43Z"
+  "notes": "Version 0.8.11 closes Safe Eyes / Reader Core as a base: visible-message contract, reader-core state, WhatsApp-only identity gate, structured-source priority, OCR fallback, source disagreement report, and integration before Timeline.",
+  "publishedAt": "2026-04-28T03:07:57Z"
 }

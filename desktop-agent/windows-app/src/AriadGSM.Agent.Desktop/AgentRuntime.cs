@@ -294,6 +294,7 @@ internal sealed partial class AgentRuntime : IDisposable
         {
             StateHealth("Vision", "vision-health.json", "Vision"),
             StateHealth("Perception", "perception-health.json", "Perception"),
+            StateHealth("Reader Core", "reader-core-state.json", "PythonCoreLoop"),
             StateHealth("Interaction", "interaction-state.json", "Interaction"),
             StateHealth("Orchestrator", "orchestrator-state.json", "Orchestrator"),
             StateHealth("Timeline", "timeline-state.json", "PythonCoreLoop"),
@@ -367,6 +368,7 @@ internal sealed partial class AgentRuntime : IDisposable
     {
         using var vision = ReadJsonStatus("vision-health.json");
         using var perception = ReadJsonStatus("perception-health.json");
+        using var readerCore = ReadJsonStatus("reader-core-state.json");
         using var interaction = ReadJsonStatus("interaction-state.json");
         using var orchestrator = ReadJsonStatus("orchestrator-state.json");
         using var timeline = ReadJsonStatus("timeline-state.json");
@@ -404,7 +406,8 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Modo: {(IsRunning ? "trabajando" : "detenido")} | Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
             $"WhatsApps: {(whatsappSummary.Length == 0 ? "sin revision" : string.Join(" | ", whatsappSummary))}",
             $"Vision: capturas={Number(vision, "framesCaptured", "eventsWritten")} | ventanas={Number(vision, "visibleWindowCount")} | intervalo={Number(vision, "captureIntervalMs")}ms",
-            $"Lectura: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
+            $"Reader Core: nuevos={NestedNumber(readerCore, "ingested", "newMessages")} | rechazados={NestedNumber(readerCore, "ingested", "rejected")} | desacuerdos={NestedNumber(readerCore, "summary", "latestRunDisagreements")} | OCR={NestedNumber(readerCore, "summary", "ocrFallbackMessages")}",
+            $"Perception OCR: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
             $"Interaction: objetivos={Number(interaction, "targetsObserved")} | accionables={Number(interaction, "actionableTargets")} | rechazados={Number(interaction, "targetsRejected")} | mejor={Text(interaction, "lastAcceptedTargetTitle")}",
             $"Orchestrator: fase={Text(orchestrator, "phase")} | {Text(orchestrator, "summary")}",
             $"Life Controller: {Text(life, "phase")} | {Text(life, "summary")}",
@@ -1929,6 +1932,7 @@ internal sealed partial class AgentRuntime : IDisposable
             ("StageZero", "ariadgsm_agent.stage_zero", new[] { "--json" }),
             ("DomainContracts", "ariadgsm_agent.domain_contracts", new[] { "--json" }),
             ("AutonomousCycleStart", "ariadgsm_agent.autonomous_cycle", new[] { "--trigger", "start", "--json" }),
+            ("ReaderCore", "ariadgsm_agent.reader_core", new[] { "--json" }),
             ("Timeline", "ariadgsm_agent.timeline", new[] { "--json" }),
             ("Cognitive", "ariadgsm_agent.cognitive", new[] { "--autonomy-level", "3", "--json" }),
             ("Operating", "ariadgsm_agent.operating", new[] { "--autonomy-level", "3", "--json" }),

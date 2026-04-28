@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Reader Core State",
+  "type": "object",
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "policy",
+    "sourceFiles",
+    "outputFiles",
+    "ingested",
+    "summary",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked"] },
+    "engine": { "const": "ariadgsm_reader_core" },
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "policy": {
+      "type": "object",
+      "required": ["sourcePriority", "channelMap", "ocrPolicy"],
+      "properties": {
+        "sourcePriority": { "type": "array" },
+        "channelMap": { "type": "object" },
+        "ocrPolicy": { "type": "string" }
+      }
+    },
+    "sourceFiles": { "type": "array" },
+    "outputFiles": { "type": "object" },
+    "ingested": { "type": "object" },
+    "summary": { "type": "object" },
+    "latestMessages": { "type": "array" },
+    "latestDisagreements": { "type": "array" },
+    "humanReport": {
+      "type": "object",
+      "required": ["quePaso", "queLei", "queRechace", "queNecesitoDeBryams", "riesgos"],
+      "properties": {
+        "quePaso": { "type": "string" },
+        "queLei": { "type": "array" },
+        "queRechace": { "type": "array" },
+        "queNecesitoDeBryams": { "type": "array" },
+        "riesgos": { "type": "array" }
+      }
+    }
+  }
+}

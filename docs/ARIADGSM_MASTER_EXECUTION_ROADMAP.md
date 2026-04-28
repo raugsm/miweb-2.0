@@ -196,7 +196,18 @@ Pendiente para autonomia final:
 Lectura robusta: DOM, accesibilidad, UI Automation y OCR como respaldo.
 Mensajes reales, no ruido.
 
-Estado actual: `siguiente etapa pendiente`.
+Estado actual: `cerrada como base Reader Core 0.8.11`.
+
+Existe:
+
+- `docs/ARIADGSM_SAFE_EYES_READER_CORE_DESIGN.md`
+- `desktop-agent/contracts/visible-message.schema.json`
+- `desktop-agent/contracts/reader-core-state.schema.json`
+- `desktop-agent/ariadgsm_agent/reader_core.py`
+- `desktop-agent/tests/safe_eyes_reader_core.py`
+
+Quedo integrado antes de Timeline para que Case Manager, Accounting, Memory y
+Business Brain reciban mensajes con fuente, confianza y evidencia.
 
 Debe cerrar:
 
@@ -213,7 +224,7 @@ Debe cerrar:
 Memoria episodica, semantica, procedimental y contable. Lo que aprendio, lo que
 duda y lo que corriges.
 
-Estado actual: `parcial`.
+Estado actual: `siguiente etapa pendiente`.
 
 Debe cerrar:
 

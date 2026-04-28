@@ -41,7 +41,8 @@ def main() -> int:
 
     assert [stage.name for stage in MASTER_STAGES] == EXPECTED_STAGES
     assert [stage["name"] for stage in describe_master_stages()] == EXPECTED_STAGES
-    assert MASTER_STAGES[8].status == "next_pending"
+    assert MASTER_STAGES[8].status == "closed_reader_core_base"
+    assert MASTER_STAGES[9].status == "next_pending"
 
     for index, name in enumerate(EXPECTED_STAGES):
         expected_line = f"{index}. {name}"
@@ -50,8 +51,10 @@ def main() -> int:
         assert expected_line in stage_zero, expected_line
 
     assert "docs/ARIADGSM_MASTER_EXECUTION_ROADMAP.md" in lock
-    assert "Etapa 8: Safe Eyes / Reader Core" in lock
+    assert "### 6.8 Safe Eyes / Reader Core" in lock
     assert "docs/ARIADGSM_SAFE_EYES_READER_CORE_DESIGN.md" in lock
+    assert "Etapa 9: Living Memory" in lock
+    assert "docs/ARIADGSM_LIVING_MEMORY_DESIGN.md" in lock
     assert "Updater final" not in lock[lock.index("## 10. Siguiente bloque activo") :]
     assert "Evaluation + Release" in roadmap
     assert "updater final" in roadmap.lower()

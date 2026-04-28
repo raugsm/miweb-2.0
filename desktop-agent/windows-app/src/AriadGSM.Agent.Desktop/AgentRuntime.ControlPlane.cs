@@ -84,10 +84,10 @@ internal sealed partial class AgentRuntime
         var authority = ReadStateSummary("cabin-authority-state.json");
         var hands = ReadStateSummary("hands-state.json");
         var input = ReadStateSummary("input-arbiter-state.json");
-        var perception = ReadStateSummary("perception-health.json");
+        var reader = ReadStateSummary("reader-core-state.json");
         var memory = ReadStateSummary("memory-state.json");
         var operating = ReadStateSummary("operating-state.json");
-        var conflicts = DetectControlPlaneConflicts(liveCabin, authority, perception).ToArray();
+        var conflicts = DetectControlPlaneConflicts(liveCabin, authority, reader).ToArray();
         var operationalStatus = conflicts.Length > 0
             ? "attention"
             : liveCabin.ReadyChannels == liveCabin.ExpectedChannels && liveCabin.ExpectedChannels > 0
@@ -127,7 +127,7 @@ internal sealed partial class AgentRuntime
             ["authority"] = authority,
             ["hands"] = hands,
             ["input"] = input,
-            ["reader"] = perception,
+            ["reader"] = reader,
             ["memory"] = memory,
             ["operating"] = operating,
             ["conflicts"] = conflicts

@@ -417,7 +417,7 @@ Pendiente para considerarlo autonomia final:
 Estado:
 
 ```text
-SIGUIENTE ETAPA PENDIENTE
+CERRADA COMO BASE READER CORE 0.8.11
 ```
 
 Objetivo:
@@ -440,6 +440,49 @@ Definicion de terminado:
 - existe comparacion de fuente estructurada vs OCR;
 - existe prueba sin sesiones reales;
 - la siguiente etapa `Living Memory` recibe mensajes reales y no ruido.
+
+Ya existe:
+
+- `docs/ARIADGSM_SAFE_EYES_READER_CORE_DESIGN.md`
+- `desktop-agent/contracts/visible-message.schema.json`
+- `desktop-agent/contracts/reader-core-state.schema.json`
+- `desktop-agent/ariadgsm_agent/reader_core.py`
+- `desktop-agent/tests/safe_eyes_reader_core.py`
+- integracion de `ReaderCore` antes de `Timeline` en `AgentRuntime.cs`.
+
+Pendiente para autonomia final:
+
+- adaptadores vivos DOM/CDP/UIA por navegador;
+- validacion prolongada con sesiones reales de Edge, Chrome y Firefox;
+- metricas de latencia mensaje nuevo -> evento de negocio.
+
+### 6.9 Living Memory
+
+Estado:
+
+```text
+SIGUIENTE ETAPA PENDIENTE
+```
+
+Objetivo:
+
+Convertir lo leido por Reader Core, Timeline y Domain Events en memoria viva:
+
+- episodica: que paso en cada conversacion y caso;
+- semantica: clientes, servicios, paises, precios y patrones;
+- procedimental: como se hacen trabajos y como se corrigen errores;
+- contable: pagos, deudas, reembolsos y evidencia;
+- incertidumbre: que sabe, que duda y que debe preguntarte.
+
+Definicion de terminado:
+
+- existe documento de diseno;
+- existe contrato de memoria viva;
+- separa hechos, sospechas, procedimientos, estilo y contabilidad;
+- aprende de correcciones humanas;
+- degrada conocimiento inseguro;
+- explica que aprendio y de donde;
+- tiene pruebas repetibles con eventos del Reader Core.
 
 ## 7. Bloques que NO pueden adelantarse
 
@@ -499,27 +542,27 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como las etapas `0` a `7` quedan cerradas como base operativa, la siguiente
+Como las etapas `0` a `8` quedan cerradas como base operativa, la siguiente
 etapa pendiente del mapa maestro es:
 
 ```text
-Etapa 8: Safe Eyes / Reader Core
+Etapa 9: Living Memory
 ```
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_SAFE_EYES_READER_CORE_DESIGN.md
+docs/ARIADGSM_LIVING_MEMORY_DESIGN.md
 ```
 
 El entregable tecnico minimo posterior es:
 
 ```text
-lector estructurado para WhatsApp Web en Edge/Chrome/Firefox
-contrato de mensaje visible con fuente, confianza y evidencia
-DOM/accesibilidad/UI Automation como fuente primaria cuando exista
-OCR como respaldo, no como fuente unica
-comparacion de fuentes y reporte de desacuerdo
-integracion al ciclo autonomo antes de Case Manager/Memory
-pruebas sin sesiones reales ni movimiento de mouse
+contrato de memoria viva
+memoria episodica, semantica, procedimental y contable separadas
+ingesta desde Reader Core, Timeline, Domain Events, Case Manager y Accounting
+aprendizaje desde correcciones humanas
+degradacion de conocimiento inseguro
+reporte humano de que aprendio, que duda y que necesita corregir
+pruebas sin sesiones reales ni acciones externas
 ```

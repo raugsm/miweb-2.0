@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Reader Core Visible Message",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "messageId",
+    "channelId",
+    "browserProcess",
+    "conversationId",
+    "conversationTitle",
+    "direction",
+    "text",
+    "observedAt",
+    "source",
+    "identity",
+    "confidence",
+    "evidence",
+    "sourcesCompared",
+    "quality"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "messageId": { "type": "string" },
+    "channelId": { "type": "string", "enum": ["wa-1", "wa-2", "wa-3"] },
+    "browserProcess": { "type": "string", "enum": ["msedge", "chrome", "firefox"] },
+    "conversationId": { "type": "string" },
+    "conversationTitle": { "type": "string" },
+    "senderName": { "type": "string" },
+    "direction": { "type": "string", "enum": ["client", "agent", "unknown"] },
+    "text": { "type": "string", "minLength": 1 },
+    "sentAt": { "type": "string" },
+    "observedAt": { "type": "string" },
+    "source": {
+      "type": "object",
+      "required": ["kind", "rank", "sourceEventId"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["dom", "accessibility", "uia", "ocr"] },
+        "rank": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "sourceEventId": { "type": "string" },
+        "adapter": { "type": "string" },
+        "selector": { "type": "string" },
+        "automationId": { "type": "string" }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "required": ["isWhatsAppWeb", "identityConfidence", "identitySource"],
+      "properties": {
+        "isWhatsAppWeb": { "type": "boolean" },
+        "identityConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "identitySource": { "type": "string" },
+        "url": { "type": "string" },
+        "windowTitle": { "type": "string" }
+      }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "evidence": {
+      "type": "object",
+      "required": ["localReference", "visibleOnly", "rawText"],
+      "properties": {
+        "localReference": { "type": "string" },
+        "visibleOnly": { "type": "boolean" },
+        "rawText": { "type": "string" },
+        "bounds": { "type": "object" }
+      }
+    },
+    "signals": { "type": "array" },
+    "sourcesCompared": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "confidence", "text"],
+        "properties": {
+          "kind": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "disagreements": { "type": "array" },
+    "quality": {
+      "type": "object",
+      "required": ["accepted", "rejectionReasons"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "rejectionReasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "learningWeight": { "type": "string" }
+      }
+    }
+  }
+}
