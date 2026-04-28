@@ -115,7 +115,55 @@ def main() -> int:
                 }
             ],
         }
-        write_jsonl(perception_file, [perception_event])
+        csharp_perception_event = {
+            "eventType": "perception_event",
+            "perceptionEventId": "perception-csharp-001",
+            "observedAt": "2026-04-27T18:00:02Z",
+            "sourceVisionEventId": "vision-002",
+            "objects": [
+                {
+                    "objectType": "window",
+                    "confidence": 0.95,
+                    "text": "(12) WhatsApp Business - Microsoft Edge",
+                    "role": "whatsapp_web",
+                    "metadata": {
+                        "channelId": "wa-1",
+                        "processName": "msedge",
+                        "browserProcess": "msedge",
+                        "windowTitle": "(12) WhatsApp Business - Microsoft Edge",
+                    },
+                },
+                {
+                    "objectType": "conversation",
+                    "confidence": 0.91,
+                    "text": "Cliente Uno",
+                    "role": "active_conversation",
+                    "metadata": {
+                        "channelId": "wa-1",
+                        "conversationId": "cliente-pe-1",
+                        "conversationTitle": "Cliente Uno",
+                        "browserProcess": "msedge",
+                        "windowTitle": "(12) WhatsApp Business - Microsoft Edge",
+                    },
+                },
+                {
+                    "objectType": "message_bubble",
+                    "confidence": 0.88,
+                    "text": "Ya pague 25 usdt para liberar Samsung",
+                    "role": "client",
+                    "metadata": {
+                        "channelId": "wa-1",
+                        "messageKey": "msg-payment-csharp-1",
+                        "conversationId": "cliente-pe-1",
+                        "conversationTitle": "Cliente Uno",
+                        "browserProcess": "msedge",
+                        "windowTitle": "(12) WhatsApp Business - Microsoft Edge",
+                        "sourceKind": "windows_accessibility",
+                    },
+                },
+            ],
+        }
+        write_jsonl(perception_file, [perception_event, csharp_perception_event])
 
         state = run_reader_core_once(
             [source_file, perception_file],
@@ -127,17 +175,23 @@ def main() -> int:
         )
 
         assert state["status"] == "ok"
-        assert state["ingested"]["candidateMessages"] == 3
-        assert state["ingested"]["newMessages"] == 1
+        assert state["ingested"]["candidateMessages"] == 4
+        assert state["ingested"]["newMessages"] == 2
         assert state["ingested"]["rejected"] == 2
-        assert state["summary"]["structuredSourceMessages"] == 1
+        assert state["summary"]["structuredSourceMessages"] == 2
         assert state["summary"]["ocrFallbackMessages"] == 0
         assert state["summary"]["latestRunDisagreements"] == 1
+        assert state["channels"][0]["channelId"] == "wa-1"
+        assert state["channels"][0]["readiness"]["freshRead"] is True
+        assert state["channels"][1]["channelId"] == "wa-2"
+        assert state["channels"][1]["readiness"]["freshRead"] is True
+        assert state["channels"][2]["channelId"] == "wa-3"
+        assert state["channels"][2]["readiness"]["freshRead"] is False
         assert not validate_contract(state, "reader_core_state")
 
         visible = [json.loads(line) for line in visible_file.read_text(encoding="utf-8").splitlines()]
-        assert len(visible) == 1
-        message = visible[0]
+        assert len(visible) == 2
+        message = next(item for item in visible if item["channelId"] == "wa-2")
         assert message["channelId"] == "wa-2"
         assert message["browserProcess"] == "chrome"
         assert message["source"]["kind"] == "dom"
@@ -146,12 +200,17 @@ def main() -> int:
         assert any(signal["kind"] == "price_request" for signal in message["signals"])
         assert any(signal["kind"] == "country" and signal["value"] == "MX" for signal in message["signals"])
         assert not validate_contract(message, "visible_message")
+        csharp_message = next(item for item in visible if item["channelId"] == "wa-1")
+        assert csharp_message["browserProcess"] == "msedge"
+        assert csharp_message["source"]["kind"] == "accessibility"
+        assert csharp_message["identity"]["identitySource"] == "window_title:whatsapp_browser"
 
         conversations = [json.loads(line) for line in conversation_file.read_text(encoding="utf-8").splitlines()]
-        assert len(conversations) == 1
-        assert conversations[0]["eventType"] == "conversation_event"
-        assert conversations[0]["messages"][0]["sourceKind"] == "dom"
-        assert not validate_contract(conversations[0], "conversation_event")
+        assert len(conversations) == 2
+        assert all(event["eventType"] == "conversation_event" for event in conversations)
+        assert any(event["messages"][0]["sourceKind"] == "dom" for event in conversations)
+        assert any(event["messages"][0]["sourceKind"] == "accessibility" for event in conversations)
+        assert all(not validate_contract(event, "conversation_event") for event in conversations)
 
         repeated = run_reader_core_once(
             [source_file, perception_file],
@@ -162,7 +221,7 @@ def main() -> int:
             db_file,
         )
         assert repeated["ingested"]["newMessages"] == 0
-        assert repeated["ingested"]["duplicates"] == 1
+        assert repeated["ingested"]["duplicates"] == 2
 
     print("safe eyes reader core OK")
     return 0

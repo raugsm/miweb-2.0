@@ -823,7 +823,7 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
     "reader_core_state": {
         "status": "ok",
         "engine": "ariadgsm_reader_core",
-        "version": "0.8.11",
+        "version": "0.9.8",
         "updatedAt": utc_now(),
         "policy": {
             "sourcePriority": ["dom", "accessibility", "uia", "ocr"],
@@ -859,6 +859,70 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "structuredSourceMessages": 1,
             "ocrFallbackMessages": 0,
         },
+        "freshnessPolicy": {
+            "perChannelFreshReadRequired": True,
+            "handsRequireFreshRead": True,
+            "windowVisibleIsNotEnough": True,
+            "ocrIsFallbackOnly": True,
+        },
+        "channels": [
+            {
+                "channelId": "wa-1",
+                "status": "empty",
+                "messageConfirmed": False,
+                "latestAcceptedMessages": 0,
+                "storedMessages": 0,
+                "latestObservedAt": "",
+                "sourceKinds": [],
+                "latestMessages": [],
+                "readiness": {
+                    "freshRead": False,
+                    "canRead": False,
+                    "canUnlockHands": False,
+                    "reason": "Aun no confirme mensajes reales de este canal.",
+                },
+            },
+            {
+                "channelId": "wa-2",
+                "status": "fresh_messages_confirmed",
+                "messageConfirmed": True,
+                "latestAcceptedMessages": 1,
+                "storedMessages": 1,
+                "latestObservedAt": utc_now(),
+                "sourceKinds": ["dom"],
+                "latestMessages": [
+                    {
+                        "messageId": "reader-msg-sample-1",
+                        "conversationTitle": "Cliente prueba",
+                        "sourceKind": "dom",
+                        "confidence": 0.94,
+                        "text": "Cuanto vale liberar Samsung en Mexico?",
+                    }
+                ],
+                "readiness": {
+                    "freshRead": True,
+                    "canRead": True,
+                    "canUnlockHands": True,
+                    "reason": "Lectura fresca con 1 mensaje(s) aceptado(s).",
+                },
+            },
+            {
+                "channelId": "wa-3",
+                "status": "empty",
+                "messageConfirmed": False,
+                "latestAcceptedMessages": 0,
+                "storedMessages": 0,
+                "latestObservedAt": "",
+                "sourceKinds": [],
+                "latestMessages": [],
+                "readiness": {
+                    "freshRead": False,
+                    "canRead": False,
+                    "canUnlockHands": False,
+                    "reason": "Aun no confirme mensajes reales de este canal.",
+                },
+            },
+        ],
         "latestMessages": [
             {
                 "messageId": "reader-msg-sample-1",
@@ -881,7 +945,7 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
     "window_reality_state": {
         "status": "attention",
         "engine": "ariadgsm_window_reality_resolver",
-        "version": "0.9.1",
+        "version": "0.9.8",
         "updatedAt": utc_now(),
         "contract": "window_reality_state",
         "policy": {
@@ -894,7 +958,7 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             ],
             "freshness": {
                 "cabinReadinessMaxAgeMs": 45000,
-                "readerCoreMaxAgeMs": 90000,
+                "readerCoreMaxAgeMs": 8000,
                 "inputArbiterMaxAgeMs": 30000,
                 "handsMaxAgeMs": 60000,
             },
@@ -906,7 +970,7 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
         },
         "inputs": [
             {"file": "cabin-readiness.json", "freshness": {"status": "fresh", "ageMs": 200, "maxAgeMs": 45000, "fresh": True}},
-            {"file": "reader-core-state.json", "freshness": {"status": "fresh", "ageMs": 300, "maxAgeMs": 90000, "fresh": True}},
+            {"file": "reader-core-state.json", "freshness": {"status": "fresh", "ageMs": 300, "maxAgeMs": 8000, "fresh": True}},
             {"file": "input-arbiter-state.json", "freshness": {"status": "fresh", "ageMs": 150, "maxAgeMs": 30000, "fresh": True}},
             {"file": "hands-state.json", "freshness": {"status": "fresh", "ageMs": 250, "maxAgeMs": 60000, "fresh": True}},
         ],

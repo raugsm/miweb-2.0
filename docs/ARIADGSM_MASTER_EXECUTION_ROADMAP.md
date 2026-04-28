@@ -230,18 +230,30 @@ Pendiente para autonomia final:
 Lectura robusta: DOM, accesibilidad, UI Automation y OCR como respaldo.
 Mensajes reales, no ruido.
 
-Estado actual: `cerrada como base Reader Core 0.8.11`.
+Estado actual: `cerrada como Capa 4 Perception & Reader Core 0.9.8`.
 
 Existe:
 
 - `docs/ARIADGSM_SAFE_EYES_READER_CORE_DESIGN.md`
+- `docs/ARIADGSM_PERCEPTION_READER_CORE_FINAL.md`
 - `desktop-agent/contracts/visible-message.schema.json`
 - `desktop-agent/contracts/reader-core-state.schema.json`
 - `desktop-agent/ariadgsm_agent/reader_core.py`
+- `desktop-agent/ariadgsm_agent/window_reality.py`
+- `desktop-agent/perception-engine/src/AriadGSM.Perception.Core/Pipeline/PerceptionPipeline.cs`
 - `desktop-agent/tests/safe_eyes_reader_core.py`
+- `desktop-agent/tests/window_reality_resolver.py`
 
 Quedo integrado antes de Timeline para que Case Manager, Accounting, Memory y
 Business Brain reciban mensajes con fuente, confianza y evidencia.
+
+Quedo cerrado en 0.9.8:
+
+- Reader Core acepta eventos estructurados y eventos reales de Perception;
+- Perception emite identidad de ventana, conversacion y mensaje;
+- `reader-core-state.json` publica lectura fresca por canal;
+- Window Reality no autoriza manos si Reader Core no confirma mensajes frescos;
+- OCR queda como respaldo despues de identidad positiva de WhatsApp Web.
 
 Window Reality Resolver quedo cerrado en 0.9.1 como capa transversal entre
 Etapa 7, Etapa 8, Etapa 11, Etapa 12 y Etapa 15:

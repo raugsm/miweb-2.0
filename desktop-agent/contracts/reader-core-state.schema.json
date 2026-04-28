@@ -12,6 +12,8 @@
     "outputFiles",
     "ingested",
     "summary",
+    "freshnessPolicy",
+    "channels",
     "humanReport"
   ],
   "properties": {
@@ -32,6 +34,44 @@
     "outputFiles": { "type": "object" },
     "ingested": { "type": "object" },
     "summary": { "type": "object" },
+    "freshnessPolicy": {
+      "type": "object",
+      "required": ["perChannelFreshReadRequired", "handsRequireFreshRead", "windowVisibleIsNotEnough", "ocrIsFallbackOnly"],
+      "properties": {
+        "perChannelFreshReadRequired": { "type": "boolean" },
+        "handsRequireFreshRead": { "type": "boolean" },
+        "windowVisibleIsNotEnough": { "type": "boolean" },
+        "ocrIsFallbackOnly": { "type": "boolean" }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["channelId", "status", "messageConfirmed", "latestAcceptedMessages", "storedMessages", "sourceKinds", "latestMessages", "readiness"],
+        "properties": {
+          "channelId": { "type": "string", "enum": ["wa-1", "wa-2", "wa-3"] },
+          "status": { "type": "string" },
+          "messageConfirmed": { "type": "boolean" },
+          "latestAcceptedMessages": { "type": "integer", "minimum": 0 },
+          "storedMessages": { "type": "integer", "minimum": 0 },
+          "latestObservedAt": { "type": "string" },
+          "sourceKinds": { "type": "array", "items": { "type": "string" } },
+          "latestMessages": { "type": "array" },
+          "readiness": {
+            "type": "object",
+            "required": ["freshRead", "canRead", "canUnlockHands", "reason"],
+            "properties": {
+              "freshRead": { "type": "boolean" },
+              "canRead": { "type": "boolean" },
+              "canUnlockHands": { "type": "boolean" },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "latestMessages": { "type": "array" },
     "latestDisagreements": { "type": "array" },
     "humanReport": {

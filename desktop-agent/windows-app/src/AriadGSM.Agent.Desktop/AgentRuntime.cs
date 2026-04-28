@@ -1384,7 +1384,7 @@ internal sealed partial class AgentRuntime : IDisposable
             {
                 var rawStatus = item.Status;
                 var channelStatus = item.IsReady
-                    ? "READY_PENDING_SEMANTIC"
+                    ? "READY_PENDING_READER"
                     : rawStatus.Equals("COVERED_BY_WINDOW", StringComparison.OrdinalIgnoreCase)
                         ? "COVERED_CONFIRMED"
                         : item.RequiresHuman
@@ -1405,7 +1405,7 @@ internal sealed partial class AgentRuntime : IDisposable
                     ["decision"] = new Dictionary<string, object?>
                     {
                         ["reason"] = item.IsReady
-                            ? "Cabina confirma ventana WhatsApp; Reader Core debe aportar semantica antes de manos."
+                            ? "Cabina confirma ventana WhatsApp; Reader Core debe aportar lectura fresca antes de manos."
                             : item.Detail,
                         ["accepted"] = isOperational,
                         ["actionPolicy"] = isOperational ? "read_only_pending_resolver" : "hold"
@@ -1433,7 +1433,7 @@ internal sealed partial class AgentRuntime : IDisposable
                             ["kind"] = "semantic",
                             ["status"] = "unknown",
                             ["confidence"] = 0.25,
-                            ["detail"] = "Reader Core aun no ha fusionado mensajes para este ciclo.",
+                            ["detail"] = "Reader Core aun no ha confirmado mensajes frescos para este canal.",
                             ["evidence"] = Array.Empty<string>()
                         },
                         new Dictionary<string, object?>
@@ -1491,7 +1491,7 @@ internal sealed partial class AgentRuntime : IDisposable
                     ["freshness"] = new Dictionary<string, object?>
                     {
                         ["cabinReadinessMaxAgeMs"] = 45000,
-                        ["readerCoreMaxAgeMs"] = 90000,
+                        ["readerCoreMaxAgeMs"] = 8000,
                         ["inputArbiterMaxAgeMs"] = 30000,
                         ["handsMaxAgeMs"] = 60000
                     },
@@ -1499,7 +1499,8 @@ internal sealed partial class AgentRuntime : IDisposable
                     {
                         ["operatorHasPriority"] = true,
                         ["doNotActOnCoveredWindow"] = true,
-                        ["allowReadWhenSemanticFreshButVisualConflicted"] = true
+                        ["allowReadWhenSemanticFreshButVisualConflicted"] = true,
+                        ["handsRequireFreshReaderMessage"] = true
                     }
                 },
                 ["inputs"] = new[]
@@ -1512,7 +1513,7 @@ internal sealed partial class AgentRuntime : IDisposable
                     new Dictionary<string, object?>
                     {
                         ["file"] = "reader-core-state.json",
-                        ["freshness"] = new Dictionary<string, object?> { ["status"] = "unknown", ["ageMs"] = null, ["maxAgeMs"] = 90000, ["fresh"] = false }
+                        ["freshness"] = new Dictionary<string, object?> { ["status"] = "unknown", ["ageMs"] = null, ["maxAgeMs"] = 8000, ["fresh"] = false }
                     },
                     new Dictionary<string, object?>
                     {
@@ -1546,7 +1547,7 @@ internal sealed partial class AgentRuntime : IDisposable
                         $"Cabin Authority vio {operational}/{readiness.Count} canales estructuralmente operables.",
                         "Window Reality Resolver Python reemplazara esta proyeccion al iniciar motores."
                     },
-                    ["queAcepte"] = readiness.Where(item => item.IsReady).Select(item => $"{item.ChannelId}: READY_PENDING_SEMANTIC").ToArray(),
+                    ["queAcepte"] = readiness.Where(item => item.IsReady).Select(item => $"{item.ChannelId}: READY_PENDING_READER").ToArray(),
                     ["queDude"] = readiness.Where(item => !item.IsReady).Select(item => $"{item.ChannelId}: {item.Status} - {item.Detail}").ToArray(),
                     ["queNecesitoDeBryams"] = readiness.Where(item => item.RequiresHuman).Select(item => $"{item.ChannelId}: {item.Detail}").DefaultIfEmpty("No necesito ayuda inmediata.").ToArray(),
                     ["riesgos"] = new[]

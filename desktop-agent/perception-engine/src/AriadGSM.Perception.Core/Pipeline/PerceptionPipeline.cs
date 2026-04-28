@@ -236,6 +236,8 @@ public sealed class PerceptionPipeline
                 new Dictionary<string, object?>
                 {
                     ["channelId"] = channel.ChannelId,
+                    ["browserProcess"] = window.ProcessName,
+                    ["windowTitle"] = window.Title,
                     ["processName"] = window.ProcessName,
                     ["processId"] = window.ProcessId,
                     ["identityReason"] = channel.Candidate.Reason,
@@ -275,6 +277,9 @@ public sealed class PerceptionPipeline
                 {
                     ["channelId"] = channel.ChannelId,
                     ["conversationId"] = read.Conversation.ConversationId,
+                    ["conversationTitle"] = read.Conversation.ConversationTitle,
+                    ["browserProcess"] = window.ProcessName,
+                    ["windowTitle"] = window.Title,
                     ["readerSource"] = read.ReaderResult.Source,
                     ["readerStatus"] = read.ReaderResult.Status,
                     ["readerLines"] = read.ReaderResult.Lines.Count,
@@ -308,7 +313,12 @@ public sealed class PerceptionPipeline
                     {
                         ["channelId"] = channel.ChannelId,
                         ["messageId"] = message.MessageId,
+                        ["messageKey"] = message.MessageId,
                         ["conversationId"] = read.Conversation.ConversationId,
+                        ["conversationTitle"] = read.Conversation.ConversationTitle,
+                        ["browserProcess"] = window.ProcessName,
+                        ["windowTitle"] = window.Title,
+                        ["sourceKind"] = message.Source,
                         ["source"] = message.Source,
                         ["signals"] = message.Signals,
                         ["signalKinds"] = message.Signals.Select(signal => signal.Kind).ToArray()

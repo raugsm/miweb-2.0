@@ -63,10 +63,36 @@ def reader_state() -> dict:
     return {
         "status": "ok",
         "engine": "ariadgsm_reader_core",
-        "version": "0.9.1",
+        "version": "0.9.8",
         "updatedAt": utc_now(),
         "ingested": {"newMessages": 3},
         "summary": {"latestRunMessages": 3},
+        "channels": [
+            {
+                "channelId": "wa-1",
+                "status": "fresh_messages_confirmed",
+                "messageConfirmed": True,
+                "latestAcceptedMessages": 1,
+                "readiness": {"freshRead": True, "canRead": True, "canUnlockHands": True, "reason": "ok"},
+                "latestMessages": [{"text": "Hola wa1"}],
+            },
+            {
+                "channelId": "wa-2",
+                "status": "fresh_messages_confirmed",
+                "messageConfirmed": True,
+                "latestAcceptedMessages": 1,
+                "readiness": {"freshRead": True, "canRead": True, "canUnlockHands": True, "reason": "ok"},
+                "latestMessages": [{"text": "Hola wa2"}],
+            },
+            {
+                "channelId": "wa-3",
+                "status": "fresh_messages_confirmed",
+                "messageConfirmed": True,
+                "latestAcceptedMessages": 1,
+                "readiness": {"freshRead": True, "canRead": True, "canUnlockHands": True, "reason": "ok"},
+                "latestMessages": [{"text": "Hola wa3"}],
+            },
+        ],
         "latestMessages": [
             {"channelId": "wa-1", "text": "Hola wa1"},
             {"channelId": "wa-2", "text": "Hola wa2"},
@@ -161,6 +187,36 @@ def main() -> int:
         assert all(item["structuralReady"] is True for item in state["channels"])
         assert all(item["actionReady"] is False for item in state["channels"])
         assert state["summary"]["handsMayActChannels"] == 0
+        assert not validate_contract(state, "window_reality_state")
+
+    with TemporaryDirectory() as tmp:
+        runtime = Path(tmp)
+        reader = reader_state()
+        reader["channels"][1]["status"] = "no_fresh_read"
+        reader["channels"][1]["messageConfirmed"] = False
+        reader["channels"][1]["latestAcceptedMessages"] = 0
+        reader["channels"][1]["readiness"] = {
+            "freshRead": False,
+            "canRead": False,
+            "canUnlockHands": False,
+            "reason": "Tengo ventana, pero no mensajes frescos.",
+        }
+        reader["channels"][1]["latestMessages"] = []
+        reader["latestMessages"] = [
+            {"channelId": "wa-1", "text": "Hola wa1"},
+            {"channelId": "wa-3", "text": "Hola wa3"},
+        ]
+        write_json(runtime / "cabin-readiness.json", cabin_state())
+        write_json(runtime / "reader-core-state.json", reader)
+        write_json(runtime / "input-arbiter-state.json", input_state())
+        write_json(runtime / "hands-state.json", hands_state())
+        state = run_window_reality_once(runtime)
+        wa2 = next(item for item in state["channels"] if item["channelId"] == "wa-2")
+        assert wa2["status"] == "READY_PENDING_READER"
+        assert wa2["structuralReady"] is True
+        assert wa2["semanticFresh"] is False
+        assert wa2["handsMayAct"] is False
+        assert state["summary"]["handsMayActChannels"] == 2
         assert not validate_contract(state, "window_reality_state")
 
     print("window reality resolver OK")

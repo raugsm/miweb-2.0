@@ -1,8 +1,8 @@
 {
-  "version": "0.9.7",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.7.zip",
-  "sha256": "3491f6f14d53590cf9f189148037ccc846cd591feff6f4654c244c482439ea08",
+  "version": "0.9.8",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.8.zip",
+  "sha256": "9640c9915740e78958bcc50369c865ba4283c31b645f59a692b041bdc331b1be",
   "autoApply": true,
-  "notes": "Version 0.9.7 consolidates Layer 3 Cabin Reality Authority: fixed Edge/Chrome/Firefox channel ownership, visible/fresh/actionable readiness, DWM cloaked-window rejection, Window Reality consensus in Orchestrator and action_ready gating before Hands.",
-  "publishedAt": "2026-04-28T20:53:17Z"
+  "notes": "Version 0.9.8 consolidates Layer 4 Perception & Reader Core: Perception now publishes window/conversation/message identity, Reader Core confirms fresh messages per wa-1/wa-2/wa-3, and Window Reality blocks Hands until Reader evidence is fresh.",
+  "publishedAt": "2026-04-28T21:26:41Z"
 }

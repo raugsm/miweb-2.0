@@ -9,7 +9,7 @@ from typing import Any
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DIR = AGENT_ROOT / "runtime"
-VERSION = "0.9.7"
+VERSION = "0.9.8"
 ENGINE = "ariadgsm_window_reality_resolver"
 CONTRACT = "window_reality_state"
 
@@ -132,7 +132,24 @@ def reader_messages_for_channel(reader: dict[str, Any], channel_id: str) -> list
         for item in value:
             if isinstance(item, dict) and text(item.get("channelId")).lower() == channel_id.lower():
                 messages.append(item)
+    for channel in channel_list(reader):
+        if text(channel.get("channelId")).lower() != channel_id.lower():
+            continue
+        latest = channel.get("latestMessages")
+        if isinstance(latest, list):
+            for item in latest:
+                if isinstance(item, dict):
+                    payload = dict(item)
+                    payload.setdefault("channelId", channel_id)
+                    messages.append(payload)
     return messages
+
+
+def reader_channel(reader: dict[str, Any], channel_id: str) -> dict[str, Any]:
+    for item in channel_list(reader):
+        if text(item.get("channelId")).lower() == channel_id.lower():
+            return item
+    return {}
 
 
 def build_signal(kind: str, status: str, confidence: float, detail: str, evidence: list[str] | None = None) -> dict[str, Any]:
@@ -185,6 +202,21 @@ def semantic_signal(reader: dict[str, Any], channel_id: str, reader_fresh: dict[
     status = normalized_status(reader.get("status"))
     if status in {"blocked", "error", "failed"}:
         return build_signal("semantic", "blocked", 0.2, text(reader.get("summary"), "Reader Core esta bloqueado."))
+    channel_state = reader_channel(reader, channel_id)
+    if channel_state:
+        readiness = channel_state.get("readiness") if isinstance(channel_state.get("readiness"), dict) else {}
+        fresh_read = as_bool(readiness.get("freshRead")) or as_bool(channel_state.get("messageConfirmed"))
+        latest_count = as_int(channel_state.get("latestAcceptedMessages"))
+        samples = reader_messages_for_channel(reader, channel_id)
+        if fresh_read and latest_count > 0:
+            return build_signal("semantic", "ok", 0.9, f"Reader Core confirmo {latest_count} mensaje(s) fresco(s) del canal.", [text(item.get("text") or item.get("summary")) for item in samples[:3]])
+        return build_signal(
+            "semantic",
+            "missing",
+            0.42,
+            text(nested(channel_state, "readiness", "reason"), "Reader Core esta vivo, pero no confirmo lectura fresca del canal."),
+            [text(item.get("text") or item.get("summary")) for item in samples[:2]],
+        )
     messages = reader_messages_for_channel(reader, channel_id)
     if messages:
         return build_signal("semantic", "ok", 0.88, f"Reader Core vio {len(messages)} mensajes del canal.", [text(item.get("text") or item.get("summary")) for item in messages[:3]])
@@ -244,12 +276,18 @@ def decide_channel(channel_id: str, signals: list[dict[str, Any]], channel: dict
         status = "STALE_STATE"
         confidence = min(confidence, 0.35)
         reason = "El estado no esta fresco; no se toma como listo aunque antes lo haya parecido."
-    elif structural == "ok" and visual == "ok" and semantic in {"ok", "unknown"}:
-        status = "READY" if semantic == "ok" else "READY_PENDING_SEMANTIC"
+    elif structural == "ok" and visual == "ok" and semantic in {"ok", "unknown", "missing"}:
+        status = "READY" if semantic == "ok" else "READY_PENDING_READER"
         is_operational = True
-        hands_may_act = actionability == "ok"
-        reason = "Ventana, pantalla y lectura no se contradicen."
-        confidence = max(confidence, 0.78 if semantic == "unknown" else 0.86)
+        hands_may_act = actionability == "ok" and semantic == "ok"
+        reason = "Ventana, pantalla y lectura no se contradicen." if semantic == "ok" else "Ventana lista; espero lectura fresca de Reader Core antes de manos."
+        confidence = max(confidence, 0.86 if semantic == "ok" else 0.68)
+    elif semantic == "blocked":
+        status = "READER_BLOCKED"
+        is_operational = False
+        hands_may_act = False
+        reason = "Reader Core bloqueo la lectura; no declaro el canal accionable."
+        confidence = min(confidence, 0.45)
     elif structural == "conflict" and semantic == "ok":
         status = "READY_WITH_CONFLICT"
         is_operational = True
@@ -323,7 +361,7 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
         ],
         "freshness": {
             "cabinReadinessMaxAgeMs": 45_000,
-            "readerCoreMaxAgeMs": 90_000,
+            "readerCoreMaxAgeMs": 8_000,
             "inputArbiterMaxAgeMs": 30_000,
             "handsMaxAgeMs": 60_000,
         },
@@ -331,6 +369,7 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
             "operatorHasPriority": True,
             "doNotActOnCoveredWindow": True,
             "allowReadWhenSemanticFreshButVisualConflicted": True,
+            "handsRequireFreshReaderMessage": True,
         },
     }
 
@@ -352,7 +391,7 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
         channels.append(decide_channel(channel_id, signals, channel))
 
     operational = sum(1 for item in channels if item["isOperational"])
-    ready = sum(1 for item in channels if item["status"] in {"READY", "READY_PENDING_SEMANTIC", "READY_OPERATOR_BUSY"})
+    ready = sum(1 for item in channels if item["status"] in {"READY", "READY_PENDING_READER", "READY_OPERATOR_BUSY"})
     structural_ready = sum(1 for item in channels if item["structuralReady"])
     action_ready = sum(1 for item in channels if item["actionReady"])
     conflicted = sum(1 for item in channels if item["status"] in {"READY_WITH_CONFLICT", "COVERED_CONFIRMED"})
@@ -389,6 +428,8 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
     ]
     if not needs and any(item["status"] == "STALE_STATE" for item in channels):
         needs.append("Ejecutar Alistar WhatsApps o Encender IA para refrescar evidencia antes de actuar.")
+    if not needs and any(item["status"] == "READY_PENDING_READER" for item in channels):
+        needs.append("Reader Core debe confirmar mensajes frescos antes de autorizar manos.")
     if not needs:
         needs.append("No necesito ayuda inmediata; seguire leyendo solo canales con evidencia fresca.")
 

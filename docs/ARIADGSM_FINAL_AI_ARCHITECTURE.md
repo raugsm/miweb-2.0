@@ -298,16 +298,17 @@ Componentes actuales a fusionar:
 Estado actual:
 
 ```text
-BASE OPERATIVA, NO OJOS DEFINITIVOS
+CONSOLIDADA COMO OJOS FRESCOS POR CANAL EN 0.9.8
 ```
 
 Para consolidar:
 
-- objeto `VisibleMessage` como salida obligatoria;
-- adaptadores por navegador/fuente;
-- comparador entre UIA/DOM/OCR;
-- score de confianza;
-- errores humanos claros cuando no puede leer.
+- documento final: `docs/ARIADGSM_PERCEPTION_READER_CORE_FINAL.md`;
+- contrato: `desktop-agent/contracts/reader-core-state.schema.json`;
+- salida obligatoria `VisibleMessage`;
+- estado fresco por canal en `reader-core-state.json`;
+- Perception emite identidad de ventana, conversacion y mensaje;
+- Window Reality bloquea manos si Reader Core no confirma mensajes frescos.
 
 ### Capa 5: Event, Timeline & Durable State Backbone
 

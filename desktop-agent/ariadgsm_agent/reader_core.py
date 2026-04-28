@@ -18,7 +18,8 @@ from .text import clean_text, looks_like_browser_ui_title, normalize
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.8.11"
+VERSION = "0.9.8"
+EXPECTED_CHANNELS = ("wa-1", "wa-2", "wa-3")
 
 SOURCE_RANKS: dict[str, int] = {
     "dom": 100,
@@ -174,11 +175,12 @@ def browser_key(value: Any) -> str:
 
 def source_kind(value: Any) -> str:
     normalized = normalize(value)
+    compact = re.sub(r"[^a-z0-9]+", "", normalized)
     if normalized in {"dom", "cdp_dom", "domsnapshot", "structured_dom"}:
         return "dom"
-    if normalized in {"accessibility", "ax", "a11y", "cdp_accessibility"}:
+    if normalized in {"accessibility", "ax", "a11y", "cdp_accessibility"} or "accessibility" in compact:
         return "accessibility"
-    if normalized in {"uia", "ui_automation", "windows_ui_automation"}:
+    if normalized in {"uia", "ui_automation", "windows_ui_automation"} or "uiautomation" in compact:
         return "uia"
     if normalized in {"ocr", "screen_ocr", "vision_ocr"}:
         return "ocr"
@@ -370,34 +372,67 @@ def candidates_from_reader_event(event: dict[str, Any]) -> tuple[list[SourceCand
     return [candidate for candidate in candidates if not candidate.rejection_reasons], rejected
 
 
-def candidates_from_perception_event(event: dict[str, Any]) -> tuple[list[SourceCandidate], list[dict[str, Any]]]:
-    identity = identity_for_event(event)
-    if not identity.accepted:
-        return [], [
-            {
-                "sourceEventId": event_source_id(event),
-                "sourceKind": "ocr",
-                "reason": list(identity.rejection_reasons),
-                "windowTitle": identity.window_title,
-                "url": identity.url,
-            }
-        ]
+def perception_contexts(event: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    contexts: dict[str, dict[str, Any]] = defaultdict(dict)
     objects = [item for item in event.get("objects") or [] if isinstance(item, dict)]
+    for item in objects:
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        object_type = clean_text(item.get("objectType"))
+        channel_id = clean_text(metadata.get("channelId") or event.get("channelId"))
+        if not channel_id:
+            continue
+        context = contexts[channel_id]
+        if object_type == "window":
+            context.setdefault("channelId", channel_id)
+            context.setdefault("browserProcess", metadata.get("browserProcess") or metadata.get("processName") or event.get("browserProcess"))
+            context.setdefault("url", metadata.get("url") or event.get("url"))
+            context.setdefault("windowTitle", metadata.get("windowTitle") or item.get("text") or event.get("windowTitle"))
+            context.setdefault("sourceEventId", event_source_id(event))
+        elif object_type == "conversation":
+            context.setdefault("channelId", channel_id)
+            context.setdefault("conversationId", metadata.get("conversationId") or event.get("conversationId"))
+            context.setdefault("conversationTitle", metadata.get("conversationTitle") or item.get("text") or event.get("conversationTitle"))
+            context.setdefault("browserProcess", metadata.get("browserProcess") or metadata.get("processName") or event.get("browserProcess"))
+            context.setdefault("url", metadata.get("url") or event.get("url"))
+            context.setdefault("windowTitle", metadata.get("windowTitle") or event.get("windowTitle"))
+    return contexts
+
+
+def context_for_message(event: dict[str, Any], item: dict[str, Any], contexts: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    channel_id = clean_text(metadata.get("channelId") or event.get("channelId"))
+    if not channel_id and len(contexts) == 1:
+        channel_id = next(iter(contexts.keys()))
+    context = dict(contexts.get(channel_id, {}))
+    context.setdefault("channelId", channel_id)
+    context.setdefault("browserProcess", metadata.get("browserProcess") or metadata.get("processName") or event.get("browserProcess"))
+    context.setdefault("url", metadata.get("url") or event.get("url"))
+    context.setdefault("windowTitle", metadata.get("windowTitle") or event.get("windowTitle"))
+    context.setdefault("conversationId", metadata.get("conversationId") or event.get("conversationId"))
+    context.setdefault("conversationTitle", metadata.get("conversationTitle") or event.get("conversationTitle"))
+    return context
+
+
+def candidates_from_perception_event(event: dict[str, Any]) -> tuple[list[SourceCandidate], list[dict[str, Any]]]:
+    objects = [item for item in event.get("objects") or [] if isinstance(item, dict)]
+    contexts = perception_contexts(event)
     message_objects = [item for item in objects if clean_text(item.get("objectType")) == "message_bubble"][-60:]
     output: list[SourceCandidate] = []
     rejected: list[dict[str, Any]] = []
     for index, item in enumerate(message_objects):
         metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        context = context_for_message(event, item, contexts)
+        channel_id = clean_text(context.get("channelId"))
         wrapped = {
             "sourceEventId": event_source_id(event),
-            "sourceKind": "ocr",
-            "browserProcess": metadata.get("browserProcess") or event.get("browserProcess") or identity.browser_process,
-            "channelId": event.get("channelId") or identity.channel_id,
-            "url": metadata.get("url") or event.get("url") or identity.url,
-            "windowTitle": metadata.get("windowTitle") or event.get("windowTitle") or identity.window_title,
+            "sourceKind": metadata.get("sourceKind") or metadata.get("readerSource") or metadata.get("source") or "ocr",
+            "browserProcess": metadata.get("browserProcess") or context.get("browserProcess"),
+            "channelId": channel_id,
+            "url": metadata.get("url") or context.get("url"),
+            "windowTitle": metadata.get("windowTitle") or context.get("windowTitle"),
             "observedAt": event.get("observedAt"),
-            "conversationId": metadata.get("conversationId") or event.get("conversationId"),
-            "conversationTitle": metadata.get("conversationTitle") or event.get("conversationTitle"),
+            "conversationId": metadata.get("conversationId") or context.get("conversationId"),
+            "conversationTitle": metadata.get("conversationTitle") or context.get("conversationTitle"),
             "messages": [
                 {
                     "messageKey": metadata.get("messageKey") or clean_text(item.get("objectId")) or f"{event_source_id(event)}:{index}",
@@ -672,6 +707,25 @@ class ReaderCoreStore:
             "byChannel": by_channel,
         }
 
+    def recent_messages(self, limit: int = 100) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            """
+            select message_json from visible_messages
+            order by stored_at desc
+            limit ?
+            """,
+            (limit,),
+        ).fetchall()
+        messages: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                payload = json.loads(str(row[0]))
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(payload, dict):
+                messages.append(payload)
+        return list(reversed(messages))
+
 
 def read_jsonl(path: Path, limit: int = 500) -> list[dict[str, Any]]:
     if not path.exists():
@@ -708,7 +762,13 @@ def build_human_report(
     messages: list[dict[str, Any]],
     rejected: list[dict[str, Any]],
     disagreements: list[dict[str, Any]],
+    channels: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    blocked_channels = [
+        f"{item['channelId']}: {item['status']} - {item['readiness']['reason']}"
+        for item in channels
+        if not item["readiness"]["freshRead"]
+    ]
     return {
         "quePaso": (
             f"Reader Core comparo fuentes estructuradas y OCR; acepto {len(messages)} mensaje(s) visible(s) "
@@ -723,16 +783,73 @@ def build_human_report(
             for item in rejected[-8:]
         ],
         "queNecesitoDeBryams": [
+            *blocked_channels[:5],
             "Abre o alista Edge, Chrome y Firefox si Reader Core queda idle sin fuentes visibles.",
             "Revisa desacuerdos si DOM/accesibilidad/UIA y OCR no leen igual.",
         ]
-        if disagreements
+        if disagreements or blocked_channels
         else [],
         "riesgos": [
             "OCR se usa solo como respaldo y queda marcado con menor confianza.",
             "Si WhatsApp cambia su DOM, el adaptador debe emitir la misma forma de reader-source-event.",
         ],
     }
+
+
+def build_channel_readiness(valid_messages: list[dict[str, Any]], stored_summary: dict[str, Any], recent_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    current_by_channel: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    recent_by_channel: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for message in valid_messages:
+        current_by_channel[clean_text(message.get("channelId"))].append(message)
+    for message in recent_messages:
+        recent_by_channel[clean_text(message.get("channelId"))].append(message)
+
+    stored_by_channel = stored_summary.get("byChannel") if isinstance(stored_summary.get("byChannel"), dict) else {}
+    channels: list[dict[str, Any]] = []
+    for channel_id in EXPECTED_CHANNELS:
+        current = current_by_channel.get(channel_id, [])
+        recent = recent_by_channel.get(channel_id, [])
+        sample = current[-5:] if current else recent[-5:]
+        source_kinds = sorted({clean_text(message.get("source", {}).get("kind")) for message in sample if isinstance(message.get("source"), dict)})
+        last_observed = max((clean_text(message.get("observedAt")) for message in current if clean_text(message.get("observedAt"))), default="")
+        stored_count = int(stored_by_channel.get(channel_id, 0) or 0)
+        if current:
+            status = "fresh_messages_confirmed"
+            reason = f"Lectura fresca con {len(current)} mensaje(s) aceptado(s)."
+        elif stored_count > 0:
+            status = "no_fresh_read"
+            reason = "Tengo memoria de mensajes anteriores, pero no lectura fresca de este ciclo."
+        else:
+            status = "empty"
+            reason = "Aun no confirme mensajes reales de este canal."
+        channels.append(
+            {
+                "channelId": channel_id,
+                "status": status,
+                "messageConfirmed": bool(current),
+                "latestAcceptedMessages": len(current),
+                "storedMessages": stored_count,
+                "latestObservedAt": last_observed,
+                "sourceKinds": [kind for kind in source_kinds if kind],
+                "latestMessages": [
+                    {
+                        "messageId": message["messageId"],
+                        "conversationTitle": message["conversationTitle"],
+                        "sourceKind": message["source"]["kind"],
+                        "confidence": message["confidence"],
+                        "text": message["text"][:160],
+                    }
+                    for message in sample
+                ],
+                "readiness": {
+                    "freshRead": bool(current),
+                    "canRead": bool(current),
+                    "canUnlockHands": bool(current),
+                    "reason": reason,
+                },
+            }
+        )
+    return channels
 
 
 def run_reader_core_once(
@@ -772,6 +889,7 @@ def run_reader_core_once(
             else:
                 duplicates += 1
         summary = store.summary()
+        recent_messages = store.recent_messages()
     finally:
         store.close()
 
@@ -830,11 +948,18 @@ def run_reader_core_once(
         },
         "summary": {
             **summary,
-            "latestRunMessages": len(new_messages),
+            "latestRunMessages": len(valid_messages),
             "latestRunDisagreements": len(disagreements),
             "structuredSourceMessages": sum(1 for item in valid_messages if item["source"]["kind"] in {"dom", "accessibility", "uia"}),
             "ocrFallbackMessages": sum(1 for item in valid_messages if item["source"]["kind"] == "ocr"),
         },
+        "freshnessPolicy": {
+            "perChannelFreshReadRequired": True,
+            "handsRequireFreshRead": True,
+            "windowVisibleIsNotEnough": True,
+            "ocrIsFallbackOnly": True,
+        },
+        "channels": build_channel_readiness(valid_messages, summary, recent_messages),
         "latestMessages": [
             {
                 "messageId": message["messageId"],
@@ -844,12 +969,12 @@ def run_reader_core_once(
                 "confidence": message["confidence"],
                 "text": message["text"][:160],
             }
-            for message in new_messages[-20:]
+            for message in valid_messages[-20:]
         ],
         "latestDisagreements": disagreements[-20:],
         "invalid": {"messages": invalid_messages, "conversations": invalid_conversations},
-        "humanReport": build_human_report(new_messages, rejected, disagreements),
     }
+    state["humanReport"] = build_human_report(valid_messages, rejected, disagreements, state["channels"])
     write_json(state_file, state)
     write_json(report_file, state["humanReport"])
     return state
