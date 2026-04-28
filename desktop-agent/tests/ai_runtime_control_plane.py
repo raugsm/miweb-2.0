@@ -55,6 +55,9 @@ def main() -> int:
     assert 'Stop("operator_button", "ui.pause_button")' in ui_source
     assert 'Stop("app_closing", "ui.form_closing")' in ui_source
     assert "RequestControlPlaneStart" in ui_source
+    assert "Encender IA: orden recibida por la interfaz" in ui_source
+    assert "Alistamiento terminado: Encender IA queda disponible" in ui_source
+    assert "_startButton.Enabled = true;" in ui_source
     assert 'Stop("dispose", "runtime.dispose")' in runtime_source
     assert 'Stop("prepare_whatsapps", "ui.prepare_whatsapps_button")' in ui_source
     assert "MarkBootPhase" in runtime_source

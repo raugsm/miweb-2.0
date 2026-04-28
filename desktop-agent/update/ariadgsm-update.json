@@ -1,8 +1,8 @@
 {
-  "version": "0.9.3",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.3.zip",
-  "sha256": "576744c1cc03832665da5bbf701dcb7e3331a9c409fb9d8ec294da9a108a2060",
+  "version": "0.9.4",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.4.zip",
+  "sha256": "2a4bb3e2877060fe32f53b6d8a49bd89428c978b34924d8b68c73a5719197831",
   "autoApply": true,
-  "notes": "Version 0.9.3 consolidates Capa 2 AI Runtime Control Plane: runSessionId, boot phases, command ledger, separated readiness and exact stop/update causes.",
-  "publishedAt": "2026-04-28T18:45:00Z"
+  "notes": "Version 0.9.4 fixes silent start intake: Encender IA remains available after cabin setup and every accepted click logs a Control Plane-visible human signal.",
+  "publishedAt": "2026-04-28T19:20:00Z"
 }

@@ -3,6 +3,13 @@
 Fecha: 2026-04-28
 Estado: Capa 2 consolidada como autoridad de sesion
 
+Actualizacion 0.9.4:
+
+- `Encender IA` ya no puede quedar silenciado por el panel de alistamiento.
+- La interfaz registra una senal humana inmediata cuando recibe la orden.
+- Al terminar `Alistar WhatsApps`, el boton de arranque vuelve a quedar disponible.
+- La decision real de arrancar o bloquear queda en Control Plane, no en validaciones visuales del boton.
+
 ## 1. Capa afectada
 
 ```text

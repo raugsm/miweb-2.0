@@ -767,8 +767,11 @@ internal sealed class MainForm : Form
 
     private async Task StartAgentCoreAsync(bool autonomous)
     {
+        AppendLog("Encender IA: orden recibida por la interfaz; Control Plane decide arranque o bloqueo con causa.");
+
         if (!_authenticated)
         {
+            AppendLog("Encender IA bloqueado: falta iniciar sesion.");
             MessageBox.Show(this, "Primero inicia sesion para habilitar la cabina.", "AriadGSM Agent", MessageBoxButtons.OK, MessageBoxIcon.Information);
             _loginPanel.Visible = true;
             _dashboardPanel.Visible = false;
@@ -1126,6 +1129,8 @@ internal sealed class MainForm : Form
         finally
         {
             _cabinSetupActive = false;
+            _startButton.Enabled = true;
+            AppendLog("Alistamiento terminado: Encender IA queda disponible; Control Plane validara si puede arrancar.");
             BringControlCenterToFront();
             await Task.Delay(120).ConfigureAwait(true);
             TopMost = false;
