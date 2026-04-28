@@ -304,6 +304,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Accounting Core", "accounting-core-state.json", "PythonCoreLoop"),
             StateHealth("Memory", "memory-state.json", "PythonCoreLoop"),
             StateHealth("Domain Events", "domain-events-state.json", "PythonCoreLoop"),
+            StateHealth("Trust & Safety", "trust-safety-state.json", "PythonCoreLoop"),
             StateHealth("Hands", "hands-state.json", "Hands"),
             StateHealth("Action Queue", "action-queue-state.json", "Hands"),
             StateHealth("Input Arbiter", "input-arbiter-state.json", "Hands"),
@@ -1938,6 +1939,7 @@ internal sealed partial class AgentRuntime : IDisposable
             ("AccountingCore", "ariadgsm_agent.accounting_evidence", new[] { "--json" }),
             ("DomainEventsBeforeMemory", "ariadgsm_agent.domain_events", new[] { "--json" }),
             ("Memory", "ariadgsm_agent.memory", new[] { "--json" }),
+            ("TrustSafety", "ariadgsm_agent.trust_safety", new[] { "--autonomy-level", "3", "--json" }),
             ("Supervisor", "ariadgsm_agent.supervisor", new[] { "--autonomy-level", "3", "--json" }),
             ("AutonomousCycle", "ariadgsm_agent.autonomous_cycle", new[] { "--json" }),
             ("DomainEventsAfterCycle", "ariadgsm_agent.domain_events", new[] { "--json" })

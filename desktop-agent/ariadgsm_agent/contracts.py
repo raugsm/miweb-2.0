@@ -27,6 +27,7 @@ CONTRACT_FILES: dict[str, str] = {
     "channel_routing_state": "channel-routing-state.schema.json",
     "accounting_core_state": "accounting-core-state.schema.json",
     "cabin_authority_state": "cabin-authority-state.schema.json",
+    "trust_safety_state": "trust-safety-state.schema.json",
 }
 
 
@@ -661,6 +662,92 @@ SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
             "confirmados": [{"record_id": "acct-sample-2", "status": "confirmed"}],
             "necesitanBryams": [{"record_id": "acct-sample-1", "reason": "falta evidencia A"}],
             "riesgos": ["No confirmar pagos sin evidencia A."],
+        },
+    },
+    "trust_safety_state": {
+        "status": "blocked",
+        "engine": "ariadgsm_trust_safety_core",
+        "version": "0.8.8",
+        "updatedAt": utc_now(),
+        "policy": {
+            "version": "ariadgsm-trust-safety-0.8.8",
+            "autonomyLevel": 3,
+            "decisions": ["ALLOW", "ALLOW_WITH_LIMIT", "ASK_HUMAN", "PAUSE_FOR_OPERATOR", "BLOCK"],
+            "principles": [
+                "least_privilege",
+                "human_approval_for_irreversible_actions",
+                "verify_before_continue",
+            ],
+        },
+        "permissions": {
+            "allowLocalNavigation": True,
+            "allowTextDraft": False,
+            "allowMessageSend": False,
+            "allowExternalToolExecution": False,
+            "allowAccountingDraft": True,
+            "allowAccountingConfirmation": False,
+            "allowCrossChannelTransfer": False,
+        },
+        "riskMatrix": {
+            "message_send": {
+                "requiredAutonomyLevel": 6,
+                "riskLevel": "critical",
+                "reversible": False,
+                "permission": "allowMessageSend",
+            }
+        },
+        "permissionGate": {
+            "decision": "BLOCK",
+            "reason": "Accion irreversible sin permiso explicito.",
+            "canHandsRun": False,
+            "allowedEngines": {
+                "vision": True,
+                "perception": True,
+                "memory": True,
+                "cognitive": True,
+                "hands": False,
+            },
+        },
+        "summary": {
+            "decisionsRead": 1,
+            "actionsRead": 1,
+            "domainEventsRead": 1,
+            "findings": 3,
+            "allowed": 1,
+            "allowedWithLimit": 0,
+            "blocked": 1,
+            "requiresHumanConfirmation": 1,
+            "critical": 1,
+            "safeNextActions": 1,
+            "irreversibleBlocked": 1,
+        },
+        "latestFindings": [
+            {
+                "sourceId": "sample-send",
+                "sourceType": "decision_event",
+                "actionKey": "message_send",
+                "decision": "BLOCK",
+                "riskLevel": "critical",
+                "allowed": False,
+                "requiresHumanConfirmation": True,
+                "humanSummary": "Bloquee enviar mensaje al cliente: permiso explicito faltante.",
+            }
+        ],
+        "safeNextActions": [],
+        "blockedActions": [
+            {
+                "sourceId": "sample-send",
+                "decision": "BLOCK",
+                "blockedActions": ["send_message"],
+            }
+        ],
+        "humanReport": {
+            "headline": "Bloquee una accion riesgosa",
+            "resumenDecision": "Hay una accion irreversible, sin permiso explicito o sin evidencia suficiente.",
+            "permitidas": [],
+            "necesitanBryams": ["Aprobar o corregir accion riesgosa."],
+            "bloqueadas": ["Bloquee enviar mensaje al cliente."],
+            "riesgos": ["Permiso explicito faltante."],
         },
     },
 }

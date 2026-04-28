@@ -469,7 +469,7 @@ Queda cerrado con:
   cognicion
 - pruebas C# de verificacion correcta, chat equivocado y prioridad humana
 
-El siguiente bloque recomendado para producto final es:
+El bloque recomendado para producto final ya cerrado en `0.8.8` es:
 
 ```text
 Trust & Safety Core completo
@@ -490,4 +490,40 @@ permisos explicitos para enviar mensajes, tocar herramientas y registrar pagos
 bloqueo verificable de acciones irreversibles
 reporte humano de por que una accion fue permitida, pausada o bloqueada
 pruebas sin ejecutar acciones reales sobre clientes
+```
+
+Queda cerrado con:
+
+- `docs/ARIADGSM_TRUST_SAFETY_CORE_DESIGN.md`
+- `desktop-agent/ariadgsm_agent/trust_safety.py`
+- `desktop-agent/contracts/trust-safety-state.schema.json`
+- `desktop-agent/tests/trust_safety_core.py`
+- politica central de autonomia 1 a 6
+- matriz de riesgo por capacidad operativa
+- permisos explicitos para mensajes, herramientas, contabilidad y rutas
+- bloqueo de acciones irreversibles sin permiso/evidencia
+- Supervisor compatible consumiendo Trust & Safety
+- estado visible `trust-safety-state.json` en la app
+
+El siguiente bloque recomendado para producto final es:
+
+```text
+Product Shell visual final
+```
+
+El entregable documental minimo es:
+
+```text
+docs/ARIADGSM_PRODUCT_SHELL_FINAL_DESIGN.md
+```
+
+Y el entregable tecnico minimo posterior es:
+
+```text
+interfaz menos tecnica y mas operativa para Bryams
+estado humano de IA, seguridad, cabina, memoria y manos
+inicio manual claro despues de login
+progreso real para alistar WhatsApps
+errores accionables sin cajas tecnicas largas
+pruebas visuales sin mover sesiones reales
 ```

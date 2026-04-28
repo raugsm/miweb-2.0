@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .trust_safety import run_trust_safety_once
+
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -192,22 +194,33 @@ def run_supervisor_once(
     operating_decision_events_file: Path,
     action_events_file: Path,
     state_file: Path,
+    domain_events_file: Path | None = None,
+    input_arbiter_state_file: Path | None = None,
+    permissions_file: Path | None = None,
+    trust_safety_state_file: Path | None = None,
     autonomy_level: int = 1,
     limit: int = 200,
 ) -> dict[str, Any]:
-    decisions = read_jsonl_events(cognitive_decision_events_file, "decision_event", limit)
-    decisions.extend(read_jsonl_events(operating_decision_events_file, "decision_event", limit))
-    deduped_decisions = dedupe_by(decisions, "decisionId")
-    actions = dedupe_by(read_jsonl_events(action_events_file, "action_event", limit), "actionId")
-    core = SupervisorCore(SupervisorPolicy(autonomy_level=autonomy_level))
-    state = core.assess(deduped_decisions, actions)
-    state["inputs"] = {
-        "cognitiveDecisionEventsFile": str(cognitive_decision_events_file),
-        "operatingDecisionEventsFile": str(operating_decision_events_file),
-        "actionEventsFile": str(action_events_file),
-    }
-    write_json(state_file, state)
-    return state
+    domain_events_file = domain_events_file or (AGENT_ROOT / "runtime" / "domain-events.jsonl")
+    input_arbiter_state_file = input_arbiter_state_file or (AGENT_ROOT / "runtime" / "input-arbiter-state.json")
+    permissions_file = permissions_file or (AGENT_ROOT / "runtime" / "trust-safety-permissions.json")
+    trust_safety_state_file = trust_safety_state_file or (AGENT_ROOT / "runtime" / "trust-safety-state.json")
+    state = run_trust_safety_once(
+        cognitive_decision_events_file,
+        operating_decision_events_file,
+        action_events_file,
+        domain_events_file,
+        trust_safety_state_file,
+        input_arbiter_state_file=input_arbiter_state_file,
+        permissions_file=permissions_file,
+        autonomy_level=autonomy_level,
+        limit=limit,
+    )
+    supervisor_state = dict(state)
+    supervisor_state["engine"] = "ariadgsm_supervisor_core"
+    supervisor_state["trustSafetyStateFile"] = str(trust_safety_state_file)
+    write_json(state_file, supervisor_state)
+    return supervisor_state
 
 
 def read_jsonl_events(path: Path, event_type: str, limit: int) -> list[dict[str, Any]]:
@@ -278,6 +291,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cognitive-decisions", default="runtime/cognitive-decision-events.jsonl")
     parser.add_argument("--operating-decisions", default="runtime/decision-events.jsonl")
     parser.add_argument("--actions", default="runtime/action-events.jsonl")
+    parser.add_argument("--domain-events", default="runtime/domain-events.jsonl")
+    parser.add_argument("--input-arbiter-state", default="runtime/input-arbiter-state.json")
+    parser.add_argument("--permissions-file", default="runtime/trust-safety-permissions.json")
+    parser.add_argument("--trust-safety-state-file", default="runtime/trust-safety-state.json")
     parser.add_argument("--state-file", default="runtime/supervisor-state.json")
     parser.add_argument("--autonomy-level", type=int, default=1)
     parser.add_argument("--limit", type=int, default=200)
@@ -292,6 +309,10 @@ def main() -> int:
         resolve_runtime_path(args.operating_decisions),
         resolve_runtime_path(args.actions),
         resolve_runtime_path(args.state_file),
+        domain_events_file=resolve_runtime_path(args.domain_events),
+        input_arbiter_state_file=resolve_runtime_path(args.input_arbiter_state),
+        permissions_file=resolve_runtime_path(args.permissions_file),
+        trust_safety_state_file=resolve_runtime_path(args.trust_safety_state_file),
         autonomy_level=args.autonomy_level,
         limit=args.limit,
     )

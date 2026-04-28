@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/trust-safety-state.schema.json",
+  "title": "AriadGSM Trust Safety State",
+  "type": "object",
+  "required": [
+    "status",
+    "engine",
+    "version",
+    "updatedAt",
+    "policy",
+    "permissions",
+    "riskMatrix",
+    "permissionGate",
+    "summary",
+    "latestFindings",
+    "safeNextActions",
+    "blockedActions",
+    "humanReport"
+  ],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "attention", "blocked"] },
+    "engine": { "type": "string" },
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "policy": {
+      "type": "object",
+      "required": ["version", "autonomyLevel", "decisions", "principles"],
+      "properties": {
+        "version": { "type": "string" },
+        "autonomyLevel": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "decisions": { "type": "array", "items": { "type": "string" } },
+        "principles": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "permissions": { "type": "object" },
+    "riskMatrix": { "type": "object" },
+    "permissionGate": {
+      "type": "object",
+      "required": ["decision", "reason", "canHandsRun", "allowedEngines"],
+      "properties": {
+        "decision": { "type": "string", "enum": ["ALLOW", "ALLOW_WITH_LIMIT", "ASK_HUMAN", "PAUSE_FOR_OPERATOR", "BLOCK"] },
+        "reason": { "type": "string" },
+        "canHandsRun": { "type": "boolean" },
+        "allowedEngines": { "type": "object" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["decisionsRead", "actionsRead", "domainEventsRead", "findings", "allowed", "allowedWithLimit", "blocked", "requiresHumanConfirmation", "critical", "safeNextActions", "irreversibleBlocked"],
+      "properties": {
+        "decisionsRead": { "type": "integer", "minimum": 0 },
+        "actionsRead": { "type": "integer", "minimum": 0 },
+        "domainEventsRead": { "type": "integer", "minimum": 0 },
+        "findings": { "type": "integer", "minimum": 0 },
+        "allowed": { "type": "integer", "minimum": 0 },
+        "allowedWithLimit": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 },
+        "requiresHumanConfirmation": { "type": "integer", "minimum": 0 },
+        "critical": { "type": "integer", "minimum": 0 },
+        "safeNextActions": { "type": "integer", "minimum": 0 },
+        "irreversibleBlocked": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "latestFindings": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "safeNextActions": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "blockedActions": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "humanReport": {
+      "type": "object",
+      "required": ["headline", "resumenDecision", "permitidas", "necesitanBryams", "bloqueadas", "riesgos"],
+      "properties": {
+        "headline": { "type": "string" },
+        "resumenDecision": { "type": "string" },
+        "permitidas": { "type": "array", "items": { "type": "string" } },
+        "necesitanBryams": { "type": "array", "items": { "type": "string" } },
+        "bloqueadas": { "type": "array", "items": { "type": "string" } },
+        "riesgos": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

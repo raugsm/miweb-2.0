@@ -1,8 +1,8 @@
 {
-  "version": "0.8.7",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.7.zip",
-  "sha256": "e34afd68762aa480513abddb4af351c6a93971ed18e8c3f565181d0455b48431",
+  "version": "0.8.8",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.8.zip",
+  "sha256": "02ecccc3ea37c1d90b46549d9150d0ff51eee2c451c39b197b24fa57a40008c7",
   "autoApply": true,
-  "notes": "Version 0.8.7 closes Hands Engine avanzado: open_chat now requires verified Interaction coordinates, uses SendInput for mouse actions, waits for fresh Perception confirmation before continuing, yields the mouse to Bryams without stopping eyes or memory, and audits actionable human-readable failures.",
-  "publishedAt": "2026-04-28T01:55:00Z"
+  "notes": "Version 0.8.8 closes Trust & Safety Core completo: central autonomy policy, risk matrix, explicit permissions, irreversible-action blocking, accounting evidence gates, operator handoff decisions, supervisor compatibility, and a visible Trust & Safety health state.",
+  "publishedAt": "2026-04-28T02:15:00Z"
 }
