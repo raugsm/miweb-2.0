@@ -21,6 +21,7 @@ for %%P in ("AriadGSM Agent.exe" "AriadGSM.Vision.Worker.exe" "AriadGSM.Percepti
 
 if defined RUNNING_AGENT (
   set "DIST=%DIST_BASE%\AriadGSMAgent-next-%AGENT_VERSION%-%RANDOM%%RANDOM%"
+  set "LAUNCHER_DIST=!DIST!\launcher-build"
   echo AriadGSM Agent or one of its engines is running. Building side-by-side package:
   echo "!DIST!"
 )

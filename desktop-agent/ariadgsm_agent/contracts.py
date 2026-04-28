@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_DIR = ROOT / "contracts"
 
 CONTRACT_FILES: dict[str, str] = {
+    "stage_zero_readiness": "stage-zero-readiness.schema.json",
     "vision_event": "vision-event.schema.json",
     "perception_event": "perception-event.schema.json",
     "conversation_event": "conversation-event.schema.json",
@@ -147,6 +148,34 @@ def validate_contract(event: dict[str, Any], contract_name: str) -> list[str]:
 
 
 SAMPLE_EVENTS: dict[str, dict[str, Any]] = {
+    "stage_zero_readiness": {
+        "contractVersion": "0.8.1",
+        "stageId": "stage_zero_product_foundation",
+        "createdAt": utc_now(),
+        "version": "0.8.1",
+        "status": "ok",
+        "summary": "Etapa 0 ok: base de producto validada.",
+        "checks": [
+            {
+                "checkId": "source_documents",
+                "name": "Documentos fuente",
+                "status": "ok",
+                "detail": "Documentos base presentes.",
+                "evidence": ["docs/ARIADGSM_EXECUTION_LOCK.md"],
+            }
+        ],
+        "humanReport": {
+            "queQuedoListo": ["Base de producto validada."],
+            "queFalta": [],
+            "riesgos": ["Cerrar Etapa 1 antes de avanzar a casos."],
+        },
+        "nextStage": {
+            "stageNumber": 1,
+            "name": "Domain Event Contracts",
+            "status": "base_implemented_needs_final_closure",
+            "reason": "Etapa 1 debe cerrarse como producto final.",
+        },
+    },
     "vision_event": {
         "eventType": "vision_event",
         "visionEventId": "vision-sample-1",

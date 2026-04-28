@@ -1,8 +1,8 @@
 {
-  "version": "0.8.0",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.0.zip",
-  "sha256": "162035cd14ca3b7842e5eb76667fffa29dd259b6f43f6a284abd39d4ce00a730",
+  "version": "0.8.1",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.8.1.zip",
+  "sha256": "fa2442831978a0a3f4fa69a752e10c88ef74207e95c82dbc0693c4f7997928d3",
   "autoApply": true,
-  "notes": "Version 0.8.0 adds the Autonomous Cycle Orchestrator: observe -> understand -> plan -> request_permission -> act -> verify -> learn -> report, permission gate, human report, engine directives, start/checkpoint integration, domain-event adaptation and tests for allow, operator handoff and blocked supervisor findings.",
-  "publishedAt": "2026-04-27T23:50:00Z"
+  "notes": "Version 0.8.1 closes Stage 0 Product Foundation: formal product foundation doc, stage-zero readiness contract, executable verifier, runtime state/report, startup integration, tests and Execution Lock correction so the next stage is Domain Event Contracts finalization.",
+  "publishedAt": "2026-04-28T00:05:00Z"
 }

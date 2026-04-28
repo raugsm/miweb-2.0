@@ -87,6 +87,7 @@ Si hay conflicto, manda este archivo.
 Este es el orden que Bryams marco y queda bloqueado:
 
 ```text
+0. Product Foundation
 1. Domain Event Contracts
 2. Autonomous Cycle Orchestrator
 3. Case Manager
@@ -96,7 +97,34 @@ Este es el orden que Bryams marco y queda bloqueado:
 
 Ningun bloque posterior puede reemplazar este orden sin aprobacion.
 
-## 6. Estado actual de los 5 bloques
+## 6. Estado actual de los bloques
+
+### 6.0 Product Foundation
+
+Estado:
+
+```text
+CERRADA COMO BASE FORMAL 0.8.1
+```
+
+Ya existe:
+
+- `docs/ARIADGSM_STAGE_0_PRODUCT_FOUNDATION.md`
+- `desktop-agent/contracts/stage-zero-readiness.schema.json`
+- `desktop-agent/ariadgsm_agent/stage_zero.py`
+- `desktop-agent/tests/stage_zero_foundation.py`
+- integracion minima al ciclo principal en `AgentRuntime.cs`
+
+Objetivo:
+
+Definir que el producto es `AriadGSM IA Local`, una IA operadora local para
+AriadGSM, y fijar documentos, etapas, contratos, versionado y criterios de
+terminado antes de seguir construyendo autonomia.
+
+Pendiente para considerarlo producto final:
+
+- ninguno dentro de Etapa 0; las etapas siguientes deben cumplir sus propias
+  definiciones de terminado.
 
 ### 6.1 Domain Event Contracts
 
@@ -327,27 +355,26 @@ Siguiente bloque segun Execution Lock:
 
 ## 10. Siguiente bloque activo
 
-Como `Domain Event Contracts` y `Autonomous Cycle Orchestrator` ya tienen base
-implementada, el siguiente bloque activo es:
+Como `Product Foundation` queda cerrada y `Domain Event Contracts` solo tiene
+base implementada, el siguiente bloque activo es:
 
 ```text
-Case Manager
+Domain Event Contracts cierre final
 ```
 
-Pero antes de codificar ese bloque, debe documentarse su alcance final si Bryams
-pide estructura.
+No se debe saltar a `Case Manager` hasta cerrar Etapa 1 como producto final.
 
 El entregable documental minimo es:
 
 ```text
-docs/ARIADGSM_CASE_MANAGER_DESIGN.md
+docs/ARIADGSM_DOMAIN_EVENT_CONTRACTS_FINALIZATION.md
 ```
 
 Y el entregable tecnico minimo posterior es:
 
 ```text
-desktop-agent/ariadgsm_agent/case_manager.py
 desktop-agent/contracts/domain-event-registry.json
-desktop-agent/tests/case_manager.py
-integracion con Operating Core / Domain Events
+desktop-agent/ariadgsm_agent/domain_events.py
+desktop-agent/tests/domain_events_contracts.py
+integracion obligatoria desde motores principales hacia domain events
 ```
