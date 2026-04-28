@@ -334,6 +334,7 @@ internal sealed partial class AgentRuntime : IDisposable
             StateHealth("Vision", "vision-health.json", "Vision"),
             StateHealth("Perception", "perception-health.json", "Perception"),
             StateHealth("Reader Core", "reader-core-state.json", "PythonCoreLoop"),
+            StateHealth("Event Backbone", "event-backbone-state.json", "PythonCoreLoop"),
             StateHealth("Reality Resolver", "window-reality-state.json", "PythonCoreLoop"),
             StateHealth("Support & Telemetry", "support-telemetry-state.json", "PythonCoreLoop"),
             StateHealth("Interaction", "interaction-state.json", "Interaction"),
@@ -416,6 +417,7 @@ internal sealed partial class AgentRuntime : IDisposable
         using var runtimeGovernor = ReadJsonStatus("runtime-governor-state.json");
         using var perception = ReadJsonStatus("perception-health.json");
         using var readerCore = ReadJsonStatus("reader-core-state.json");
+        using var eventBackbone = ReadJsonStatus("event-backbone-state.json");
         using var windowReality = ReadJsonStatus("window-reality-state.json");
         using var supportTelemetry = ReadJsonStatus("support-telemetry-state.json");
         using var interaction = ReadJsonStatus("interaction-state.json");
@@ -460,7 +462,8 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Modo: {(IsRunning ? "trabajando" : "detenido")} | Procesos: {(active.Count == 0 ? "ninguno" : string.Join(", ", active))}",
             $"WhatsApps: {(whatsappSummary.Length == 0 ? "sin revision" : string.Join(" | ", whatsappSummary))}",
             $"Vision: capturas={Number(vision, "framesCaptured", "eventsWritten")} | ventanas={Number(vision, "visibleWindowCount")} | intervalo={Number(vision, "captureIntervalMs")}ms",
-            $"Reader Core: nuevos={NestedNumber(readerCore, "ingested", "newMessages")} | rechazados={NestedNumber(readerCore, "ingested", "rejected")} | desacuerdos={NestedNumber(readerCore, "summary", "latestRunDisagreements")} | OCR={NestedNumber(readerCore, "summary", "ocrFallbackMessages")}",
+            $"Reader Core: nuevos={NestedNumber(readerCore, "ingested", "newMessages")} | rechazados={NestedNumber(readerCore, "ingested", "rejected")} | bytes={NestedNumber(readerCore, "ingested", "sourceBytesRead")} | ciclo={NestedNumber(readerCore, "ingested", "cycleDurationMs")}ms",
+            $"Event Backbone: bytes={DeepNumber(eventBackbone, "latestBatch", "summary", "bytesRead")} | backlog={DeepNumber(eventBackbone, "latestBatch", "summary", "backlogBytes")} | saltado={DeepNumber(eventBackbone, "latestBatch", "summary", "skippedBacklogBytes")} | modo={DeepText(eventBackbone, "latestBatch", "mode")}",
             $"Reality Resolver: {Text(windowReality, "status")} | operables={NestedNumber(windowReality, "summary", "operationalChannels")}/{NestedNumber(windowReality, "summary", "expectedChannels")} | conflictos={NestedNumber(windowReality, "summary", "conflictedChannels")} | viejo={NestedNumber(windowReality, "summary", "staleInputs")}",
             $"Support: {Text(supportTelemetry, "status")} | incidentes={NestedNumber(supportTelemetry, "summary", "incidentsOpen")} | caja negra={NestedNumber(supportTelemetry, "summary", "blackboxEventsRetained")} | bundle={NestedBool(supportTelemetry, "summary", "bundleReady")}",
             $"Perception OCR: mensajes={Number(perception, "messagesExtracted")} | conversaciones={Number(perception, "conversationEventsWritten")} | reader={Text(perception, "lastReaderStatus")}",
@@ -471,7 +474,7 @@ internal sealed partial class AgentRuntime : IDisposable
             $"Cabin Manager: {Text(cabinManager, "phase")} | {Text(cabinManager, "summary")}",
             $"Alistamiento: fase={Text(workspaceSetup, "phase")} | {Text(workspaceSetup, "summary")}",
             $"Autoridad de cabina: {Text(cabinAuthority, "status")} | {Text(cabinAuthority, "summary")}",
-            $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")}",
+            $"Timeline: mensajes unidos={NestedNumber(timeline, "ingested", "messages")} | historias={NestedNumber(timeline, "ingested", "timelines")} | durable={NestedNumber(timeline, "durable", "storedMessages")}",
             $"Cognitive/Memory: decisiones={NestedNumber(cognitive, "summary", "decisions")} | memoria={NestedNumber(memory, "summary", "memoryMessages")} | aprendizaje={NestedNumber(memory, "summary", "learningEvents")}",
             $"Operating/Contabilidad: casos={NestedNumber(operating, "summary", "cases")} | tareas={NestedNumber(operating, "summary", "openTasks")} | borradores contables={NestedNumber(operating, "summary", "accountingDrafts")}",
             $"Case Manager: abiertos={NestedNumber(caseManager, "summary", "openCases")} | humano={NestedNumber(caseManager, "summary", "needsHuman")} | eventos={NestedNumber(caseManager, "summary", "emittedCaseEvents")}",
@@ -3441,6 +3444,9 @@ internal sealed partial class AgentRuntime : IDisposable
         AddNumberPart(parts, root, "messagesExtracted", "eventsWritten", "conversationEventsWritten", "actionsWritten", "actionsBlocked", "whatsAppWindowsDetected", "readerLinesObserved");
         AddNumberPart(parts, root, "targetsObserved", "targetsAccepted", "targetsRejected", "actionableTargets", "interactionEventsWritten");
         AddNestedNumberPart(parts, root, "summary", "findings", "blocked", "requiresHumanConfirmation", "critical", "memoryMessages");
+        AddNestedNumberPart(parts, root, "ingested", "newMessages", "sourceBytesRead", "sourceBacklogBytes", "cycleDurationMs");
+        AddNestedNumberPart(parts, root, "durable", "storedMessages", "storedTimelines");
+        AddBackbonePart(parts, root);
         return parts.Count == 0 ? "Estado recibido correctamente." : string.Join(" | ", parts.Take(4));
     }
 
@@ -3484,6 +3490,25 @@ internal sealed partial class AgentRuntime : IDisposable
                 parts.Add($"{objectName}.{name}={number}");
             }
         }
+    }
+
+    private static void AddBackbonePart(List<string> parts, JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("latestBatch", out var latestBatch)
+            || latestBatch.ValueKind != JsonValueKind.Object
+            || !latestBatch.TryGetProperty("summary", out var summary)
+            || summary.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        var bytes = TryNumber(summary, "bytesRead") ?? 0;
+        var backlog = TryNumber(summary, "backlogBytes") ?? 0;
+        var skipped = TryNumber(summary, "skippedBacklogBytes") ?? 0;
+        parts.Add($"backbone bytes={bytes}");
+        parts.Add($"backlog={backlog}");
+        parts.Add($"saltado={skipped}");
     }
 
     private static string Text(JsonDocument? document, params string[] names)
@@ -3540,6 +3565,48 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         return "no";
+    }
+
+    private static string DeepText(JsonDocument? document, params string[] path)
+    {
+        if (document is null || path.Length == 0)
+        {
+            return "-";
+        }
+
+        var current = document.RootElement;
+        foreach (var part in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out current))
+            {
+                return "-";
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(current.GetString())
+            ? current.GetString()!
+            : "-";
+    }
+
+    private static string DeepNumber(JsonDocument? document, params string[] path)
+    {
+        if (document is null || path.Length == 0)
+        {
+            return "0";
+        }
+
+        var current = document.RootElement;
+        foreach (var part in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out current))
+            {
+                return "0";
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.Number && current.TryGetInt64(out var number)
+            ? number.ToString()
+            : "0";
     }
 
     private static bool LooksLikeRawJson(string line)

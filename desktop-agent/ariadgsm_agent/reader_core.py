@@ -6,6 +6,7 @@ import json
 import re
 import sqlite3
 import sys
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -14,11 +15,12 @@ from typing import Any
 
 from .classifier import classify_text
 from .contracts import validate_contract
+from .event_backbone import compact_jsonl_tail, read_jsonl_incremental
 from .text import clean_text, looks_like_browser_ui_title, normalize
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.9.8"
+VERSION = "0.9.9"
 EXPECTED_CHANNELS = ("wa-1", "wa-2", "wa-3")
 
 SOURCE_RANKS: dict[str, int] = {
@@ -634,6 +636,8 @@ class ReaderCoreStore:
         self.conn.close()
 
     def init_schema(self) -> None:
+        self.conn.execute("pragma journal_mode=WAL")
+        self.conn.execute("pragma synchronous=NORMAL")
         self.conn.executescript(
             """
             create table if not exists visible_messages (
@@ -728,18 +732,16 @@ class ReaderCoreStore:
 
 
 def read_jsonl(path: Path, limit: int = 500) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    events: list[dict[str, Any]] = []
-    lines = [line for line in path.read_text(encoding="utf-8-sig").splitlines() if line.strip()][-limit:]
-    for line in lines:
-        try:
-            item = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(item, dict):
-            events.append(item)
-    return events
+    checkpoint = path.parent / ".reader-core-tail-checkpoint.json"
+    batch = read_jsonl_incremental(
+        [path],
+        checkpoint,
+        namespace=f"reader_core_tail:{path.name}",
+        limit=limit,
+        max_bytes=8 * 1024 * 1024,
+        bootstrap_bytes=8 * 1024 * 1024,
+    )
+    return batch.events
 
 
 def append_jsonl(path: Path, events: list[dict[str, Any]]) -> None:
@@ -860,10 +862,21 @@ def run_reader_core_once(
     report_file: Path,
     db_path: Path,
     limit: int = 500,
+    checkpoint_file: Path | None = None,
+    max_read_bytes: int = 8 * 1024 * 1024,
 ) -> dict[str, Any]:
+    cycle_started = time.perf_counter()
+    checkpoint = checkpoint_file or state_file.with_name("event-backbone-state.json")
+    source_batch = read_jsonl_incremental(
+        source_files,
+        checkpoint,
+        namespace="reader_core_sources",
+        limit=limit,
+        max_bytes=max_read_bytes,
+        bootstrap_bytes=max_read_bytes,
+    )
     source_events: list[dict[str, Any]] = []
-    for path in source_files:
-        source_events.extend(read_jsonl(path, limit=limit))
+    source_events.extend(source_batch.events)
     candidates, rejected, by_source = collect_candidates(source_events)
     grouped: dict[tuple[str, str, str], list[SourceCandidate]] = defaultdict(list)
     for candidate in candidates:
@@ -906,7 +919,12 @@ def run_reader_core_once(
 
     append_jsonl(visible_messages_file, new_messages)
     append_jsonl(conversation_events_file, conversation_events)
+    compactions = [
+        compact_jsonl_tail(visible_messages_file),
+        compact_jsonl_tail(conversation_events_file),
+    ]
     disagreements = [item for message in valid_messages for item in (message.get("disagreements") or [])]
+    cycle_ms = int((time.perf_counter() - cycle_started) * 1000)
 
     if not source_events:
         status = "idle"
@@ -933,6 +951,7 @@ def run_reader_core_once(
             "conversationEvents": str(conversation_events_file),
             "report": str(report_file),
             "db": str(db_path),
+            "checkpoint": str(checkpoint),
         },
         "ingested": {
             "sourceEvents": len(source_events),
@@ -945,6 +964,10 @@ def run_reader_core_once(
             "invalidMessages": len(invalid_messages),
             "invalidConversations": len(invalid_conversations),
             "bySource": dict(by_source),
+            "sourceBytesRead": source_batch.bytes_read,
+            "sourceBacklogBytes": source_batch.backlog_bytes,
+            "sourceSkippedBacklogBytes": source_batch.skipped_backlog_bytes,
+            "cycleDurationMs": cycle_ms,
         },
         "summary": {
             **summary,
@@ -958,6 +981,17 @@ def run_reader_core_once(
             "handsRequireFreshRead": True,
             "windowVisibleIsNotEnough": True,
             "ocrIsFallbackOnly": True,
+        },
+        "backbone": {
+            **source_batch.telemetry(),
+            "cycleDurationMs": cycle_ms,
+            "compactions": compactions,
+            "humanSummary": (
+                f"Lei {source_batch.bytes_read} bytes incrementales; "
+                f"backlog={source_batch.backlog_bytes}; "
+                f"saltado={source_batch.skipped_backlog_bytes}; "
+                f"ciclo={cycle_ms}ms."
+            ),
         },
         "channels": build_channel_readiness(valid_messages, summary, recent_messages),
         "latestMessages": [
@@ -996,7 +1030,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-file", default="runtime/reader-core-state.json")
     parser.add_argument("--report-file", default="runtime/reader-core-report.json")
     parser.add_argument("--db", default="runtime/reader-core.sqlite")
+    parser.add_argument("--checkpoint-file", default="runtime/event-backbone-state.json")
     parser.add_argument("--limit", type=int, default=500)
+    parser.add_argument("--max-read-bytes", type=int, default=8 * 1024 * 1024)
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
 
@@ -1019,6 +1055,8 @@ def main() -> int:
         resolve_runtime_path(args.report_file),
         resolve_runtime_path(args.db),
         limit=max(1, args.limit),
+        checkpoint_file=resolve_runtime_path(args.checkpoint_file),
+        max_read_bytes=max(4096, args.max_read_bytes),
     )
     if args.json:
         print(json.dumps(state, ensure_ascii=False, indent=2))

@@ -1,8 +1,8 @@
 {
-  "version": "0.9.8",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.8.zip",
-  "sha256": "9640c9915740e78958bcc50369c865ba4283c31b645f59a692b041bdc331b1be",
+  "version": "0.9.9",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.9.zip",
+  "sha256": "b834a9a78451df2571988bf31d078c1c01b428fe9a6776043972e795fddd4c80",
   "autoApply": true,
-  "notes": "Version 0.9.8 consolidates Layer 4 Perception & Reader Core: Perception now publishes window/conversation/message identity, Reader Core confirms fresh messages per wa-1/wa-2/wa-3, and Window Reality blocks Hands until Reader evidence is fresh.",
-  "publishedAt": "2026-04-28T21:26:41Z"
+  "notes": "Version 0.9.9 consolidates Layer 5 Event, Timeline & Durable State Backbone: Reader Core and Timeline now consume JSONL incrementally by offset/checkpoint, keep SQLite as durable truth, compact Python-owned projections, and expose bytes/backlog/cycle metrics in the app.",
+  "publishedAt": "2026-04-28T21:57:00Z"
 }

@@ -1645,6 +1645,9 @@ internal sealed class MainForm : Form
             "Case Manager" => $"Casos: {item.Detail}",
             "Channel Routing" => $"Ruteo de canales: {item.Detail}",
             "Domain Events" => $"Eventos del negocio: {item.Detail}",
+            "Reader Core" => $"Lectura: {item.Detail}",
+            "Event Backbone" => $"Tuberia viva: {item.Detail}",
+            "Timeline" => $"Historias: {item.Detail}",
             "Interaction" => $"Interaccion: {item.Detail}",
             "Hands" => $"Manos: {item.Detail}",
             "Supervisor" => $"Supervisor: {item.Detail}",
@@ -1787,7 +1790,7 @@ internal sealed class MainForm : Form
             "Los 3 canales se estan revisando sin ruido tecnico.");
         yield return AreaFrom(
             "Ojos y lectura",
-            allItems.Where(item => NameIs(item, "Vision", "Perception", "Interaction")),
+            allItems.Where(item => NameIs(item, "Vision", "Perception", "Reader Core", "Event Backbone", "Timeline", "Interaction")),
             "Ojos locales listos para leer lo visible.");
         yield return AreaFrom(
             "Cerebro y memoria",

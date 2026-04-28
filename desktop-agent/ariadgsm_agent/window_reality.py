@@ -9,7 +9,7 @@ from typing import Any
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DIR = AGENT_ROOT / "runtime"
-VERSION = "0.9.8"
+VERSION = "0.9.9"
 ENGINE = "ariadgsm_window_reality_resolver"
 CONTRACT = "window_reality_state"
 

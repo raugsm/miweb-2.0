@@ -221,7 +221,9 @@ def main() -> int:
             db_file,
         )
         assert repeated["ingested"]["newMessages"] == 0
-        assert repeated["ingested"]["duplicates"] == 2
+        assert repeated["ingested"]["duplicates"] == 0
+        assert repeated["ingested"]["sourceBytesRead"] == 0
+        assert repeated["summary"]["storedMessages"] == 2
 
     print("safe eyes reader core OK")
     return 0

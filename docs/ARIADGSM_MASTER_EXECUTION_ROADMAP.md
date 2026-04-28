@@ -288,6 +288,29 @@ Debe cerrar:
 - errores humanos claros cuando no puede leer;
 - prueba sin sesiones reales.
 
+### Capa 5 consolidada: Event, Timeline & Durable State Backbone
+
+Estado actual: `cerrada como backbone durable incremental en 0.9.9`.
+
+Existe:
+
+- `docs/ARIADGSM_EVENT_TIMELINE_DURABLE_BACKBONE_FINAL.md`
+- `desktop-agent/ariadgsm_agent/event_backbone.py`
+- `desktop-agent/contracts/event-backbone-state.schema.json`
+- `desktop-agent/contracts/timeline-state.schema.json`
+- `desktop-agent/tests/event_timeline_backbone.py`
+
+Quedo cerrado:
+
+- Reader Core consume `reader-source-events.jsonl` y `perception-events.jsonl`
+  por offset/checkpoint;
+- Timeline usa `timeline.sqlite` como verdad durable y `timeline-events.jsonl`
+  como proyeccion;
+- `event-backbone-state.json` explica bytes leidos, backlog, saltos de backlog,
+  offsets y duracion de ciclo;
+- la app muestra Event Backbone en la zona humana de ojos y lectura;
+- pruebas cubren JSONL grande para evitar volver a leer archivos completos.
+
 ### Etapa 9: Living Memory
 
 Memoria episodica, semantica, procedimental y contable. Lo que aprendio, lo que

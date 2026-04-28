@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Event Timeline Durable State Backbone State",
+  "type": "object",
+  "required": ["status", "engine", "version", "updatedAt", "sources", "latestBatch"],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked"] },
+    "engine": { "const": "ariadgsm_event_timeline_durable_backbone" },
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "sources": { "type": "object" },
+    "latestBatch": {
+      "type": "object",
+      "required": ["engine", "version", "mode", "namespace", "checkpointFile", "cycleMs", "limit", "sources", "summary", "policy"],
+      "properties": {
+        "engine": { "const": "ariadgsm_event_timeline_durable_backbone" },
+        "version": { "type": "string" },
+        "mode": { "type": "string" },
+        "namespace": { "type": "string" },
+        "checkpointFile": { "type": "string" },
+        "cycleMs": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1 },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "exists", "fileSize", "previousOffset", "startOffset", "endOffset", "bytesRead", "backlogBytes", "skippedBacklogBytes", "linesRead", "linesReturned", "partialLineHeld", "resetReason", "durationMs"],
+            "properties": {
+              "path": { "type": "string" },
+              "exists": { "type": "boolean" },
+              "fileSize": { "type": "integer", "minimum": 0 },
+              "previousOffset": { "type": "integer", "minimum": 0 },
+              "startOffset": { "type": "integer", "minimum": 0 },
+              "endOffset": { "type": "integer", "minimum": 0 },
+              "bytesRead": { "type": "integer", "minimum": 0 },
+              "backlogBytes": { "type": "integer", "minimum": 0 },
+              "skippedBacklogBytes": { "type": "integer", "minimum": 0 },
+              "linesRead": { "type": "integer", "minimum": 0 },
+              "linesReturned": { "type": "integer", "minimum": 0 },
+              "partialLineHeld": { "type": "boolean" },
+              "resetReason": { "type": "string" },
+              "durationMs": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "required": ["events", "linesReturned", "bytesRead", "backlogBytes", "skippedBacklogBytes"],
+          "properties": {
+            "events": { "type": "integer", "minimum": 0 },
+            "linesReturned": { "type": "integer", "minimum": 0 },
+            "bytesRead": { "type": "integer", "minimum": 0 },
+            "backlogBytes": { "type": "integer", "minimum": 0 },
+            "skippedBacklogBytes": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "policy": {
+          "type": "object",
+          "required": ["jsonlIsProjection", "sqliteIsDurableTruth", "activeSourceLogsAreNotRewritten", "largeBacklogPolicy"],
+          "properties": {
+            "jsonlIsProjection": { "type": "boolean" },
+            "sqliteIsDurableTruth": { "type": "boolean" },
+            "activeSourceLogsAreNotRewritten": { "type": "boolean" },
+            "largeBacklogPolicy": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

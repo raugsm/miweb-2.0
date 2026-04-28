@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AriadGSM Timeline State",
+  "type": "object",
+  "required": ["status", "engine", "version", "updatedAt", "conversationEventsFile", "timelineEventsFile", "db", "checkpointFile", "historyLimitDays", "ingested", "durable", "backbone", "latestTimelines"],
+  "properties": {
+    "status": { "type": "string", "enum": ["ok", "idle", "attention", "blocked"] },
+    "engine": { "const": "ariadgsm_timeline_engine" },
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "conversationEventsFile": { "type": "string" },
+    "historyEventsFile": { "type": "string" },
+    "timelineEventsFile": { "type": "string" },
+    "db": { "type": "string" },
+    "checkpointFile": { "type": "string" },
+    "historyLimitDays": { "type": "integer", "minimum": 1 },
+    "replaceOutput": { "type": "boolean" },
+    "ingested": {
+      "type": "object",
+      "required": ["liveEvents", "historyEvents", "rejectedEvents", "newMessages", "duplicateMessages", "timelines", "messages", "completeTimelines", "sourceBytesRead", "sourceBacklogBytes", "sourceSkippedBacklogBytes", "cycleDurationMs"],
+      "properties": {
+        "liveEvents": { "type": "integer", "minimum": 0 },
+        "historyEvents": { "type": "integer", "minimum": 0 },
+        "rejectedEvents": { "type": "integer", "minimum": 0 },
+        "newMessages": { "type": "integer", "minimum": 0 },
+        "duplicateMessages": { "type": "integer", "minimum": 0 },
+        "timelines": { "type": "integer", "minimum": 0 },
+        "messages": { "type": "integer", "minimum": 0 },
+        "completeTimelines": { "type": "integer", "minimum": 0 },
+        "sourceBytesRead": { "type": "integer", "minimum": 0 },
+        "sourceBacklogBytes": { "type": "integer", "minimum": 0 },
+        "sourceSkippedBacklogBytes": { "type": "integer", "minimum": 0 },
+        "cycleDurationMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "durable": {
+      "type": "object",
+      "required": ["storedMessages", "storedTimelines", "sqliteIsTruth", "jsonIsProjection"],
+      "properties": {
+        "storedMessages": { "type": "integer", "minimum": 0 },
+        "storedTimelines": { "type": "integer", "minimum": 0 },
+        "sqliteIsTruth": { "type": "boolean" },
+        "jsonIsProjection": { "type": "boolean" }
+      }
+    },
+    "backbone": { "type": "object" },
+    "latestTimelines": { "type": "array" }
+  }
+}

@@ -341,7 +341,7 @@ Componentes actuales a fusionar:
 Estado actual:
 
 ```text
-BASE SOLIDA, FALTA HACERLA VERDAD PRINCIPAL
+CONSOLIDADA EN 0.9.9 COMO BACKBONE DURABLE INCREMENTAL
 ```
 
 Para consolidar:
@@ -349,7 +349,20 @@ Para consolidar:
 - store local transaccional como fuente viva;
 - proyecciones JSON derivadas;
 - todo evento con sesion, causa y fuente;
-- replay de jornada para evaluacion.
+- replay de jornada para evaluacion;
+- offsets/checkpoints por archivo fuente;
+- Reader Core y Timeline sin relectura completa de JSONL gigantes;
+- metricas humanas de lag, backlog, bytes y duracion de ciclo.
+
+Quedo cerrado en 0.9.9:
+
+- documento `docs/ARIADGSM_EVENT_TIMELINE_DURABLE_BACKBONE_FINAL.md`;
+- motor `desktop-agent/ariadgsm_agent/event_backbone.py`;
+- contratos `event-backbone-state.schema.json` y `timeline-state.schema.json`;
+- Reader Core con ingestion incremental y SQLite WAL;
+- Timeline con SQLite durable y proyeccion JSON;
+- app Windows mostrando Event Backbone, bytes, backlog y ciclos;
+- pruebas con JSONL grande para confirmar lectura acotada.
 
 ### Capa 6: Living Memory & Business Brain
 
