@@ -30,11 +30,13 @@ internal sealed partial class AgentRuntime : IDisposable
     private static readonly TimeSpan ToolResolveTtl = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan RunningStateStaleAfter = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan SupervisorInterval = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan TrustSafetyHeartbeatInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan RestartWindow = TimeSpan.FromMinutes(5);
     private readonly List<ManagedProcess> _processes = [];
     private readonly List<WorkerSpec> _workerSpecs = [];
     private readonly Dictionary<string, RestartTracker> _restartTrackers = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _trustSafetyProcessGate = new(1, 1);
     private readonly string _repoRoot;
     private readonly string _desktopRoot;
     private readonly string _runtimeDir;
@@ -54,6 +56,8 @@ internal sealed partial class AgentRuntime : IDisposable
     private Task? _supervisorTask;
     private CancellationTokenSource? _workspaceGuardianCts;
     private Task? _workspaceGuardianTask;
+    private CancellationTokenSource? _trustSafetyHeartbeatCts;
+    private Task? _trustSafetyHeartbeatTask;
     private bool _desiredRunning;
     private bool _stopping;
     private string? _cachedPython;
@@ -164,6 +168,7 @@ internal sealed partial class AgentRuntime : IDisposable
         MarkBootPhase("workers", "running", "Encendiendo ojos y preparando permisos frescos antes de manos.");
         WriteInputArbiterHeartbeatState("startup");
         await PrimeTrustSafetyAsync(CancellationToken.None).ConfigureAwait(false);
+        StartTrustSafetyHeartbeatLoop();
         ThrowIfStartSessionCancelled(runSessionId, startCommand);
         StartWorker(
             "Vision",
@@ -268,9 +273,14 @@ internal sealed partial class AgentRuntime : IDisposable
         WriteLifeState("stopping", "shutdown_requested", "Apagando motores locales de forma ordenada.", reason);
         _stopping = true;
         _desiredRunning = false;
+        StopTrustSafetyHeartbeatLoop();
         StopWorkspaceGuardianLoop();
         _supervisorCts?.Cancel();
         _coreLoopCts?.Cancel();
+        WaitForLoopStop(_trustSafetyHeartbeatTask, "TrustSafetyHeartbeat");
+        WaitForLoopStop(_workspaceGuardianTask, "WorkspaceGuardian");
+        WaitForLoopStop(_supervisorTask, "ReliabilitySupervisor");
+        WaitForLoopStop(_coreLoopTask, "PythonCoreLoop");
         lock (_gate)
         {
             foreach (var item in _processes.ToArray())
@@ -282,6 +292,7 @@ internal sealed partial class AgentRuntime : IDisposable
             _workerSpecs.Clear();
         }
 
+        StopExternalWorkerProcesses("shutdown");
         StopRuntimeGovernor(reason);
         WriteSupervisorState("stopped", $"Agent stopped: {reason}.");
         WriteLifeState("stopped", "engines_stopped", $"IA local detenida: {reason}.", reason);
@@ -401,6 +412,7 @@ internal sealed partial class AgentRuntime : IDisposable
                 .Concat(_coreLoopTask is { IsCompleted: false } ? ["PythonCoreLoop"] : [])
                 .Concat(_supervisorTask is { IsCompleted: false } ? ["ReliabilitySupervisor"] : [])
                 .Concat(_workspaceGuardianTask is { IsCompleted: false } ? ["WorkspaceGuardian"] : [])
+                .Concat(_trustSafetyHeartbeatTask is { IsCompleted: false } ? ["TrustSafetyHeartbeat"] : [])
                 .ToArray();
         }
     }
@@ -2142,12 +2154,97 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         WriteLog("TrustSafety prime: refreshing permission gate before Hands starts.");
-        await RunProcessToExitAsync(
+        await RunTrustSafetyProcessToExitAsync(
             "TrustSafetyPrime",
             python,
             ["-m", "ariadgsm_agent.trust_safety", "--autonomy-level", "3", "--json"],
             _desktopRoot,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private void StartTrustSafetyHeartbeatLoop()
+    {
+        if (_trustSafetyHeartbeatTask is { IsCompleted: false })
+        {
+            return;
+        }
+
+        var python = ResolvePython();
+        if (python is null)
+        {
+            WriteLog("TrustSafety heartbeat skipped: Python was not found.");
+            return;
+        }
+
+        _trustSafetyHeartbeatCts?.Dispose();
+        _trustSafetyHeartbeatCts = new CancellationTokenSource();
+        var token = _trustSafetyHeartbeatCts.Token;
+        _trustSafetyHeartbeatTask = Task.Run(async () =>
+        {
+            WriteLog("TrustSafety heartbeat started.");
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await RunTrustSafetyProcessToExitAsync(
+                        "TrustSafetyHeartbeat",
+                        python,
+                        ["-m", "ariadgsm_agent.trust_safety", "--autonomy-level", "3", "--limit", "80", "--json"],
+                        _desktopRoot,
+                        token).ConfigureAwait(false);
+                    await Task.Delay(TrustSafetyHeartbeatInterval, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    WriteLog($"TrustSafety heartbeat failed: {exception.Message}");
+                    try
+                    {
+                        await Task.Delay(TrustSafetyHeartbeatInterval, token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            WriteLog("TrustSafety heartbeat stopped.");
+        });
+    }
+
+    private void StopTrustSafetyHeartbeatLoop()
+    {
+        _trustSafetyHeartbeatCts?.Cancel();
+    }
+
+    private void WaitForLoopStop(Task? task, string name)
+    {
+        if (task is null or { IsCompleted: true })
+        {
+            return;
+        }
+
+        try
+        {
+            if (!task.Wait(TimeSpan.FromSeconds(3)))
+            {
+                WriteLog($"{name} did not stop inside shutdown timeout; Runtime Governor will reconcile.");
+            }
+        }
+        catch (AggregateException exception) when (exception.InnerExceptions.All(item => item is OperationCanceledException or TaskCanceledException))
+        {
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            WriteLog($"{name} stop wait failed: {exception.Message}");
+        }
     }
 
     private void WriteInputArbiterHeartbeatState(string phase)
@@ -2355,7 +2452,32 @@ internal sealed partial class AgentRuntime : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             var arguments = new List<string> { "-m", module };
             arguments.AddRange(args);
-            await RunProcessToExitAsync(name, python, arguments, _desktopRoot, cancellationToken).ConfigureAwait(false);
+            if (module.Equals("ariadgsm_agent.trust_safety", StringComparison.OrdinalIgnoreCase))
+            {
+                await RunTrustSafetyProcessToExitAsync(name, python, arguments, _desktopRoot, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await RunProcessToExitAsync(name, python, arguments, _desktopRoot, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task RunTrustSafetyProcessToExitAsync(
+        string name,
+        string fileName,
+        IEnumerable<string> arguments,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        await _trustSafetyProcessGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await RunProcessToExitAsync(name, fileName, arguments, workingDirectory, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _trustSafetyProcessGate.Release();
         }
     }
 
@@ -2403,11 +2525,23 @@ internal sealed partial class AgentRuntime : IDisposable
         CancellationToken cancellationToken)
     {
         var process = CreateProcess(name, fileName, arguments, workingDirectory, null);
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-        WriteLog($"{name} exited code={process.ExitCode}");
+        try
+        {
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            WriteLog($"{name} exited code={process.ExitCode}");
+        }
+        catch (OperationCanceledException)
+        {
+            StopProcessTree(process, name, "cancelled");
+            throw;
+        }
+        finally
+        {
+            process.Dispose();
+        }
     }
 
     private Process CreateProcess(
@@ -2483,7 +2617,7 @@ internal sealed partial class AgentRuntime : IDisposable
         return string.Join(Path.PathSeparator, paths.Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
-    private void StopExternalWorkerProcesses()
+    private void StopExternalWorkerProcesses(string reason = "startup")
     {
         var currentProcessId = Environment.ProcessId;
         var workerNames = new[]
@@ -2506,7 +2640,7 @@ internal sealed partial class AgentRuntime : IDisposable
                         continue;
                     }
 
-                    WriteLogNoThrow($"Stopping orphaned worker {workerName} pid={process.Id} before startup.");
+                    WriteLogNoThrow($"Stopping orphaned worker {workerName} pid={process.Id} during {reason}.");
                     process.Kill(entireProcessTree: true);
                     process.WaitForExit(3000);
                 }
@@ -2632,7 +2766,8 @@ internal sealed partial class AgentRuntime : IDisposable
                     };
                 }).ToArray(),
                 ["coreLoopRunning"] = _coreLoopTask is { IsCompleted: false },
-                ["supervisorRunning"] = _supervisorTask is { IsCompleted: false }
+                ["supervisorRunning"] = _supervisorTask is { IsCompleted: false },
+                ["trustSafetyHeartbeatRunning"] = _trustSafetyHeartbeatTask is { IsCompleted: false }
             };
             WriteAllTextAtomicShared(_agentSupervisorStateFile, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
             WriteDiagnosticTimelineEvent(
@@ -2660,8 +2795,7 @@ internal sealed partial class AgentRuntime : IDisposable
 
                 if (!item.Process.HasExited)
                 {
-                    item.Process.Kill(entireProcessTree: true);
-                    item.Process.WaitForExit(3000);
+                    StopProcessTree(item.Process, item.Name, "shutdown");
                     WriteLog($"{item.Name} force-stopped by Runtime Governor.");
                 }
                 else
@@ -2681,6 +2815,28 @@ internal sealed partial class AgentRuntime : IDisposable
         }
     }
 
+    private void StopProcessTree(Process process, string name, string reason)
+    {
+        try
+        {
+            if (process.HasExited)
+            {
+                return;
+            }
+
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit(3000);
+            WriteLogNoThrow($"{name} process tree stopped by Runtime Governor ({reason}).");
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (Exception exception)
+        {
+            WriteLogNoThrow($"Could not stop process tree for {name}: {exception.Message}");
+        }
+    }
+
     private bool IsManagedProcessActive(string name)
     {
         if (name.Equals("PythonCoreLoop", StringComparison.OrdinalIgnoreCase))
@@ -2696,6 +2852,11 @@ internal sealed partial class AgentRuntime : IDisposable
         if (name.Equals("WorkspaceGuardian", StringComparison.OrdinalIgnoreCase))
         {
             return _workspaceGuardianTask is { IsCompleted: false };
+        }
+
+        if (name.Equals("TrustSafetyHeartbeat", StringComparison.OrdinalIgnoreCase))
+        {
+            return _trustSafetyHeartbeatTask is { IsCompleted: false };
         }
 
         lock (_gate)

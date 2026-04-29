@@ -1118,29 +1118,65 @@ public sealed class HandsPipeline
             Directory.CreateDirectory(directory);
         }
 
-        var tempPath = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
-        try
+        Exception? lastFailure = null;
+        for (var attempt = 0; attempt < 10; attempt++)
         {
-            await File.WriteAllTextAsync(tempPath, text, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
-            for (var attempt = 0; attempt < 8; attempt++)
+            cancellationToken.ThrowIfCancellationRequested();
+            var tempPath = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+            try
             {
-                try
+                var bytes = Encoding.UTF8.GetBytes(text);
+                await using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
                 {
-                    File.Move(tempPath, path, overwrite: true);
-                    return;
+                    await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+                    await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 }
-                catch (IOException) when (attempt < 7)
+
+                File.Move(tempPath, path, overwrite: true);
+                return;
+            }
+            catch (IOException exception)
+            {
+                lastFailure = exception;
+                if (attempt < 9)
                 {
-                    await Task.Delay(25 * (attempt + 1), cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(30 * (attempt + 1), cancellationToken).ConfigureAwait(false);
                 }
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                lastFailure = exception;
+                if (attempt < 9)
+                {
+                    await Task.Delay(30 * (attempt + 1), cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                TryDeleteTempFile(tempPath);
             }
         }
-        finally
+
+        if (lastFailure is not null)
         {
-            if (File.Exists(tempPath))
+            Console.Error.WriteLine($"Hands safe state writer skipped '{path}': {lastFailure.Message}");
+        }
+    }
+
+    private static void TryDeleteTempFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
             {
-                File.Delete(tempPath);
+                File.Delete(path);
             }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
         }
     }
 

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/window-lifecycle-event.schema.json",
+  "title": "AriadGSM Window Lifecycle Event",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "eventType",
+    "eventId",
+    "observedAt",
+    "channelId",
+    "browserProcess",
+    "previousStatus",
+    "currentStatus",
+    "currentWindow",
+    "summary"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string", "minLength": 1 },
+    "eventType": {
+      "type": "string",
+      "enum": [
+        "channel_window_missing_initial",
+        "channel_window_observed",
+        "channel_window_lost",
+        "channel_window_restored",
+        "channel_window_changed",
+        "channel_window_covered",
+        "channel_window_uncovered",
+        "channel_status_changed",
+        "channel_title_changed"
+      ]
+    },
+    "eventId": { "type": "string", "minLength": 1 },
+    "observedAt": { "type": "string", "minLength": 1 },
+    "channelId": { "type": "string", "minLength": 1 },
+    "browserProcess": { "type": "string", "minLength": 1 },
+    "previousStatus": { "type": "string" },
+    "currentStatus": { "type": "string", "minLength": 1 },
+    "previousWindow": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "currentWindow": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "handle", "processId", "processName", "title"],
+      "properties": {
+        "status": { "type": "string", "minLength": 1 },
+        "handle": { "type": "string" },
+        "processId": { "type": "integer", "minimum": 0 },
+        "processName": { "type": "string" },
+        "title": { "type": "string" },
+        "bounds": {
+          "type": ["object", "null"],
+          "additionalProperties": true
+        }
+      }
+    },
+    "summary": { "type": "string", "minLength": 1 }
+  }
+}

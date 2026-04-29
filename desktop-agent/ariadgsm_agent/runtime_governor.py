@@ -61,6 +61,8 @@ def process_running(pid: int) -> bool:
             ["tasklist", "/FI", f"PID eq {pid}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=3,
             check=False,
         )
@@ -70,6 +72,8 @@ def process_running(pid: int) -> bool:
         ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=3,
         check=False,
     )

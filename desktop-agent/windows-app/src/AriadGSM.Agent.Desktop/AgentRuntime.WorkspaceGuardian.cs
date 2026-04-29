@@ -15,6 +15,8 @@ internal sealed partial class AgentRuntime
 
     private string WorkspaceGuardianStateFile => Path.Combine(_runtimeDir, "workspace-guardian-state.json");
     private string CabinAuthorityStateFile => Path.Combine(_runtimeDir, "cabin-authority-state.json");
+    private string WindowLifecycleEventsFile => Path.Combine(_runtimeDir, "window-lifecycle-events.jsonl");
+    private readonly Dictionary<string, WorkspaceLifecycleSnapshot> _workspaceLifecycleSnapshots = new(StringComparer.OrdinalIgnoreCase);
 
     private void StartWorkspaceGuardianLoop()
     {
@@ -306,6 +308,7 @@ internal sealed partial class AgentRuntime
         try
         {
             var options = new JsonSerializerOptions { WriteIndented = true };
+            var lifecycleEvents = TrackWindowLifecycle(report);
             var state = new Dictionary<string, object?>
             {
                 ["status"] = report.Status,
@@ -334,7 +337,13 @@ internal sealed partial class AgentRuntime
                     ["channelId"] = action.ChannelId,
                     ["type"] = action.Type,
                     ["detail"] = action.Detail
-                }).ToArray()
+                }).ToArray(),
+                ["lifecycle"] = new Dictionary<string, object?>
+                {
+                    ["eventFile"] = "window-lifecycle-events.jsonl",
+                    ["eventsEmitted"] = lifecycleEvents.Count,
+                    ["recentEvents"] = lifecycleEvents
+                }
             };
 
             WriteAllTextAtomicShared(WorkspaceGuardianStateFile, JsonSerializer.Serialize(state, options));
@@ -442,6 +451,12 @@ internal sealed partial class AgentRuntime
                     ["type"] = action.Type,
                     ["detail"] = action.Detail
                 }).ToArray(),
+                ["lifecycle"] = new Dictionary<string, object?>
+                {
+                    ["eventFile"] = "window-lifecycle-events.jsonl",
+                    ["eventsEmitted"] = lifecycleEvents.Count,
+                    ["recentEvents"] = lifecycleEvents
+                },
                 ["humanReport"] = new Dictionary<string, object?>
                 {
                     ["headline"] = authoritySummary,
@@ -475,6 +490,124 @@ internal sealed partial class AgentRuntime
         catch
         {
         }
+    }
+
+    private IReadOnlyList<Dictionary<string, object?>> TrackWindowLifecycle(WorkspaceGuardianReport report)
+    {
+        var events = new List<Dictionary<string, object?>>();
+        lock (_gate)
+        {
+            foreach (var channel in report.Channels)
+            {
+                var current = WorkspaceLifecycleSnapshot.From(channel);
+                _workspaceLifecycleSnapshots.TryGetValue(channel.ChannelId, out var previous);
+                var eventType = ResolveLifecycleEvent(previous, current);
+                _workspaceLifecycleSnapshots[channel.ChannelId] = current;
+
+                if (eventType is null)
+                {
+                    continue;
+                }
+
+                var entry = new Dictionary<string, object?>
+                {
+                    ["schemaVersion"] = "1.0",
+                    ["eventType"] = eventType,
+                    ["eventId"] = $"window-life-{channel.ChannelId}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+                    ["observedAt"] = DateTimeOffset.UtcNow,
+                    ["channelId"] = channel.ChannelId,
+                    ["browserProcess"] = channel.BrowserProcess,
+                    ["previousStatus"] = previous?.Status ?? "",
+                    ["currentStatus"] = current.Status,
+                    ["previousWindow"] = previous is null ? null : SerializeLifecycleSnapshot(previous),
+                    ["currentWindow"] = SerializeLifecycleSnapshot(current),
+                    ["summary"] = HumanLifecycleSummary(eventType, channel.ChannelId, channel.BrowserProcess, current)
+                };
+                events.Add(entry);
+                try
+                {
+                    AppendAllTextShared(WindowLifecycleEventsFile, JsonSerializer.Serialize(entry) + Environment.NewLine);
+                }
+                catch (Exception exception)
+                {
+                    WriteLogNoThrow($"Window lifecycle event write failed: {exception.Message}");
+                }
+            }
+        }
+
+        return events.TakeLast(8).ToArray();
+    }
+
+    private static string? ResolveLifecycleEvent(WorkspaceLifecycleSnapshot? previous, WorkspaceLifecycleSnapshot current)
+    {
+        if (previous is null)
+        {
+            return current.Status.Equals("missing", StringComparison.OrdinalIgnoreCase)
+                ? "channel_window_missing_initial"
+                : "channel_window_observed";
+        }
+
+        if (!previous.Status.Equals("missing", StringComparison.OrdinalIgnoreCase)
+            && current.Status.Equals("missing", StringComparison.OrdinalIgnoreCase))
+        {
+            return "channel_window_lost";
+        }
+
+        if (previous.Status.Equals("missing", StringComparison.OrdinalIgnoreCase)
+            && !current.Status.Equals("missing", StringComparison.OrdinalIgnoreCase))
+        {
+            return "channel_window_restored";
+        }
+
+        if (!previous.Handle.Equals(current.Handle, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(current.Handle))
+        {
+            return "channel_window_changed";
+        }
+
+        if (!previous.Status.Equals(current.Status, StringComparison.OrdinalIgnoreCase))
+        {
+            return current.Status.Equals("covered", StringComparison.OrdinalIgnoreCase)
+                ? "channel_window_covered"
+                : current.Status.Equals("ready", StringComparison.OrdinalIgnoreCase)
+                    ? "channel_window_uncovered"
+                    : "channel_status_changed";
+        }
+
+        if (!previous.Title.Equals(current.Title, StringComparison.OrdinalIgnoreCase))
+        {
+            return "channel_title_changed";
+        }
+
+        return null;
+    }
+
+    private static Dictionary<string, object?> SerializeLifecycleSnapshot(WorkspaceLifecycleSnapshot snapshot)
+    {
+        return new Dictionary<string, object?>
+        {
+            ["status"] = snapshot.Status,
+            ["handle"] = snapshot.Handle,
+            ["processId"] = snapshot.ProcessId,
+            ["processName"] = snapshot.ProcessName,
+            ["title"] = snapshot.Title,
+            ["bounds"] = snapshot.Bounds is null ? null : SerializeBounds(snapshot.Bounds)
+        };
+    }
+
+    private static string HumanLifecycleSummary(string eventType, string channelId, string browserProcess, WorkspaceLifecycleSnapshot current)
+    {
+        return eventType switch
+        {
+            "channel_window_lost" => $"{channelId}: perdi la ventana visible de {browserProcess}; no actuo hasta recuperarla.",
+            "channel_window_restored" => $"{channelId}: recupere la ventana visible de {browserProcess}.",
+            "channel_window_changed" => $"{channelId}: cambio la ventana asociada; vuelvo a validar antes de manos.",
+            "channel_window_covered" => $"{channelId}: WhatsApp quedo tapado; manos bloqueadas para ese canal.",
+            "channel_window_uncovered" => $"{channelId}: WhatsApp vuelve a estar libre.",
+            "channel_title_changed" => $"{channelId}: cambio el titulo de la ventana; verifico que siga siendo WhatsApp Web.",
+            "channel_window_observed" => $"{channelId}: ventana WhatsApp observada en {browserProcess}.",
+            _ => $"{channelId}: estado de ventana {current.Status}."
+        };
     }
 
     private static Dictionary<string, object?> SerializeBounds(WindowBounds bounds)
@@ -598,6 +731,26 @@ internal sealed partial class AgentRuntime
                 null,
                 "window-reality-state.json",
                 "Espero Window Reality, Reader Core, Input Arbiter y Hands frescos antes de autorizar manos.");
+        }
+    }
+
+    private sealed record WorkspaceLifecycleSnapshot(
+        string Status,
+        string Handle,
+        int ProcessId,
+        string ProcessName,
+        string Title,
+        WindowBounds? Bounds)
+    {
+        public static WorkspaceLifecycleSnapshot From(WorkspaceGuardianChannel channel)
+        {
+            return new WorkspaceLifecycleSnapshot(
+                channel.Status,
+                channel.Window?.Handle.ToInt64().ToString() ?? string.Empty,
+                channel.Window?.ProcessId ?? 0,
+                channel.Window?.ProcessName ?? string.Empty,
+                channel.Window?.Title ?? string.Empty,
+                channel.Window?.Bounds);
         }
     }
 }
