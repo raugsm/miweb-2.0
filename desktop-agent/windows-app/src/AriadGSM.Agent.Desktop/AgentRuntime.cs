@@ -2434,6 +2434,7 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         startInfo.Environment["PYTHONUTF8"] = "1";
+        startInfo.Environment["PYTHONPATH"] = BuildPythonPath(startInfo.Environment.TryGetValue("PYTHONPATH", out var existingPythonPath) ? existingPythonPath : null);
         if (environment is not null)
         {
             foreach (var pair in environment)
@@ -2469,6 +2470,17 @@ internal sealed partial class AgentRuntime : IDisposable
                 : $"{name} exited code={exitCode}.");
         };
         return process;
+    }
+
+    private string BuildPythonPath(string? existingPythonPath)
+    {
+        var paths = new List<string> { _desktopRoot };
+        if (!string.IsNullOrWhiteSpace(existingPythonPath))
+        {
+            paths.AddRange(existingPythonPath.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        return string.Join(Path.PathSeparator, paths.Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
     private void StopExternalWorkerProcesses()
@@ -2868,6 +2880,21 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         _pythonResolvedAt = DateTimeOffset.Now;
+        var packaged = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "python", "python.exe"),
+            Path.Combine(AppContext.BaseDirectory, "runtime", "python", "python.exe"),
+            Path.Combine(_desktopRoot, "python", "python.exe")
+        };
+        foreach (var candidate in packaged)
+        {
+            if (File.Exists(candidate) && CanRun(candidate, "--version"))
+            {
+                _cachedPython = candidate;
+                return _cachedPython;
+            }
+        }
+
         var configured = ResolveExecutable("ARIADGSM_PYTHON", "python.exe");
         if (configured is not null && CanRun(configured, "--version"))
         {
@@ -3750,6 +3777,15 @@ internal sealed partial class AgentRuntime : IDisposable
         foreach (var start in candidates)
         {
             var current = new DirectoryInfo(start);
+            if (IsPackagedAgentRoot(current.FullName))
+            {
+                return current.FullName;
+            }
+        }
+
+        foreach (var start in candidates)
+        {
+            var current = new DirectoryInfo(start);
             while (current is not null)
             {
                 if (File.Exists(Path.Combine(current.FullName, "server-wrapper.js"))
@@ -3763,6 +3799,13 @@ internal sealed partial class AgentRuntime : IDisposable
         }
 
         return Environment.CurrentDirectory;
+    }
+
+    private static bool IsPackagedAgentRoot(string directory)
+    {
+        return File.Exists(Path.Combine(directory, "server-wrapper.js"))
+            && File.Exists(Path.Combine(directory, "desktop-agent", "ariadgsm_agent", "__init__.py"))
+            && File.Exists(Path.Combine(directory, "desktop-agent", "contracts", "reader-core-state.schema.json"));
     }
 
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);

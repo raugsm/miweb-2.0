@@ -143,6 +143,26 @@ def main() -> int:
 
     with TemporaryDirectory() as tmp:
         runtime = Path(tmp)
+        stale_hands = hands_state()
+        stale_hands["updatedAt"] = utc_now(-300)
+        write_json(runtime / "cabin-readiness.json", cabin_state())
+        write_json(runtime / "reader-core-state.json", reader_state())
+        write_json(runtime / "input-arbiter-state.json", input_state())
+        write_json(runtime / "hands-state.json", stale_hands)
+        state = run_window_reality_once(runtime)
+        assert state["status"] == "ok"
+        assert state["summary"]["staleInputs"] == 0
+        assert state["summary"]["operationalChannels"] == 3
+        assert state["summary"]["handsMayActChannels"] == 3
+        assert all(item["status"] == "READY" for item in state["channels"])
+        hands_input = next(item for item in state["inputs"] if item["file"] == "hands-state.json")
+        assert hands_input["role"] == "telemetry_only"
+        assert hands_input["blocksReality"] is False
+        assert hands_input["freshness"]["fresh"] is False
+        assert not validate_contract(state, "window_reality_state")
+
+    with TemporaryDirectory() as tmp:
+        runtime = Path(tmp)
         stale = cabin_state()
         stale["updatedAt"] = utc_now(-120)
         write_json(runtime / "cabin-readiness.json", stale)

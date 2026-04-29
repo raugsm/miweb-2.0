@@ -36,6 +36,7 @@ mkdir "%DIST%\engines\hands" >nul 2>&1
 mkdir "%DIST%\config" >nul 2>&1
 mkdir "%DIST%\updater" >nul 2>&1
 mkdir "%DIST%\launcher" >nul 2>&1
+mkdir "%DIST%\desktop-agent" >nul 2>&1
 
 echo Building AriadGSM Launcher...
 dotnet restore "%ROOT%\desktop-agent\windows-app\src\AriadGSM.Agent.Launcher\AriadGSM.Agent.Launcher.csproj" -r win-x64
@@ -95,6 +96,19 @@ copy /y "%ROOT%\desktop-agent\perception-engine\config\perception.example.json" 
 copy /y "%ROOT%\desktop-agent\interaction-engine\config\interaction.example.json" "%DIST%\config\interaction.json" >nul
 copy /y "%ROOT%\desktop-agent\orchestrator-engine\config\orchestrator.example.json" "%DIST%\config\orchestrator.json" >nul
 copy /y "%ROOT%\desktop-agent\hands-engine\config\hands.example.json" "%DIST%\config\hands.json" >nul
+
+echo Packaging local AI runtime...
+xcopy "%ROOT%\desktop-agent\ariadgsm_agent\*" "%DIST%\desktop-agent\ariadgsm_agent\" /e /i /y >nul
+if errorlevel 1 exit /b 1
+xcopy "%ROOT%\desktop-agent\contracts\*" "%DIST%\desktop-agent\contracts\" /e /i /y >nul
+if errorlevel 1 exit /b 1
+
+echo Packaging local panel runtime...
+for %%F in (server-wrapper.js server.js admin-auth.js agent.js ai.js db.js notifications.js operativa-store.js pricing.js style-profile.js telegram.js training-import.js package.json package-lock.json) do (
+  if exist "%ROOT%\%%F" copy /y "%ROOT%\%%F" "%DIST%\%%F" >nul
+)
+if exist "%ROOT%\public" xcopy "%ROOT%\public\*" "%DIST%\public\" /e /i /y >nul
+if exist "%ROOT%\node_modules" xcopy "%ROOT%\node_modules\*" "%DIST%\node_modules\" /e /i /y >nul
 
 >"%DIST%\ariadgsm-version.json" echo {
 >>"%DIST%\ariadgsm-version.json" echo   "appId": "ariadgsm-agent",

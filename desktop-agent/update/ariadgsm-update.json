@@ -1,8 +1,8 @@
 {
-  "version": "0.9.10",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.10.zip",
-  "sha256": "fb5beeb5830e3f33402a86986dd26c5060dbd637f0539c0cecabf3d75be18387",
+  "version": "0.9.11",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.11.zip",
+  "sha256": "5ea8237b04e781024d08a59b612b1da7695df3991085e58c3e18c359ad9d67b7",
   "autoApply": true,
-  "notes": "Version 0.9.10 recovery release: fixes the live boot race where a cancelled start could continue into start_engines with a stale session, keeps the same runSessionId through update/cabin/preflight, and adds the operational truth matrix.",
-  "publishedAt": "2026-04-28T23:22:49Z"
+  "notes": "Version 0.9.11 closes the live boot chain by making Hands telemetry-only for Window Reality, packages Python cores/contracts/panel runtime, and adds package self-test coverage.",
+  "publishedAt": "2026-04-29T00:04:36Z"
 }

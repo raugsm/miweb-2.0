@@ -9,7 +9,7 @@ from typing import Any
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DIR = AGENT_ROOT / "runtime"
-VERSION = "0.9.9"
+VERSION = "0.9.11"
 ENGINE = "ariadgsm_window_reality_resolver"
 CONTRACT = "window_reality_state"
 
@@ -225,19 +225,15 @@ def semantic_signal(reader: dict[str, Any], channel_id: str, reader_fresh: dict[
     return build_signal("semantic", "unknown", 0.3, "No hay evidencia semantica suficiente.")
 
 
-def actionability_signal(input_state: dict[str, Any], hands: dict[str, Any], input_fresh: dict[str, Any], hands_fresh: dict[str, Any]) -> dict[str, Any]:
+def actionability_signal(input_state: dict[str, Any], input_fresh: dict[str, Any]) -> dict[str, Any]:
     if input_state and input_fresh["fresh"]:
         phase = normalized_status(input_state.get("phase"))
         if as_bool(input_state.get("operatorHasPriority")) or phase in {"operator_control", "operator_cooldown"}:
             return build_signal("actionability", "operator_busy", 0.9, text(input_state.get("summary"), "Bryams tiene prioridad sobre mouse y teclado."))
-    if hands and hands_fresh["fresh"]:
-        status = normalized_status(hands.get("status"))
-        if status in {"blocked", "error", "failed"}:
-            return build_signal("actionability", "blocked", 0.4, text(hands.get("lastSummary") or hands.get("summary"), "Hands reporta bloqueo."))
-        return build_signal("actionability", "ok", 0.72, "Hands esta vivo y puede verificar acciones cuando Trust & Safety lo permita.")
-    if input_state or hands:
-        return build_signal("actionability", "stale", 0.25, "Input/Hands existen, pero la evidencia no esta fresca.")
-    return build_signal("actionability", "unknown", 0.35, "Aun no hay estado de manos/input.")
+        return build_signal("actionability", "ok", 0.78, "Input Arbiter permite manos; Hands consumira esta realidad y verificara despues.")
+    if input_state:
+        return build_signal("actionability", "stale", 0.25, "Input Arbiter existe, pero su evidencia no esta fresca.")
+    return build_signal("actionability", "unknown", 0.35, "Aun no hay estado de Input Arbiter.")
 
 
 def freshness_signal(*fresh_inputs: dict[str, Any]) -> dict[str, Any]:
@@ -356,27 +352,28 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
             "structural_windows",
             "visual_geometry",
             "semantic_reader_core",
-            "freshness_ttl",
-            "actionability_input_hands",
+            "freshness_required_inputs",
+            "actionability_input_arbiter",
         ],
         "freshness": {
             "cabinReadinessMaxAgeMs": 45_000,
             "readerCoreMaxAgeMs": 8_000,
             "inputArbiterMaxAgeMs": 30_000,
-            "handsMaxAgeMs": 60_000,
+            "optionalHandsTelemetryMaxAgeMs": 60_000,
         },
         "actionability": {
             "operatorHasPriority": True,
             "doNotActOnCoveredWindow": True,
             "allowReadWhenSemanticFreshButVisualConflicted": True,
             "handsRequireFreshReaderMessage": True,
+            "handsStateIsTelemetryOnly": True,
         },
     }
 
     cabin_fresh = freshness(cabin.get("updatedAt") or manager.get("updatedAt"), now, policy["freshness"]["cabinReadinessMaxAgeMs"])
     reader_fresh = freshness(reader.get("updatedAt") or reader.get("observedAt"), now, policy["freshness"]["readerCoreMaxAgeMs"])
     input_fresh = freshness(input_state.get("updatedAt") or input_state.get("observedAt"), now, policy["freshness"]["inputArbiterMaxAgeMs"])
-    hands_fresh = freshness(hands.get("updatedAt") or hands.get("observedAt"), now, policy["freshness"]["handsMaxAgeMs"])
+    hands_fresh = freshness(hands.get("updatedAt") or hands.get("observedAt"), now, policy["freshness"]["optionalHandsTelemetryMaxAgeMs"])
 
     channels = []
     for channel_id in expected_channels(cabin, manager, authority):
@@ -385,8 +382,8 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
             structural_signal(channel, cabin_fresh),
             visual_signal(channel, cabin_fresh),
             semantic_signal(reader, channel_id, reader_fresh),
-            actionability_signal(input_state, hands, input_fresh, hands_fresh),
-            freshness_signal(cabin_fresh, reader_fresh, input_fresh, hands_fresh),
+            actionability_signal(input_state, input_fresh),
+            freshness_signal(cabin_fresh, reader_fresh, input_fresh),
         ]
         channels.append(decide_channel(channel_id, signals, channel))
 
@@ -396,7 +393,7 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
     action_ready = sum(1 for item in channels if item["actionReady"])
     conflicted = sum(1 for item in channels if item["status"] in {"READY_WITH_CONFLICT", "COVERED_CONFIRMED"})
     human = sum(1 for item in channels if item["requiresHuman"])
-    stale_inputs = sum(1 for item in (cabin_fresh, reader_fresh, input_fresh, hands_fresh) if item["status"] == "stale")
+    stale_inputs = sum(1 for item in (cabin_fresh, reader_fresh, input_fresh) if item["status"] == "stale")
 
     if operational == len(channels) and human == 0 and stale_inputs == 0 and conflicted == 0:
         status = "ok"
@@ -444,7 +441,7 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
             {"file": "cabin-readiness.json", "freshness": cabin_fresh},
             {"file": "reader-core-state.json", "freshness": reader_fresh},
             {"file": "input-arbiter-state.json", "freshness": input_fresh},
-            {"file": "hands-state.json", "freshness": hands_fresh},
+            {"file": "hands-state.json", "freshness": hands_fresh, "role": "telemetry_only", "blocksReality": False},
         ],
         "summary": {
             "expectedChannels": len(channels),
@@ -470,6 +467,7 @@ def build_window_reality_state(runtime_dir: Path) -> dict[str, Any]:
             "riesgos": [
                 "No permito manos si la ventana esta cubierta aunque parezca WhatsApp.",
                 "No tomo estados viejos como verdad operativa.",
+                "Hands no bloquea la realidad de ventana; consume esta decision y verifica despues.",
                 "Si Bryams usa mouse/teclado, manos se pausan pero ojos y memoria pueden seguir.",
             ],
         },
