@@ -26,6 +26,8 @@ public sealed class HandsOptions
 
     public string CabinAuthorityStateFile { get; init; } = @"desktop-agent\runtime\cabin-authority-state.json";
 
+    public string WindowRealityStateFile { get; init; } = @"desktop-agent\runtime\window-reality-state.json";
+
     public string CursorFile { get; init; } = @"desktop-agent\runtime\hands-cursor.json";
 
     public string InputArbiterStateFile { get; init; } = @"desktop-agent\runtime\input-arbiter-state.json";
@@ -51,6 +53,10 @@ public sealed class HandsOptions
     public bool RequireCabinAuthorityForWindowActions { get; init; } = true;
 
     public int CabinAuthorityMaxAgeMs { get; init; } = 2500;
+
+    public bool RequireWindowRealityForWindowActions { get; init; } = true;
+
+    public int WindowRealityMaxAgeMs { get; init; } = 2500;
 
     public bool EnableInteractionNavigator { get; init; } = true;
 

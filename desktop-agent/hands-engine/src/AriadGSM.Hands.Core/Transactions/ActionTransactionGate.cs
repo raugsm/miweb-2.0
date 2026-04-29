@@ -60,6 +60,22 @@ public sealed class ActionTransactionGate
             return Block(plan with { Target = baseTarget }, transactionId, traceId, channelId, "Accion fisica sin canal; no toco pantalla.", now);
         }
 
+        var trustDecision = (trustGate.Decision ?? string.Empty).Trim();
+        var trustApproved = TargetBool(plan, "trustSafetyApproved");
+        if (IsPhysicalAction(plan.ActionType)
+            && !trustApproved
+            && !trustDecision.Equals("ALLOW", StringComparison.OrdinalIgnoreCase)
+            && !trustDecision.Equals("ALLOW_WITH_LIMIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return Block(
+                plan with { Target = baseTarget },
+                transactionId,
+                traceId,
+                channelId,
+                $"Trust & Safety no autorizo accion fisica ({trustDecision}); no toco pantalla sin permiso operativo.",
+                now);
+        }
+
         var activeLease = ReadActiveLease(now);
         if (activeLease is not null)
         {
@@ -394,6 +410,21 @@ public sealed class ActionTransactionGate
         }
 
         return int.TryParse(raw.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TargetBool(ActionPlan plan, string key)
+    {
+        if (!plan.Target.TryGetValue(key, out var raw) || raw is null)
+        {
+            return false;
+        }
+
+        if (raw is bool boolean)
+        {
+            return boolean;
+        }
+
+        return bool.TryParse(raw.ToString(), out var parsed) && parsed;
     }
 
     private static string? TargetString(ActionPlan plan, string key)

@@ -1,8 +1,8 @@
 {
-  "version": "0.9.12",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.12.zip",
-  "sha256": "3cda218d9bf1fe8432e6e6a2b1a49fbef53b5242e504cb4b785c4e5ffae193cf",
+  "version": "0.9.13",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.13.zip",
+  "sha256": "e576922638ae4441156b47f7e38ad90c5fd00c0733f4056e7c0cdcfe752991c6",
   "autoApply": true,
-  "notes": "Version 0.9.12 closes Product Runtime Packaging + Live Boot Chain with safe state writes, process ownership shutdown, window lifecycle tracking, Trust & Safety heartbeat freshness, and boot/shutdown evaluation coverage.",
-  "publishedAt": "2026-04-29T00:42:48Z"
+  "notes": "Version 0.9.13 hardens physical action gating: Hands requires fresh Cabin Authority and Window Reality agreement, blocks Trust & Safety ASK_HUMAN physical actions, and revalidates live authority immediately before executor clicks.",
+  "publishedAt": "2026-04-29T01:05:00Z"
 }

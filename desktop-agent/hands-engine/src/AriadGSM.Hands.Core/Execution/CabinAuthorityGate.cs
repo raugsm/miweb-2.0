@@ -78,11 +78,70 @@ public sealed class CabinAuthorityGate
                 return CabinAuthorityDecision.Block($"Cabin Authority blocked {channelId}: {detail}");
             }
 
+            var windowReality = EvaluateWindowReality(channelId);
+            if (!windowReality.Allowed)
+            {
+                return windowReality;
+            }
+
             return CabinAuthorityDecision.Allow($"Cabin Authority cleared {channelId} for Hands.");
         }
         catch (Exception exception)
         {
             return CabinAuthorityDecision.Block($"Cabin Authority state could not be read: {exception.Message}");
+        }
+    }
+
+    private CabinAuthorityDecision EvaluateWindowReality(string channelId)
+    {
+        if (!_options.RequireWindowRealityForWindowActions)
+        {
+            return CabinAuthorityDecision.Allow("Window Reality not required for this action.");
+        }
+
+        if (!File.Exists(_options.WindowRealityStateFile))
+        {
+            return CabinAuthorityDecision.Block("Window Reality state is missing; Hands will not touch browser windows.");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(_options.WindowRealityStateFile));
+            var root = document.RootElement;
+            var updatedAt = ReadDate(root, "updatedAt");
+            if (updatedAt is null)
+            {
+                return CabinAuthorityDecision.Block("Window Reality state has no timestamp; Hands will not trust it.");
+            }
+
+            var ageMs = (DateTimeOffset.UtcNow - updatedAt.Value.ToUniversalTime()).TotalMilliseconds;
+            if (ageMs > Math.Max(500, _options.WindowRealityMaxAgeMs))
+            {
+                return CabinAuthorityDecision.Block($"Window Reality state is stale ({ageMs:0}ms old); Hands will wait for a fresh reality check.");
+            }
+
+            if (!TryFindChannel(root, channelId, out var channel))
+            {
+                return CabinAuthorityDecision.Block($"Window Reality has no channel evidence for {channelId}.");
+            }
+
+            var status = ReadString(channel, "status");
+            var structuralReady = TryReadBool(channel, "structuralReady") == true;
+            var actionReady = TryReadBool(channel, "actionReady") == true;
+            var handsMayAct = TryReadBool(channel, "handsMayAct") == true;
+            var isOperational = TryReadBool(channel, "isOperational") == true;
+            if (!structuralReady || !isOperational || !actionReady || !handsMayAct)
+            {
+                var reason = ReadDecisionReason(channel);
+                return CabinAuthorityDecision.Block(
+                    $"Window Reality blocked {channelId}: status={status}; structural={structuralReady}; operational={isOperational}; actionReady={actionReady}; handsMayAct={handsMayAct}. {reason}");
+            }
+
+            return CabinAuthorityDecision.Allow($"Window Reality cleared {channelId} for Hands.");
+        }
+        catch (Exception exception)
+        {
+            return CabinAuthorityDecision.Block($"Window Reality state could not be read: {exception.Message}");
         }
     }
 
@@ -138,6 +197,17 @@ public sealed class CabinAuthorityGate
         }
 
         return false;
+    }
+
+    private static string ReadDecisionReason(JsonElement channel)
+    {
+        if (channel.TryGetProperty("decision", out var decision)
+            && decision.ValueKind == JsonValueKind.Object)
+        {
+            return ReadString(decision, "reason");
+        }
+
+        return ReadString(channel, "actionabilityReason");
     }
 
     private static string TargetString(ActionPlan plan, string key)

@@ -556,34 +556,60 @@ public sealed class HandsPipeline
                     }
                     else
                     {
-                        var execution = await _executor.ExecuteAsync(planForExecution, cancellationToken).ConfigureAwait(false);
-                        _inputArbiter.Complete(lease, planForExecution, execution);
-                        if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+                        var liveAuthority = _cabinAuthorityGate.Evaluate(planForExecution);
+                        if (!liveAuthority.Allowed)
                         {
-                            _actionsExecuted++;
-                        }
+                            _actionsBlocked++;
+                            var auditActionId = $"{actionId}-live-authority-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 5}";
+                            if (existingIds.Contains(auditActionId))
+                            {
+                                _actionsSkipped++;
+                                return false;
+                            }
 
-                        var verificationOutcome = await VerifyAfterExecutionAsync(
-                            planForExecution,
-                            execution,
-                            perception,
-                            cancellationToken).ConfigureAwait(false);
-                        var verifiedPlan = EnrichPlanWithVerificationOutcome(planForExecution, verificationOutcome);
-                        var verification = verificationOutcome.Verification;
-                        var finalStatus = FinalActionStatus(verifiedPlan, execution, verification);
-                        if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+                            var liveAuthorityPlan = EnrichPlanWithCabinAuthority(planForExecution, liveAuthority);
+                            actionEvent = CreateActionEvent(
+                                liveAuthorityPlan,
+                                auditActionId,
+                                "blocked",
+                                new ActionVerification(false, liveAuthority.Reason, liveAuthority.Confidence),
+                                safety.Reason,
+                                executionSummary: "Live authority revalidation blocked before executor.");
+                            _inputArbiter.Complete(lease, liveAuthorityPlan, new ExecutionResult("blocked", liveAuthority.Reason, liveAuthority.Confidence));
+                            _transactionGate.Complete(transaction with { Plan = liveAuthorityPlan }, actionEvent);
+                        }
+                        else
                         {
-                            _actionsVerified++;
-                        }
+                            var executionPlan = EnrichPlanWithCabinAuthority(planForExecution, liveAuthority);
+                            var execution = await _executor.ExecuteAsync(executionPlan, cancellationToken).ConfigureAwait(false);
+                            _inputArbiter.Complete(lease, executionPlan, execution);
+                            if (execution.Status.Equals("executed", StringComparison.OrdinalIgnoreCase))
+                            {
+                                _actionsExecuted++;
+                            }
 
-                        actionEvent = CreateActionEvent(
-                            verifiedPlan,
-                            actionId,
-                            finalStatus,
-                            verification,
-                            safety.Reason,
-                            execution.Summary);
-                        _transactionGate.Complete(transaction with { Plan = verifiedPlan }, actionEvent);
+                            var verificationOutcome = await VerifyAfterExecutionAsync(
+                                executionPlan,
+                                execution,
+                                perception,
+                                cancellationToken).ConfigureAwait(false);
+                            var verifiedPlan = EnrichPlanWithVerificationOutcome(executionPlan, verificationOutcome);
+                            var verification = verificationOutcome.Verification;
+                            var finalStatus = FinalActionStatus(verifiedPlan, execution, verification);
+                            if (finalStatus.Equals("verified", StringComparison.OrdinalIgnoreCase))
+                            {
+                                _actionsVerified++;
+                            }
+
+                            actionEvent = CreateActionEvent(
+                                verifiedPlan,
+                                actionId,
+                                finalStatus,
+                                verification,
+                                safety.Reason,
+                                execution.Summary);
+                            _transactionGate.Complete(transaction with { Plan = verifiedPlan }, actionEvent);
+                        }
                     }
                 }
             }
@@ -1026,6 +1052,7 @@ public sealed class HandsPipeline
                 ["trustSafetyRequired"] = _options.RequireTrustSafetyGate,
                 ["inputArbiterRequired"] = _options.InputArbiterEnabled,
                 ["cabinAuthorityRequired"] = _options.RequireCabinAuthorityForWindowActions,
+                ["windowRealityRequired"] = _options.RequireWindowRealityForWindowActions,
                 ["postActionVerificationRequired"] = _options.RequirePostActionVerification,
                 ["actionTransactionsEnabled"] = _options.ActionTransactionsEnabled,
                 ["singlePhysicalAction"] = _options.MaxPhysicalActionsPerCycle == 1,
@@ -1047,6 +1074,7 @@ public sealed class HandsPipeline
                 ["perceptionEventsFile"] = _options.PerceptionEventsFile,
                 ["interactionEventsFile"] = _options.InteractionEventsFile,
                 ["trustSafetyStateFile"] = _options.TrustSafetyStateFile,
+                ["windowRealityStateFile"] = _options.WindowRealityStateFile,
                 ["inputArbiterStateFile"] = _options.InputArbiterStateFile,
                 ["actionTransactionStateFile"] = _options.ActionTransactionStateFile,
                 ["actionJournalFile"] = _options.ActionJournalFile,
@@ -1062,6 +1090,7 @@ public sealed class HandsPipeline
                 ["draftsNeverSendAutomatically"] = true,
                 ["singleActionBeforeNextRead"] = true,
                 ["freshPerceptionBeforePhysicalAction"] = true,
+                ["freshWindowRealityBeforePhysicalAction"] = _options.RequireWindowRealityForWindowActions,
                 ["nonDestructiveBrowserPolicy"] = true
             },
             ["summary"] = new Dictionary<string, object?>

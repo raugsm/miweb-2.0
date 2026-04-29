@@ -18,6 +18,7 @@ await TestOpenChatWaitsForFreshPerceptionVerification();
 await TestOpenChatFailsWhenPerceptionShowsDifferentChat();
 await TestActionTransactionGateWritesJournalAndLimitsCycle();
 await TestTrustSafetyGateBlocksHandsBeforeExecutor();
+await TestWindowRealityContradictionBlocksBeforeExecutor();
 await TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory();
 TestContractValidator();
 
@@ -1266,6 +1267,184 @@ static async Task TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory()
         Assert(arbiterDocument.RootElement.GetProperty("eyesContinue").GetBoolean(), "arbiter state should keep eyes on");
         Assert(arbiterDocument.RootElement.GetProperty("memoryContinue").GetBoolean(), "arbiter state should keep memory on");
         Assert(arbiterDocument.RootElement.GetProperty("businessBrainContinue").GetBoolean(), "arbiter state should keep business brain on");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static async Task TestWindowRealityContradictionBlocksBeforeExecutor()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-reality-gate-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var cognitive = Path.Combine(root, "cognitive-decision-events.jsonl");
+    var operating = Path.Combine(root, "decision-events.jsonl");
+    var perception = Path.Combine(root, "perception-events.jsonl");
+    var interaction = Path.Combine(root, "interaction-events.jsonl");
+    var actions = Path.Combine(root, "action-events.jsonl");
+    var state = Path.Combine(root, "hands-state.json");
+    var cursor = Path.Combine(root, "hands-cursor.json");
+    var cabin = Path.Combine(root, "cabin-authority-state.json");
+    var reality = Path.Combine(root, "window-reality-state.json");
+    try
+    {
+        await File.WriteAllTextAsync(cognitive, JsonSerializer.Serialize(new
+        {
+            eventType = "decision_event",
+            decisionId = "decision-reality-contradiction-1",
+            createdAt = DateTimeOffset.UtcNow,
+            goal = "learn",
+            intent = "learning_navigation",
+            confidence = 0.9,
+            autonomyLevel = 3,
+            proposedAction = "open_visible_chat_for_learning",
+            requiresHumanConfirmation = false,
+            reasoningSummary = "open",
+            channelId = "wa-3",
+            conversationTitle = "Cliente Reality",
+            evidence = new[] { "msg-wa-3-reality" }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(operating, string.Empty);
+        await File.WriteAllTextAsync(perception, JsonSerializer.Serialize(new
+        {
+            eventType = "perception_event",
+            perceptionEventId = "perception-reality-1",
+            observedAt = DateTimeOffset.UtcNow,
+            channelId = "wa-3",
+            objects = new object[]
+            {
+                new
+                {
+                    objectType = "chat_row",
+                    confidence = 0.96,
+                    bounds = new { left = 900, top = 160, width = 320, height = 72 },
+                    text = "Cliente Reality",
+                    role = "visible_chat_row",
+                    metadata = new
+                    {
+                        channelId = "wa-3",
+                        chatRowId = "chatrow-wa-3-reality",
+                        title = "Cliente Reality",
+                        preview = "precio",
+                        unreadCount = 1,
+                        clickX = 980,
+                        clickY = 196
+                    }
+                }
+            }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(interaction, JsonSerializer.Serialize(new
+        {
+            eventType = "interaction_event",
+            interactionEventId = "interaction-reality-1",
+            createdAt = DateTimeOffset.UtcNow,
+            source = "ariadgsm_interaction_engine",
+            latestPerceptionEventId = "perception-reality-1",
+            perceptionEventsRead = 1,
+            targets = new object[]
+            {
+                new
+                {
+                    targetId = "target-reality-1",
+                    targetType = "chat_row",
+                    channelId = "wa-3",
+                    sourcePerceptionEventId = "perception-reality-1",
+                    observedAt = DateTimeOffset.UtcNow,
+                    title = "Cliente Reality",
+                    preview = "precio",
+                    unreadCount = 1,
+                    left = 900,
+                    top = 160,
+                    width = 320,
+                    height = 72,
+                    clickX = 980,
+                    clickY = 196,
+                    confidence = 0.96,
+                    actionable = true,
+                    category = "customer_chat_candidate",
+                    rejectionReasons = Array.Empty<string>()
+                }
+            }
+        }) + Environment.NewLine);
+        await File.WriteAllTextAsync(cabin, JsonSerializer.Serialize(new
+        {
+            status = "ok",
+            updatedAt = DateTimeOffset.UtcNow,
+            handsMayFocus = true,
+            channels = new object[]
+            {
+                new
+                {
+                    channelId = "wa-3",
+                    status = "action_ready",
+                    handsMayAct = true,
+                    actionReady = true,
+                    remainingBlockers = 0
+                }
+            },
+            blockers = Array.Empty<object>()
+        }));
+        await File.WriteAllTextAsync(reality, JsonSerializer.Serialize(new
+        {
+            status = "ok",
+            updatedAt = DateTimeOffset.UtcNow,
+            channels = new object[]
+            {
+                new
+                {
+                    channelId = "wa-3",
+                    status = "READY_OPERATOR_BUSY",
+                    structuralReady = true,
+                    semanticFresh = false,
+                    actionReady = false,
+                    isOperational = true,
+                    handsMayAct = false,
+                    decision = new
+                    {
+                        reason = "Window Reality detecto operador ocupado o lectura no fresca."
+                    }
+                }
+            }
+        }));
+
+        var executor = new RecordingExecutor();
+        var options = new HandsOptions
+        {
+            CognitiveDecisionEventsFile = cognitive,
+            OperatingDecisionEventsFile = operating,
+            PerceptionEventsFile = perception,
+            InteractionEventsFile = interaction,
+            ActionEventsFile = actions,
+            StateFile = state,
+            CursorFile = cursor,
+            CabinAuthorityStateFile = cabin,
+            WindowRealityStateFile = reality,
+            AutonomyLevel = 3,
+            ExecuteActions = true,
+            RequireTrustSafetyGate = false,
+            RequireCabinAuthorityForWindowActions = true,
+            RequireWindowRealityForWindowActions = true,
+            InputArbiterEnabled = false,
+            RespectOrchestratorCommands = false,
+            EnableInteractionNavigator = false,
+            OpenChatVerificationTimeoutMs = 0,
+            DecisionLimit = 10,
+            PerceptionLimit = 10,
+            InteractionLimit = 10
+        };
+
+        var pipeline = new HandsPipeline(options, executor);
+        var result = await pipeline.RunOnceAsync();
+        Assert(result.Status == "ok", "window reality contradiction should be audited without crashing");
+        Assert(executor.Count == 0, "executor must not run when Window Reality contradicts Cabin Authority");
+        var line = (await File.ReadAllLinesAsync(actions)).Single();
+        using var document = JsonDocument.Parse(line);
+        Assert(document.RootElement.GetProperty("status").GetString() == "blocked", "contradicted channel should be blocked");
+        Assert(document.RootElement.GetProperty("verification").GetProperty("summary").GetString()!.Contains("Window Reality blocked wa-3", StringComparison.Ordinal), "block reason should name Window Reality contradiction");
     }
     finally
     {
