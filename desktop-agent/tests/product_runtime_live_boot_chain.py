@@ -28,7 +28,14 @@ def main() -> int:
     assert "TrustSafetyHeartbeatInterval" in runtime
     assert "TrustSafetyHeartbeat" in runtime
     assert "RunTrustSafetyProcessToExitAsync" in runtime
+    assert "StartLiveReadinessLoop" in runtime
+    assert "PrimeLiveReadinessAsync" in runtime
+    assert "RunLiveReadinessSequenceAsync" in runtime
+    assert "RunLiveReadinessProcessToExitAsync" in runtime
+    assert "LiveReadinessInterval" in runtime
     assert "_trustSafetyProcessGate" in runtime
+    assert "_liveReadinessProcessGate" in runtime
+    assert "WaitForLoopStop(_liveReadinessTask" in runtime
     assert "WaitForLoopStop(_coreLoopTask" in runtime
     assert 'StopExternalWorkerProcesses("shutdown")' in runtime
     assert "StopProcessTree(process, name, \"cancelled\")" in runtime

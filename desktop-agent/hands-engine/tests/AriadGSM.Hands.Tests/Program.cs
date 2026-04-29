@@ -3,9 +3,12 @@ using AriadGSM.Hands.Config;
 using AriadGSM.Hands.Events;
 using AriadGSM.Hands.Execution;
 using AriadGSM.Hands.Input;
+using AriadGSM.Hands.Interaction;
 using AriadGSM.Hands.Pipeline;
 using AriadGSM.Hands.Planning;
+using AriadGSM.Hands.Perception;
 using AriadGSM.Hands.Safety;
+using AriadGSM.Hands.Transactions;
 
 TestPlannerInfersChannelFromEvidence();
 TestSafetyBlocksSend();
@@ -18,6 +21,7 @@ await TestOpenChatWaitsForFreshPerceptionVerification();
 await TestOpenChatFailsWhenPerceptionShowsDifferentChat();
 await TestActionTransactionGateWritesJournalAndLimitsCycle();
 await TestTrustSafetyGateBlocksHandsBeforeExecutor();
+TestActionTransactionGateAllowsSafeSubsetWhenTrustAllowsHands();
 await TestWindowRealityContradictionBlocksBeforeExecutor();
 await TestInputArbiterYieldsMouseWithoutStoppingEyesOrMemory();
 TestContractValidator();
@@ -1131,6 +1135,95 @@ static async Task TestTrustSafetyGateBlocksHandsBeforeExecutor()
         Assert(result.LastSummary.Contains("Trust & Safety", StringComparison.Ordinal), "state should explain Trust & Safety gate");
         Assert(executor.Count == 0, "executor must not run when Trust & Safety denies hands");
         Assert(!File.Exists(actions) || (await File.ReadAllTextAsync(actions)).Length == 0, "denied hands should not emit physical actions");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static void TestActionTransactionGateAllowsSafeSubsetWhenTrustAllowsHands()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ariadgsm-hands-safe-subset-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    try
+    {
+        var options = new HandsOptions
+        {
+            ExecuteActions = true,
+            ActionTransactionStateFile = Path.Combine(root, "action-transaction-state.json"),
+            ActionJournalFile = Path.Combine(root, "action-journal.jsonl"),
+            FreshPerceptionMaxAgeMs = 3500,
+            FreshInteractionMaxAgeMs = 3500
+        };
+        var gate = new ActionTransactionGate(options);
+        var now = DateTimeOffset.UtcNow;
+        var sourceDecision = new AriadGSM.Hands.Decisions.DecisionEvent
+        {
+            EventType = "decision_event",
+            DecisionId = "decision-safe-subset-1",
+            CreatedAt = now,
+            Goal = "learn",
+            Intent = "learning_navigation",
+            Confidence = 0.92,
+            AutonomyLevel = 3,
+            ProposedAction = "open_visible_chat_for_learning",
+            RequiresHumanConfirmation = false,
+            ReasoningSummary = "open",
+            ChannelId = "wa-2",
+            ConversationTitle = "Cliente Safe"
+        };
+        var plan = new ActionPlan(
+            "action-safe-subset-1",
+            "open_chat",
+            new Dictionary<string, object?>
+            {
+                ["channelId"] = "wa-2",
+                ["conversationTitle"] = "Cliente Safe",
+                ["interactionSourcePerceptionEventId"] = "perception-safe-subset-1",
+                ["clickX"] = 520,
+                ["clickY"] = 216
+            },
+            3,
+            false,
+            "safe local navigation",
+            sourceDecision);
+        var trust = new TrustSafetyGateDecision(
+            true,
+            "BLOCK",
+            "Hay hallazgos que requieren revision, pero manos tienen safe_subset.",
+            100,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        var perception = new PerceptionContext
+        {
+            SourcePerceptionEventId = "perception-safe-subset-1",
+            ObservedAt = now,
+            Conversations =
+            [
+                new VisibleConversation("wa-2", "wa-2-cliente-safe", "Cliente Safe", "active_conversation", 0.96)
+            ],
+            ChatRows =
+            [
+                new VisibleChatRow("wa-2", "chatrow-safe", "Cliente Safe", "precio", 1, 450, 180, 320, 72, 520, 216, 0.96)
+            ]
+        };
+        var interaction = new InteractionContext
+        {
+            SourceInteractionEventId = "interaction-safe-subset-1",
+            LatestPerceptionEventId = "perception-safe-subset-1",
+            CreatedAt = now,
+            Targets =
+            [
+                new InteractionTarget("target-safe", "chat_row", "wa-2", "perception-safe-subset-1", now, "Cliente Safe", "precio", 1, 450, 180, 320, 72, 520, 216, 0.96, true, "customer_chat_candidate", [])
+            ]
+        };
+
+        var decision = gate.Begin(plan, "scoped-safe-subset-1", trust, perception, interaction);
+        Assert(decision.Allowed, "safe subset local navigation should pass when Trust & Safety exposes canHandsRun=true");
+        Assert(decision.Plan.Target.TryGetValue("trustSafetySafeSubsetAtTransaction", out var safeSubset) && safeSubset is true, "transaction should record safe subset trust mode");
     }
     finally
     {

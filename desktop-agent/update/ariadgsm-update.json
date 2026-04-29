@@ -1,8 +1,8 @@
 {
-  "version": "0.9.13",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.13.zip",
-  "sha256": "e576922638ae4441156b47f7e38ad90c5fd00c0733f4056e7c0cdcfe752991c6",
+  "version": "0.9.14",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.14.zip",
+  "sha256": "67968a23c7ce9a42ef89e0f7094e962752e656c62cbee3e27d2d212d8d7084fa",
   "autoApply": true,
-  "notes": "Version 0.9.13 hardens physical action gating: Hands requires fresh Cabin Authority and Window Reality agreement, blocks Trust & Safety ASK_HUMAN physical actions, and revalidates live authority immediately before executor clicks.",
-  "publishedAt": "2026-04-29T01:05:00Z"
+  "notes": "Version 0.9.14 closes live layer handoff: Reader Core ingests recent messages per WhatsApp channel, Live Readiness keeps Reader/Window Reality/Trust fresh, and Hands can execute safe local navigation when Trust & Safety grants canHandsRun without allowing text/send actions.",
+  "publishedAt": "2026-04-29T01:40:00Z"
 }

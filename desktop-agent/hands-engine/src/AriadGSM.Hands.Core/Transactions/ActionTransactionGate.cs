@@ -62,10 +62,12 @@ public sealed class ActionTransactionGate
 
         var trustDecision = (trustGate.Decision ?? string.Empty).Trim();
         var trustApproved = TargetBool(plan, "trustSafetyApproved");
+        var trustAllowsSafeSubset = trustGate.HandsAllowed && IsSafeSubsetPhysicalAction(plan.ActionType);
         if (IsPhysicalAction(plan.ActionType)
             && !trustApproved
             && !trustDecision.Equals("ALLOW", StringComparison.OrdinalIgnoreCase)
-            && !trustDecision.Equals("ALLOW_WITH_LIMIT", StringComparison.OrdinalIgnoreCase))
+            && !trustDecision.Equals("ALLOW_WITH_LIMIT", StringComparison.OrdinalIgnoreCase)
+            && !trustAllowsSafeSubset)
         {
             return Block(
                 plan with { Target = baseTarget },
@@ -104,6 +106,8 @@ public sealed class ActionTransactionGate
             ["interactionAgeMs"] = freshness.InteractionAgeMs,
             ["singleChannelLease"] = channelId,
             ["trustSafetyDecisionAtTransaction"] = trustGate.Decision,
+            ["trustSafetyHandsAllowedAtTransaction"] = trustGate.HandsAllowed,
+            ["trustSafetySafeSubsetAtTransaction"] = trustAllowsSafeSubset,
             ["nonDestructiveBrowserPolicy"] = "close-tab/window/new-tab/shell-url-launch forbidden"
         };
         var allowedPlan = plan with { Target = enrichedTarget };
@@ -369,6 +373,14 @@ public sealed class ActionTransactionGate
             || actionType.Equals("capture_conversation", StringComparison.OrdinalIgnoreCase)
             || actionType.Equals("write_text", StringComparison.OrdinalIgnoreCase)
             || actionType.Equals("send_message", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSafeSubsetPhysicalAction(string actionType)
+    {
+        return actionType.Equals("focus_window", StringComparison.OrdinalIgnoreCase)
+            || actionType.Equals("open_chat", StringComparison.OrdinalIgnoreCase)
+            || actionType.Equals("scroll_history", StringComparison.OrdinalIgnoreCase)
+            || actionType.Equals("capture_conversation", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DestructiveBrowserPolicyViolation(ActionPlan plan)

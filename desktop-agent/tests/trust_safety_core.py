@@ -217,9 +217,10 @@ def test_reversible_accounting_block_does_not_freeze_safe_hands() -> None:
         write_jsonl(root / "domain-events.jsonl")
         write_json(root / "input-arbiter-state.json", {"phase": "operator_idle", "operatorHasPriority": False, "operatorIdleMs": 3000})
         state = run_core(root, autonomy_level=3)
-        assert state["permissionGate"]["decision"] == "BLOCK", state
-        assert state["permissionGate"]["actionabilityMode"] == "safe_subset", state
+        assert state["permissionGate"]["decision"] == "ALLOW_WITH_LIMIT", state
+        assert state["summary"]["auditOnlyFindings"] == 1, state
         assert state["permissionGate"]["allowedEngines"]["hands"] is True, state
+        assert state["auditOnlyFindings"][0]["gateBlocking"] is False, state
 
 
 def test_send_message_with_permission_still_requires_per_action_approval() -> None:

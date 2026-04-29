@@ -41,6 +41,8 @@ def looks_like_browser_ui_title(value: object) -> bool:
         "paginas mas",
         "perfil 1",
         "anadir esta pagina a marcadores",
+        "anadir pestana a la barra de tareas",
+        "añadir pestaña a la barra de tareas",
         "editar marcador",
         "editar favorito",
         "ver informacion del sitio",

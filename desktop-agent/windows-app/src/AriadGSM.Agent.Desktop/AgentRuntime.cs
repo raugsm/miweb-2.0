@@ -31,12 +31,15 @@ internal sealed partial class AgentRuntime : IDisposable
     private static readonly TimeSpan RunningStateStaleAfter = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan SupervisorInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan TrustSafetyHeartbeatInterval = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan LiveReadinessInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan LiveReadinessInitialDelay = TimeSpan.FromMilliseconds(850);
     private static readonly TimeSpan RestartWindow = TimeSpan.FromMinutes(5);
     private readonly List<ManagedProcess> _processes = [];
     private readonly List<WorkerSpec> _workerSpecs = [];
     private readonly Dictionary<string, RestartTracker> _restartTrackers = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private readonly SemaphoreSlim _trustSafetyProcessGate = new(1, 1);
+    private readonly SemaphoreSlim _liveReadinessProcessGate = new(1, 1);
     private readonly string _repoRoot;
     private readonly string _desktopRoot;
     private readonly string _runtimeDir;
@@ -58,6 +61,8 @@ internal sealed partial class AgentRuntime : IDisposable
     private Task? _workspaceGuardianTask;
     private CancellationTokenSource? _trustSafetyHeartbeatCts;
     private Task? _trustSafetyHeartbeatTask;
+    private CancellationTokenSource? _liveReadinessCts;
+    private Task? _liveReadinessTask;
     private bool _desiredRunning;
     private bool _stopping;
     private string? _cachedPython;
@@ -108,7 +113,9 @@ internal sealed partial class AgentRuntime : IDisposable
         {
             lock (_gate)
             {
-                return _processes.Any(item => !item.Process.HasExited) || _coreLoopTask is { IsCompleted: false };
+                return _processes.Any(item => !item.Process.HasExited)
+                    || _coreLoopTask is { IsCompleted: false }
+                    || _liveReadinessTask is { IsCompleted: false };
             }
         }
     }
@@ -190,6 +197,10 @@ internal sealed partial class AgentRuntime : IDisposable
             Path.Combine("desktop-agent", "dist", "AriadGSMAgent", "engines", "orchestrator", "AriadGSM.Orchestrator.Worker.exe"),
             Path.Combine("desktop-agent", "orchestrator-engine", "src", "AriadGSM.Orchestrator.Worker", "AriadGSM.Orchestrator.Worker.csproj"),
             Path.Combine("desktop-agent", "orchestrator-engine", "config", "orchestrator.example.json"));
+        MarkBootPhase("live_readiness", "running", "Refrescando lectura, realidad de ventanas y permiso seguro antes de manos.");
+        StartLiveReadinessLoop();
+        await PrimeLiveReadinessAsync(CancellationToken.None).ConfigureAwait(false);
+        MarkBootPhase("live_readiness", "ok", "Readiness vivo activo para Reader Core, Window Reality y Trust & Safety.");
         MarkBootPhase("python_core", "running", "Encendiendo ciclo mental local.");
         StartCoreLoop();
         MarkBootPhase("python_core", "ok", "Python Core Loop solicitado.");
@@ -273,10 +284,12 @@ internal sealed partial class AgentRuntime : IDisposable
         WriteLifeState("stopping", "shutdown_requested", "Apagando motores locales de forma ordenada.", reason);
         _stopping = true;
         _desiredRunning = false;
+        StopLiveReadinessLoop();
         StopTrustSafetyHeartbeatLoop();
         StopWorkspaceGuardianLoop();
         _supervisorCts?.Cancel();
         _coreLoopCts?.Cancel();
+        WaitForLoopStop(_liveReadinessTask, "LiveReadiness");
         WaitForLoopStop(_trustSafetyHeartbeatTask, "TrustSafetyHeartbeat");
         WaitForLoopStop(_workspaceGuardianTask, "WorkspaceGuardian");
         WaitForLoopStop(_supervisorTask, "ReliabilitySupervisor");
@@ -409,6 +422,7 @@ internal sealed partial class AgentRuntime : IDisposable
             return _processes
                 .Where(item => !item.Process.HasExited)
                 .Select(item => $"{item.Name} #{item.Process.Id}")
+                .Concat(_liveReadinessTask is { IsCompleted: false } ? ["LiveReadiness"] : [])
                 .Concat(_coreLoopTask is { IsCompleted: false } ? ["PythonCoreLoop"] : [])
                 .Concat(_supervisorTask is { IsCompleted: false } ? ["ReliabilitySupervisor"] : [])
                 .Concat(_workspaceGuardianTask is { IsCompleted: false } ? ["WorkspaceGuardian"] : [])
@@ -2162,6 +2176,114 @@ internal sealed partial class AgentRuntime : IDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    private async Task PrimeLiveReadinessAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(LiveReadinessInitialDelay, cancellationToken).ConfigureAwait(false);
+            await RunLiveReadinessSequenceAsync("LiveReadinessPrime", cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            WriteLog($"Live readiness prime failed: {exception.Message}");
+        }
+    }
+
+    private void StartLiveReadinessLoop()
+    {
+        if (_liveReadinessTask is { IsCompleted: false })
+        {
+            return;
+        }
+
+        if (ResolvePython() is null)
+        {
+            WriteLog("Live readiness loop skipped: Python was not found.");
+            return;
+        }
+
+        _liveReadinessCts?.Dispose();
+        _liveReadinessCts = new CancellationTokenSource();
+        var token = _liveReadinessCts.Token;
+        _liveReadinessTask = Task.Run(async () =>
+        {
+            WriteLog("Live readiness loop started.");
+            try
+            {
+                await Task.Delay(LiveReadinessInitialDelay, token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                WriteLog("Live readiness loop stopped.");
+                return;
+            }
+
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await RunLiveReadinessSequenceAsync("LiveReadiness", token).ConfigureAwait(false);
+                    await Task.Delay(LiveReadinessInterval, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    WriteLog($"Live readiness loop failed: {exception.Message}");
+                    try
+                    {
+                        await Task.Delay(LiveReadinessInterval, token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            WriteLog("Live readiness loop stopped.");
+        });
+    }
+
+    private void StopLiveReadinessLoop()
+    {
+        _liveReadinessCts?.Cancel();
+    }
+
+    private async Task RunLiveReadinessSequenceAsync(string prefix, CancellationToken cancellationToken)
+    {
+        var python = ResolvePython();
+        if (python is null)
+        {
+            return;
+        }
+
+        await RunLiveReadinessProcessToExitAsync(
+            $"{prefix}ReaderCore",
+            python,
+            ["-m", "ariadgsm_agent.reader_core", "--json"],
+            _desktopRoot,
+            cancellationToken).ConfigureAwait(false);
+        await RunLiveReadinessProcessToExitAsync(
+            $"{prefix}WindowReality",
+            python,
+            ["-m", "ariadgsm_agent.window_reality", "--json"],
+            _desktopRoot,
+            cancellationToken).ConfigureAwait(false);
+        await RunTrustSafetyProcessToExitAsync(
+            $"{prefix}TrustSafety",
+            python,
+            ["-m", "ariadgsm_agent.trust_safety", "--autonomy-level", "3", "--limit", "80", "--json"],
+            _desktopRoot,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     private void StartTrustSafetyHeartbeatLoop()
     {
         if (_trustSafetyHeartbeatTask is { IsCompleted: false })
@@ -2456,6 +2578,11 @@ internal sealed partial class AgentRuntime : IDisposable
             {
                 await RunTrustSafetyProcessToExitAsync(name, python, arguments, _desktopRoot, cancellationToken).ConfigureAwait(false);
             }
+            else if (module.Equals("ariadgsm_agent.reader_core", StringComparison.OrdinalIgnoreCase)
+                || module.Equals("ariadgsm_agent.window_reality", StringComparison.OrdinalIgnoreCase))
+            {
+                await RunLiveReadinessProcessToExitAsync(name, python, arguments, _desktopRoot, cancellationToken).ConfigureAwait(false);
+            }
             else
             {
                 await RunProcessToExitAsync(name, python, arguments, _desktopRoot, cancellationToken).ConfigureAwait(false);
@@ -2478,6 +2605,24 @@ internal sealed partial class AgentRuntime : IDisposable
         finally
         {
             _trustSafetyProcessGate.Release();
+        }
+    }
+
+    private async Task RunLiveReadinessProcessToExitAsync(
+        string name,
+        string fileName,
+        IEnumerable<string> arguments,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        await _liveReadinessProcessGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await RunProcessToExitAsync(name, fileName, arguments, workingDirectory, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _liveReadinessProcessGate.Release();
         }
     }
 
@@ -2708,6 +2853,19 @@ internal sealed partial class AgentRuntime : IDisposable
                 WriteSupervisorState("warning", reason);
             }
         }
+
+        if (_desiredRunning && !_stopping && _liveReadinessTask is null or { IsCompleted: true })
+        {
+            if (CanRestart("LiveReadiness", out var reason))
+            {
+                WriteLog("LiveReadiness was not running. Restarting from reliability supervisor.");
+                StartLiveReadinessLoop();
+            }
+            else
+            {
+                WriteSupervisorState("warning", reason);
+            }
+        }
     }
 
     private bool CanRestart(string name, out string reason)
@@ -2765,6 +2923,7 @@ internal sealed partial class AgentRuntime : IDisposable
                         ["lastRestartAt"] = tracker?.LastRestartAt
                     };
                 }).ToArray(),
+                ["liveReadinessRunning"] = _liveReadinessTask is { IsCompleted: false },
                 ["coreLoopRunning"] = _coreLoopTask is { IsCompleted: false },
                 ["supervisorRunning"] = _supervisorTask is { IsCompleted: false },
                 ["trustSafetyHeartbeatRunning"] = _trustSafetyHeartbeatTask is { IsCompleted: false }

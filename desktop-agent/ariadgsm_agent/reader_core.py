@@ -20,7 +20,7 @@ from .text import clean_text, looks_like_browser_ui_title, normalize
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.9.9"
+VERSION = "0.9.14"
 EXPECTED_CHANNELS = ("wa-1", "wa-2", "wa-3")
 
 SOURCE_RANKS: dict[str, int] = {
@@ -67,6 +67,16 @@ NOISE_TEXTS = {
     "tus mensajes personales estan cifrados de extremo a extremo",
     "anadir esta pagina a marcadores ctrl d",
     "añadir esta pagina a marcadores ctrl d",
+    "anadir pestana a la barra de tareas",
+    "añadir pestaña a la barra de tareas",
+    "barra de menus",
+    "barra de menús",
+    "archivo",
+    "editar",
+    "ver",
+    "historial",
+    "marcadores",
+    "herramientas",
     "cerrar",
     "usar aqui",
     "usar aqui para abrir whatsapp en esta ventana",
@@ -418,7 +428,19 @@ def context_for_message(event: dict[str, Any], item: dict[str, Any], contexts: d
 def candidates_from_perception_event(event: dict[str, Any]) -> tuple[list[SourceCandidate], list[dict[str, Any]]]:
     objects = [item for item in event.get("objects") or [] if isinstance(item, dict)]
     contexts = perception_contexts(event)
-    message_objects = [item for item in objects if clean_text(item.get("objectType")) == "message_bubble"][-60:]
+    message_objects: list[dict[str, Any]] = []
+    messages_by_channel: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in objects:
+        if clean_text(item.get("objectType")) != "message_bubble":
+            continue
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        channel_id = clean_text(metadata.get("channelId") or event.get("channelId"))
+        if not channel_id and len(contexts) == 1:
+            channel_id = next(iter(contexts.keys()))
+        messages_by_channel[channel_id or "unknown"].append(item)
+    for channel_id in EXPECTED_CHANNELS:
+        message_objects.extend(messages_by_channel.get(channel_id, [])[-40:])
+    message_objects.extend(messages_by_channel.get("unknown", [])[-20:])
     output: list[SourceCandidate] = []
     rejected: list[dict[str, Any]] = []
     for index, item in enumerate(message_objects):

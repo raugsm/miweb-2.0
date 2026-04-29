@@ -9,7 +9,7 @@ from typing import Any
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.8.14"
+VERSION = "0.9.14"
 
 DECISIONS = ("ALLOW", "ALLOW_WITH_LIMIT", "ASK_HUMAN", "PAUSE_FOR_OPERATOR", "BLOCK")
 RISK_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -210,6 +210,7 @@ class TrustFinding:
     allowed_actions: list[str]
     blocked_actions: list[str]
     human_summary: str
+    gate_blocking: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -233,6 +234,7 @@ class TrustFinding:
             "allowedActions": self.allowed_actions,
             "blockedActions": self.blocked_actions,
             "humanSummary": self.human_summary,
+            "gateBlocking": self.gate_blocking,
             "reason": "; ".join(self.reasons),
             "intent": self.action_key,
         }
@@ -266,14 +268,16 @@ class TrustSafetyCore:
         if operator_has_priority:
             findings.append(self.operator_handoff_finding(input_state or {}))
 
-        blocked = [item for item in findings if item.decision == "BLOCK"]
-        ask_human = [item for item in findings if item.decision == "ASK_HUMAN"]
-        paused = [item for item in findings if item.decision == "PAUSE_FOR_OPERATOR"]
-        limited = [item for item in findings if item.decision == "ALLOW_WITH_LIMIT"]
-        allowed = [item for item in findings if item.decision == "ALLOW"]
-        evidence_missing = [item for item in findings if any("evidencia" in reason.lower() for reason in item.reasons)]
+        gate_findings = [item for item in findings if item.gate_blocking]
+        audit_only = [item for item in findings if not item.gate_blocking]
+        blocked = [item for item in gate_findings if item.decision == "BLOCK"]
+        ask_human = [item for item in gate_findings if item.decision == "ASK_HUMAN"]
+        paused = [item for item in gate_findings if item.decision == "PAUSE_FOR_OPERATOR"]
+        limited = [item for item in gate_findings if item.decision == "ALLOW_WITH_LIMIT"]
+        allowed = [item for item in gate_findings if item.decision == "ALLOW"]
+        evidence_missing = [item for item in gate_findings if any("evidencia" in reason.lower() for reason in item.reasons)]
         approvals_applied = [item for item in findings if item.approval_id]
-        critical = [item for item in findings if item.risk_level == "critical" or item.severity == "critical"]
+        critical = [item for item in gate_findings if item.risk_level == "critical" or item.severity == "critical"]
 
         gate_decision = decide_gate(blocked, ask_human, paused, limited)
         hands_can_run = decide_hands_can_run(gate_decision, blocked, paused)
@@ -341,6 +345,8 @@ class TrustSafetyCore:
                 "approvalsRead": len(self.approvals_by_source),
                 "approvalsApplied": len(approvals_applied),
                 "findings": len(findings),
+                "gateFindings": len(gate_findings),
+                "auditOnlyFindings": len(audit_only),
                 "allowed": len(allowed),
                 "allowedWithLimit": len(limited),
                 "paused": len(paused),
@@ -357,6 +363,7 @@ class TrustSafetyCore:
             "pausedActions": [item.to_dict() for item in paused[-12:]],
             "requiresHumanActions": [item.to_dict() for item in ask_human[-12:]],
             "blockedActions": [item.to_dict() for item in blocked[-12:]],
+            "auditOnlyFindings": [item.to_dict() for item in audit_only[-20:]],
             "humanReport": human_report,
         }
 
@@ -413,7 +420,10 @@ class TrustSafetyCore:
                 allowed=False,
                 requires_human_confirmation=True,
                 severity=max_severity(finding.severity, "blocked"),
-                reasons=finding.reasons + [f"Hands reporto accion {status}: {clean_text(verification.get('summary')) or clean_text(target.get('executionSummary'))}"],
+                gate_blocking=False,
+                reasons=finding.reasons
+                + [f"Hands reporto accion {status}: {clean_text(verification.get('summary')) or clean_text(target.get('executionSummary'))}"]
+                + ["Incidente terminal ya cerrado; queda auditado pero no congela el permiso operativo actual."],
             )
         if action_type in {"open_chat", "scroll_history", "capture_conversation"} and not verified and status != "planned":
             return replace_finding(

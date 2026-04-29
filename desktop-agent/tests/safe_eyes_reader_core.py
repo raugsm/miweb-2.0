@@ -225,6 +225,91 @@ def main() -> int:
         assert repeated["ingested"]["sourceBytesRead"] == 0
         assert repeated["summary"]["storedMessages"] == 2
 
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        perception_file = root / "perception-events.jsonl"
+        visible_file = root / "reader-visible-messages.jsonl"
+        conversation_file = root / "conversation-events.jsonl"
+        state_file = root / "reader-core-state.json"
+        report_file = root / "reader-core-report.json"
+        db_file = root / "reader-core.sqlite"
+        objects = []
+        for channel_id, browser, title in [
+            ("wa-1", "msedge", "Cliente Edge"),
+            ("wa-2", "chrome", "Cliente Chrome"),
+            ("wa-3", "firefox", "Cliente Firefox"),
+        ]:
+            objects.append(
+                {
+                    "objectType": "window",
+                    "confidence": 0.95,
+                    "text": f"WhatsApp Business - {browser}",
+                    "role": "whatsapp_web",
+                    "metadata": {
+                        "channelId": channel_id,
+                        "browserProcess": browser,
+                        "windowTitle": f"WhatsApp Business - {browser}",
+                    },
+                }
+            )
+            objects.append(
+                {
+                    "objectType": "conversation",
+                    "confidence": 0.95,
+                    "text": title,
+                    "role": "active_conversation",
+                    "metadata": {
+                        "channelId": channel_id,
+                        "conversationId": f"{channel_id}-cliente",
+                        "conversationTitle": title,
+                        "browserProcess": browser,
+                        "windowTitle": f"WhatsApp Business - {browser}",
+                    },
+                }
+            )
+            for index in range(80):
+                objects.append(
+                    {
+                        "objectType": "message_bubble",
+                        "confidence": 0.91,
+                        "text": f"{title} mensaje util {index}",
+                        "role": "client",
+                        "metadata": {
+                            "channelId": channel_id,
+                            "messageKey": f"{channel_id}-msg-{index}",
+                            "conversationId": f"{channel_id}-cliente",
+                            "conversationTitle": title,
+                            "browserProcess": browser,
+                            "windowTitle": f"WhatsApp Business - {browser}",
+                            "sourceKind": "windows_accessibility",
+                        },
+                    }
+                )
+        write_jsonl(
+            perception_file,
+            [
+                {
+                    "eventType": "perception_event",
+                    "perceptionEventId": "perception-three-channel-heavy",
+                    "observedAt": "2026-04-27T18:05:00Z",
+                    "sourceVisionEventId": "vision-three-channel-heavy",
+                    "objects": objects,
+                }
+            ],
+        )
+        state = run_reader_core_once(
+            [perception_file],
+            visible_file,
+            conversation_file,
+            state_file,
+            report_file,
+            db_file,
+        )
+        assert state["channels"][0]["readiness"]["freshRead"] is True, state
+        assert state["channels"][1]["readiness"]["freshRead"] is True, state
+        assert state["channels"][2]["readiness"]["freshRead"] is True, state
+        assert state["ingested"]["candidateMessages"] == 120, state
+
     print("safe eyes reader core OK")
     return 0
 

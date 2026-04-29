@@ -1,6 +1,6 @@
 # AriadGSM Product Runtime Packaging + Live Boot Chain Closure
 
-Version: 0.9.12
+Version: 0.9.14
 
 ## Fuentes base
 
@@ -28,6 +28,7 @@ La correccion de arquitectura es formalizar el boot chain:
 - Safe State Writer evita que un lock temporal o antivirus tumbe Hands.
 - Process Ownership Shutdown cancela loops, mata subprocess propios cancelados y limpia workers propios sin tocar Edge/Chrome/Firefox.
 - Window Lifecycle Tracking publica `window-lifecycle-events.jsonl` para perdida/restauracion/cambio/tapado de wa-1/2/3.
+- Live Readiness Loop refresca Reader Core, Window Reality y Trust & Safety en una ruta corta antes y durante Hands.
 - Trust & Safety Heartbeat refresca permisos cortos separado del ciclo Python pesado.
 - End-to-End Boot/Shutdown Evaluation queda cubierta por pruebas automatizadas de contratos, codigo y paquete.
 
@@ -39,6 +40,7 @@ La correccion de arquitectura es formalizar el boot chain:
 - `hands-state.json`: telemetria de actuacion, no evidencia primaria de realidad.
 - `window-lifecycle-events.jsonl`: historial incremental de vida real de wa-1/2/3.
 - `trust-safety-state.json`: permiso vivo; debe actualizarse por heartbeat mientras la IA este encendida.
+- `live_readiness`: fase de Control Plane que mantiene lectura, realidad y permiso frescos sin esperar todo el ciclo mental.
 - `runtime-governor-state.json`: ownership de procesos propios; navegadores no son propiedad de la IA.
 
 ## Empaquetado
@@ -61,6 +63,8 @@ El self-test del ejecutable falla si el paquete no contiene estos archivos. Esto
 - Pausar/cerrar cancela loops y no deja workers propios vivos.
 - El sistema emite eventos cuando una ventana WhatsApp se pierde, cambia, queda tapada o vuelve.
 - Trust & Safety mantiene heartbeat fresco mientras la IA este encendida.
+- Reader Core no pierde wa-1/wa-2 por tomar solo las ultimas lineas globales; ingiere mensajes recientes por canal.
+- Hands respeta `canHandsRun=true` para navegacion local segura aunque existan hallazgos que pidan revision humana.
 - Window Reality no queda bloqueado por Hands viejo o ausente.
 - El paquete contiene nucleos Python y contratos.
 - El self-test del paquete valida runtime minimo.
