@@ -5,6 +5,7 @@ const path = require("path");
 
 const OPERATIVA_FILE = path.join(DATA_DIR, "operativa-v2.json");
 const OPERATIVA_BACKUPS_DIR = path.join(DATA_DIR, "operativa-backups");
+const CLOUD_SYNC_AUDIT_FILE = path.join(DATA_DIR, "cloud-sync-audit.jsonl");
 
 const DEFAULT_CHANNELS = [
   {
@@ -384,6 +385,59 @@ function writeOperativaState(nextState) {
   return normalized;
 }
 
+function encodeCursor(offset) {
+  if (!Number.isFinite(offset) || offset <= 0) {
+    return null;
+  }
+  return Buffer.from(JSON.stringify({ offset }), "utf8").toString("base64url");
+}
+
+function decodeCursor(cursor) {
+  if (!cursor) {
+    return 0;
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(String(cursor), "base64url").toString("utf8"));
+    const offset = Number(parsed.offset || 0);
+    return Number.isFinite(offset) && offset > 0 ? offset : 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+function pageCollection(rows, cursor, pageSize) {
+  const source = Array.isArray(rows) ? rows : [];
+  const limit = Math.max(1, Math.min(200, Number(pageSize || 80)));
+  const offset = Math.min(source.length, decodeCursor(cursor));
+  const pageRows = source.slice(offset, offset + limit);
+  const nextOffset = offset + pageRows.length;
+  return {
+    rows: pageRows,
+    cursor: cursor || null,
+    nextCursor: nextOffset < source.length ? encodeCursor(nextOffset) : null,
+    pageSize: limit,
+    total: source.length,
+    returned: pageRows.length,
+  };
+}
+
+function buildOperativaPages(state, options = {}) {
+  const cursors = options.cursors || {};
+  const pageSize = options.pageSize || 80;
+  const learningRows = [
+    ...(Array.isArray(state.weeklyAccounts) ? state.weeklyAccounts : []),
+    ...(Array.isArray(state.events)
+      ? state.events.filter((event) => String(event.type || event.eventType || "").toLowerCase().includes("learning"))
+      : []),
+  ];
+  return {
+    conversations: pageCollection(state.conversations, cursors.conversations, pageSize),
+    messages: pageCollection(state.messages, cursors.messages, pageSize),
+    signals: pageCollection(state.agentCheckpoints, cursors.signals, pageSize),
+    learnings: pageCollection(learningRows, cursors.learnings, pageSize),
+  };
+}
+
 function createSeedState() {
   return {
     version: 3,
@@ -440,6 +494,40 @@ function pushAudit(state, entry) {
     createdAt: nowIso(),
   });
   state.auditLog = state.auditLog.slice(0, 500);
+}
+
+function appendCloudSyncAudit(entry) {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  const record = {
+    lote_id: entry.batchId || entry.lote_id || "",
+    agent_id: entry.agentId || entry.agent_id || "unknown",
+    timestamp: entry.timestamp || nowIso(),
+    hash: entry.payloadHash || entry.hash || "",
+    verdict: entry.verdict || "rejected",
+    reason: entry.reason || "",
+  };
+  fs.appendFileSync(CLOUD_SYNC_AUDIT_FILE, JSON.stringify(record) + "\n", "utf8");
+  return record;
+}
+
+function readCloudSyncAudit(limit = 100) {
+  if (!fs.existsSync(CLOUD_SYNC_AUDIT_FILE)) {
+    return [];
+  }
+  return fs
+    .readFileSync(CLOUD_SYNC_AUDIT_FILE, "utf8")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .slice(-Math.max(1, Number(limit || 100)))
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch (error) {
+        return { invalid: true, raw: line };
+      }
+    });
 }
 
 function addReviewItem(state, item) {
@@ -928,6 +1016,12 @@ function recordCloudSync(data, actor = "visual_agent") {
         lastHeartbeat: duplicate.duplicateReceivedAt,
         message: state.cloud.message,
       });
+      appendCloudSyncAudit({
+        batchId: duplicate.id || idempotencyKey,
+        agentId: actor,
+        payloadHash: duplicate.payloadHash || data.payloadHash || "",
+        verdict: "duplicate",
+      });
       return {
         duplicate: true,
         batch: duplicate,
@@ -989,6 +1083,12 @@ function recordCloudSync(data, actor = "visual_agent") {
     entityType: "sync_batch",
     entityId: batch.id,
     after: batch,
+  });
+  appendCloudSyncAudit({
+    batchId: batch.id || idempotencyKey,
+    agentId: actor,
+    payloadHash: batch.payloadHash || data.payloadHash || "",
+    verdict: "new",
   });
 
   return {
@@ -1278,6 +1378,7 @@ function mapMessageToInsight(state, message) {
 
 function buildMessageInsights(state) {
   const insights = state.messages
+    .slice(0, 300)
     .map((message) => mapMessageToInsight(state, message))
     .filter((item) => item.classification.intent !== "no_action");
 
@@ -1293,8 +1394,9 @@ function buildMessageInsights(state) {
   };
 }
 
-function buildOperativaSnapshot(stateOverride = null) {
+function buildOperativaSnapshot(stateOverride = null, options = {}) {
   const state = stateOverride ? normalizeState(stateOverride) : readOperativaState();
+  const pages = buildOperativaPages(state, options);
   const pendingReviews = state.reviewItems.filter((item) => item.status === "pendiente");
   const servicesInProgress = state.serviceOrders.filter((item) =>
     ["payment_verified", "in_process", "pending_provider", "weekly_billable"].includes(item.status)
@@ -1306,6 +1408,36 @@ function buildOperativaSnapshot(stateOverride = null) {
   return {
     ...state,
     generatedAt: nowIso(),
+    conversations: pages.conversations.rows,
+    messages: pages.messages.rows,
+    signals: pages.signals.rows,
+    learnings: pages.learnings.rows,
+    pagination: {
+      conversations: {
+        nextCursor: pages.conversations.nextCursor,
+        pageSize: pages.conversations.pageSize,
+        returned: pages.conversations.returned,
+        total: pages.conversations.total,
+      },
+      messages: {
+        nextCursor: pages.messages.nextCursor,
+        pageSize: pages.messages.pageSize,
+        returned: pages.messages.returned,
+        total: pages.messages.total,
+      },
+      signals: {
+        nextCursor: pages.signals.nextCursor,
+        pageSize: pages.signals.pageSize,
+        returned: pages.signals.returned,
+        total: pages.signals.total,
+      },
+      learnings: {
+        nextCursor: pages.learnings.nextCursor,
+        pageSize: pages.learnings.pageSize,
+        returned: pages.learnings.returned,
+        total: pages.learnings.total,
+      },
+    },
     channels: buildChannels(state),
     receivers,
     messageInsights: messageInsights.rows,
@@ -1326,6 +1458,7 @@ function buildOperativaSnapshot(stateOverride = null) {
 }
 
 module.exports = {
+  appendCloudSyncAudit,
   buildOperativaSnapshot,
   buildCloudReport,
   classifyWhatsappMessage,
@@ -1335,6 +1468,7 @@ module.exports = {
   ingestOperativaEvent,
   listOperativaBackups,
   recordCloudSync,
+  readCloudSyncAudit,
   readOperativaState,
   writeOperativaState,
 };

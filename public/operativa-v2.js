@@ -1,4 +1,7 @@
 const state = { data: null };
+const bootSessionToken =
+  document.querySelector('meta[name="ariadgsm-session-token"]')?.getAttribute("content") || "";
+const csrfToken = document.querySelector('meta[name="ariadgsm-csrf-token"]')?.getAttribute("content") || "";
 
 const moneyLabels = [
   ["receivedUsd", "Ingresos recibidos", "USD"],
@@ -15,12 +18,28 @@ function $(id) {
 }
 
 function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"]/g, (match) => ({
+  return String(value ?? "").replace(/[&<>"']/g, (match) => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     "\"": "&quot;",
+    "'": "&#39;",
   }[match]));
+}
+
+function apiHeaders(extra = {}) {
+  return {
+    "X-AriadGSM-Session": bootSessionToken,
+    ...extra,
+  };
+}
+
+function mutatingHeaders(extra = {}) {
+  return apiHeaders({
+    "Content-Type": "application/json",
+    "X-AriadGSM-CSRF": csrfToken,
+    ...extra,
+  });
 }
 
 function createEmptyData(message) {
@@ -442,7 +461,7 @@ async function createBackup() {
   try {
     const response = await fetch("/api/operativa-v2/cloud/backups", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mutatingHeaders(),
       body: JSON.stringify({ actor: "panel", note: "Respaldo manual desde AriadGSM Control" }),
     });
     const payload = await response.json().catch(() => ({}));
@@ -465,7 +484,7 @@ async function loadOperativa() {
   const button = $("refreshButton");
   if (button) button.disabled = true;
   try {
-    const response = await fetch("/api/operativa-v2", { cache: "no-store" });
+    const response = await fetch("/api/operativa-v2", { cache: "no-store", headers: apiHeaders() });
     if (!response.ok) {
       throw new Error("No pude cargar la cabina operativa");
     }
@@ -486,7 +505,76 @@ async function loadOperativa() {
   }
 }
 
+async function refreshCabin() {
+  if (typeof loadOperativa === "function") {
+    await loadOperativa();
+    return;
+  }
+  window.location.reload();
+}
+
+async function clearReviews(button) {
+  const pending = Number($("reviewPending")?.textContent || 0);
+  if (!pending) {
+    window.alert("No hay pendientes para limpiar.");
+    return;
+  }
+
+  const confirmed = window.confirm(`Marcar como revisadas las ${pending} dudas pendientes?`);
+  if (!confirmed) return;
+
+  const buttons = document.querySelectorAll("[data-clear-reviews]");
+  buttons.forEach((item) => {
+    item.disabled = true;
+  });
+  if (button) button.textContent = "Limpiando...";
+
+  try {
+    const response = await fetch("/api/operativa-v2/reviews/clear", {
+      method: "POST",
+      headers: mutatingHeaders(),
+      body: JSON.stringify({ actor: "panel", note: "Limpieza manual del tablero" }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || "No pude limpiar el tablero");
+    }
+    await refreshCabin();
+  } catch (error) {
+    window.alert(error.message || "No pude limpiar el tablero");
+  } finally {
+    buttons.forEach((item) => {
+      item.disabled = false;
+    });
+    if (button) button.textContent = "Limpiar tablero";
+  }
+}
+
+function startRuntimeStream() {
+  if (!window.EventSource || !bootSessionToken) {
+    return false;
+  }
+  const source = new EventSource(`/api/operativa-v2/runtime/stream?sessionToken=${encodeURIComponent(bootSessionToken)}`);
+  source.addEventListener("runtime", (event) => {
+    try {
+      state.data = JSON.parse(event.data);
+      renderAll();
+    } catch (error) {
+      source.close();
+    }
+  });
+  source.addEventListener("error", () => {
+    source.close();
+  });
+  return true;
+}
+
 $("refreshButton")?.addEventListener("click", loadOperativa);
 $("createBackupButton")?.addEventListener("click", createBackup);
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-clear-reviews]");
+  if (!button) return;
+  clearReviews(button);
+});
 loadOperativa();
-window.setInterval(loadOperativa, 30000);
+startRuntimeStream();

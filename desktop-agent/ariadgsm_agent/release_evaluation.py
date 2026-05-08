@@ -26,6 +26,7 @@ GATE_NAMES = {
     "15.5": "Installer / Updater / Rollback",
     "15.6": "Long-run Test",
     "15.7": "Release Candidate",
+    "15.8": "Web Hardening",
 }
 
 
@@ -188,6 +189,46 @@ def gate_evaluation_harness(repo_root: Path, runtime_dir: Path) -> dict[str, Any
     )
 
 
+def gate_web_hardening(repo_root: Path) -> dict[str, Any]:
+    failures: list[str] = []
+    expected_files = [
+        "desktop-agent/tests/web_hardening_panel.py",
+        "desktop-agent/tests/web_hardening_cloud_sync.py",
+        "docs/ARIADGSM_WEB_HARDENING_ANNEX.md",
+    ]
+    for file_name in expected_files:
+        if not (repo_root / file_name).exists():
+            failures.append(f"missing:{file_name}")
+
+    bundle = repo_root / "public/operativa-v2.js"
+    bundle_bytes = bundle.stat().st_size if bundle.exists() else 0
+    if not bundle.exists():
+        failures.append("missing:public/operativa-v2.js")
+    elif bundle_bytes >= 100 * 1024:
+        failures.append(f"bundle:{bundle_bytes} bytes >= 102400")
+
+    wrapper = read_text(repo_root / "server-wrapper.js")
+    cloud_sync = read_text(repo_root / "desktop-agent/ariadgsm_agent/cloud_sync.py")
+    panel = read_text(bundle)
+    required_markers = {
+        "csp": "Content-Security-Policy" in wrapper,
+        "csrf": "X-AriadGSM-CSRF" in panel and "ariadgsm_csrf" in wrapper,
+        "hmac_client": "X-AriadGSM-Signature" in cloud_sync,
+        "hmac_server": "verifyAriadGsmSignature" in wrapper,
+        "sse": "text/event-stream" in wrapper and "EventSource" in panel,
+        "escape": "escapeHtml(item.text)" in panel,
+    }
+    failures.extend([f"missing-marker:{name}" for name, ok in required_markers.items() if not ok])
+
+    return gate(
+        "15.8",
+        "blocked" if failures else "ok",
+        0.0 if failures else 1.0,
+        f"Endurecimiento web reviso CSP, auth de arranque, CSRF, HMAC, SSE, escape y bundle={bundle_bytes} bytes.",
+        failures[:8],
+    )
+
+
 def grade_trace_line(line: str) -> dict[str, Any]:
     lower = line.lower()
     score = 1.0
@@ -331,6 +372,7 @@ def run_evaluation_release_once(repo_root: Path, runtime_dir: Path, *, version: 
         gate_runtime_governor(runtime),
         gate_durable_checkpoints(runtime),
         gate_evaluation_harness(repo, runtime),
+        gate_web_hardening(repo),
         gate_observability(runtime),
         gate_updater_rollback(repo, runtime, version),
         gate_long_run(runtime),

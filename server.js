@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 const { URL } = require("url");
 const AdmZip = require("adm-zip");
 const { nowTime, runCaseDiagnostics } = require("./agent");
@@ -83,7 +84,11 @@ const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
   ".svg": "image/svg+xml",
 };
 
@@ -98,9 +103,20 @@ function sendJsonWithHeaders(res, statusCode, payload, headers = {}) {
 }
 
 function sendSecurityHeaders(res) {
+  const hardening = global.__ARIADGSM_WEB_HARDENING__;
+  if (hardening?.applySecurityHeaders) {
+    hardening.applySecurityHeaders(res);
+    return;
+  }
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+  );
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), fullscreen=(self)");
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
 }
 
 function maybeRedirectToHttps(req, res, requestUrl) {
@@ -119,7 +135,33 @@ function maybeRedirectToHttps(req, res, requestUrl) {
   return true;
 }
 
-function serveStaticFile(filePath, res) {
+function isTextAsset(contentType) {
+  return /^(text\/|application\/javascript|application\/json|image\/svg\+xml)/i.test(contentType);
+}
+
+function isVersionedAsset(requestUrl, filePath) {
+  const fileName = path.basename(filePath);
+  return (
+    requestUrl.searchParams.has("v") ||
+    requestUrl.searchParams.has("version") ||
+    /(?:^|[.-])[0-9a-f]{8,}(?:[.-]|$)/i.test(fileName)
+  );
+}
+
+function compressStaticContent(content, acceptEncoding, contentType) {
+  if (!isTextAsset(contentType) || content.length < 1024) {
+    return { content };
+  }
+  if (/\bbr\b/.test(acceptEncoding)) {
+    return { content: zlib.brotliCompressSync(content), encoding: "br" };
+  }
+  if (/\bgzip\b/.test(acceptEncoding)) {
+    return { content: zlib.gzipSync(content), encoding: "gzip" };
+  }
+  return { content };
+}
+
+function serveStaticFile(filePath, req, res, requestUrl) {
   const ext = path.extname(filePath);
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
 
@@ -129,8 +171,24 @@ function serveStaticFile(filePath, res) {
       return;
     }
 
-    res.writeHead(200, { "Content-Type": contentType });
-    res.end(content);
+    let body = content;
+    const headers = {
+      "Content-Type": contentType,
+      "Cache-Control": isVersionedAsset(requestUrl, filePath)
+        ? "public, max-age=31536000, immutable"
+        : "no-store",
+      Vary: "Accept-Encoding",
+    };
+    if (path.basename(filePath) === "operativa-v2.html" && global.__ARIADGSM_WEB_HARDENING__) {
+      body = Buffer.from(global.__ARIADGSM_WEB_HARDENING__.injectPanelTokens(content.toString("utf8")), "utf8");
+      headers["Set-Cookie"] = global.__ARIADGSM_WEB_HARDENING__.buildCsrfCookie();
+    }
+    const compressed = compressStaticContent(body, String(req.headers["accept-encoding"] || ""), contentType);
+    if (compressed.encoding) {
+      headers["Content-Encoding"] = compressed.encoding;
+    }
+    res.writeHead(200, headers);
+    res.end(compressed.content);
   });
 }
 
@@ -1271,7 +1329,7 @@ const server = http.createServer(async (req, res) => {
       ? path.join(PUBLIC_DIR, "index.html")
       : path.join(PUBLIC_DIR, requestUrl.pathname);
 
-  serveStaticFile(filePath, res);
+  serveStaticFile(filePath, req, res, requestUrl);
 });
 
 server.listen(PORT, () => {

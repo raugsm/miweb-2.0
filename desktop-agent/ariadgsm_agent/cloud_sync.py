@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import hashlib
 import json
 import os
 import random
+import ssl
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -49,6 +51,20 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
 
 def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def hmac_signature(body: bytes, secret: str) -> str:
+    digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    return f"sha256={digest}"
+
+
+def tls13_context_for(endpoint: str) -> ssl.SSLContext | None:
+    if not endpoint.lower().startswith("https://"):
+        return None
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    context.maximum_version = ssl.TLSVersion.TLSv1_3
+    return context
 
 
 def normalize_url(value: str) -> str:
@@ -452,6 +468,7 @@ def build_payload(
         "security": {
             "tokenSource": token_source or "none",
             "tokenIncluded": False,
+            "hmacSignatureHeader": "X-AriadGSM-Signature",
             "rawFramesUploaded": False,
             "screenshotsUploaded": False,
             "secretsLogged": False,
@@ -471,10 +488,11 @@ def post_payload(endpoint: str, token: str, payload: dict[str, Any], timeout: fl
             "Content-Type": "application/json; charset=utf-8",
             "Authorization": f"Bearer {token}",
             "Idempotency-Key": text(payload.get("idempotencyKey")),
+            "X-AriadGSM-Signature": hmac_signature(body, token),
             "User-Agent": f"AriadGSM-CloudSync/{VERSION}",
         },
     )
-    with request.urlopen(req, timeout=timeout) as response:
+    with request.urlopen(req, timeout=timeout, context=tls13_context_for(endpoint)) as response:
         raw = response.read().decode("utf-8", errors="replace")
         try:
             parsed = json.loads(raw)
@@ -542,6 +560,8 @@ def build_state(
         },
         "policy": {
             "idempotencyRequired": True,
+            "hmacSignatureRequired": True,
+            "tlsPolicy": "TLSv1.3_only_for_https",
             "retryAttemptsMax": MAX_RETRY_ATTEMPTS,
             "rawFramesUploaded": False,
             "screenshotsUploaded": False,

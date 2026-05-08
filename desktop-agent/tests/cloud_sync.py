@@ -113,6 +113,7 @@ class CaptureHandler(BaseHTTPRequestHandler):
                 "path": self.path,
                 "authorization": self.headers.get("Authorization", ""),
                 "idempotency": self.headers.get("Idempotency-Key", ""),
+                "signature": self.headers.get("X-AriadGSM-Signature", ""),
                 "payload": json.loads(body),
             }
         )
@@ -185,7 +186,9 @@ def main() -> int:
         assert captured["path"] == "/api/operativa-v2/cloud/sync"
         assert captured["authorization"] == "Bearer test-token"
         assert captured["idempotency"].startswith("cloudsync-")
+        assert captured["signature"].startswith("sha256=")
         assert captured["payload"]["security"]["rawFramesUploaded"] is False
+        assert captured["payload"]["security"]["hmacSignatureHeader"] == "X-AriadGSM-Signature"
         assert (runtime / "cloud-sync-ledger.json").exists()
 
     print("cloud sync OK")

@@ -4,28 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AriadGSM Operativa V2</title>
-    <link rel="stylesheet" href="/operativa-v2.css" />
-    <style>
-      .panel-actions {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
-      }
-
-      .clear-board-button {
-        border: 1px solid var(--line);
-        color: var(--blue2);
-        background: rgba(255, 255, 255, 0.88);
-        box-shadow: none;
-      }
-
-      .clear-board-button:disabled {
-        cursor: wait;
-        opacity: 0.62;
-      }
-    </style>
+    <link rel="stylesheet" href="/operativa-v2.css?v=0.9.10" />
   </head>
   <body>
     <main class="shell">
@@ -129,56 +108,6 @@
         </section>
       </section>
     </main>
-    <script src="/operativa-v2.js"></script>
-    <script>
-      (function () {
-        async function refreshCabin() {
-          if (typeof loadOperativa === "function") {
-            await loadOperativa();
-            return;
-          }
-          window.location.reload();
-        }
-
-        async function clearReviews(button) {
-          const pending = Number(document.getElementById("reviewPending")?.textContent || 0);
-          if (!pending) {
-            window.alert("No hay pendientes para limpiar.");
-            return;
-          }
-
-          const confirmed = window.confirm(`Marcar como revisadas las ${pending} dudas pendientes?`);
-          if (!confirmed) return;
-
-          const buttons = document.querySelectorAll("[data-clear-reviews]");
-          buttons.forEach((item) => { item.disabled = true; });
-          if (button) button.textContent = "Limpiando...";
-
-          try {
-            const response = await fetch("/api/operativa-v2/reviews/clear", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ actor: "panel", note: "Limpieza manual del tablero" }),
-            });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-              throw new Error(payload.error || "No pude limpiar el tablero");
-            }
-            await refreshCabin();
-          } catch (error) {
-            window.alert(error.message || "No pude limpiar el tablero");
-          } finally {
-            buttons.forEach((item) => { item.disabled = false; });
-            if (button) button.textContent = "Limpiar tablero";
-          }
-        }
-
-        document.addEventListener("click", (event) => {
-          const button = event.target.closest("[data-clear-reviews]");
-          if (!button) return;
-          clearReviews(button);
-        });
-      })();
-    </script>
+    <script src="/operativa-v2.js?v=0.9.10"></script>
   </body>
 </html>

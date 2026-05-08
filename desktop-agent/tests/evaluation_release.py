@@ -33,6 +33,12 @@ def make_release_repo(root: Path) -> None:
     write_text(root / "docs/ARIADGSM_EVALUATION_RELEASE_FINAL.md", "Evaluation + Release\n")
     write_text(root / "docs/ARIADGSM_WINDOW_REALITY_RESOLVER_FINAL.md", "Window Reality Resolver\n")
     write_text(root / "docs/ARIADGSM_SUPPORT_TELEMETRY_CORE_FINAL.md", "Support & Telemetry Core\n")
+    write_text(root / "docs/ARIADGSM_WEB_HARDENING_ANNEX.md", "Web Hardening\n")
+    write_text(root / "desktop-agent/tests/web_hardening_panel.py", "print('ok')\n")
+    write_text(root / "desktop-agent/tests/web_hardening_cloud_sync.py", "print('ok')\n")
+    write_text(root / "server-wrapper.js", "Content-Security-Policy ariadgsm_csrf verifyAriadGsmSignature text/event-stream\n")
+    write_text(root / "desktop-agent/ariadgsm_agent/cloud_sync.py", "X-AriadGSM-Signature\n")
+    write_text(root / "public/operativa-v2.js", "X-AriadGSM-CSRF EventSource escapeHtml(item.text)\n")
     write_text(root / "desktop-agent/windows-app/VERSION", "0.9.2\n")
     write_text(
         root / "desktop-agent/windows-app/src/AriadGSM.Agent.Updater/Program.cs",
@@ -81,8 +87,8 @@ def main() -> int:
         (runtime / "windows-app.log").write_text("ok verified\n", encoding="utf-8")
         state = run_evaluation_release_once(repo, runtime, version="0.9.2")
         assert state["status"] == "ok"
-        assert state["summary"]["gatesTotal"] == 7
-        assert state["summary"]["gatesOk"] == 7
+        assert state["summary"]["gatesTotal"] == 8
+        assert state["summary"]["gatesOk"] == 8
         assert state["summary"]["releaseCandidate"] is True
         assert (runtime / "durable-checkpoints.jsonl").exists()
         assert (runtime / "trace-grading-state.json").exists()
