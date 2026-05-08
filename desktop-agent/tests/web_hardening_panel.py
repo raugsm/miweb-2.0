@@ -193,7 +193,7 @@ def main() -> int:
 
             js_status, _, js_response = get_text(
                 opener,
-                f"{base_url}/operativa-v2.js?v=0.9.10",
+                f"{base_url}/operativa-v2.js?v=0.9.15",
                 {"Accept-Encoding": "br"},
             )
             assert js_status == 200, js_status

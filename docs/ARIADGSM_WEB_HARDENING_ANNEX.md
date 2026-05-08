@@ -1,7 +1,8 @@
 # AriadGSM Web Hardening Annex
 
 Estado: anexo operativo de endurecimiento para RC 0.9.2 sobre etapas cerradas 11, 14 y 15.
-Version objetivo: 0.9.10.
+Version objetivo de laboratorio: 0.9.10.
+Version desplegable del canal vivo: 0.9.15.
 
 Este archivo no abre una etapa nueva. Declara controles web minimos para que la
 prueba real supervisada de cabina completa no dependa solo de privacidad LLM,
@@ -19,6 +20,10 @@ idempotencia y evidencia A-F.
 - Node.js official docs: crypto HMAC/timing-safe comparison, zlib and HTTP
   headers.
 - Python official docs: ssl TLSVersion TLSv1_3 and hmac.
+- IETF RFC 9421: HTTP Message Signatures, considerado antes de mantener el
+  contrato HMAC simple para 0.9.15.
+- Render docs: environment variables, deploy hooks and health checks.
+- hstspreload.org / Cloudflare HSTS preload requirements.
 - OpenAI safety guidance for output handling: model output rendered into HTML
   must be treated as untrusted text unless explicitly sanitized/escaped.
 
@@ -59,6 +64,31 @@ idempotencia y evidencia A-F.
 - Cada lote genera audit log append-only en `cloud-sync-audit.jsonl` con
   `lote_id`, `agent_id`, `timestamp`, `hash` y `verdict`:
   `new`, `duplicate` o `rejected`.
+- El esquema compartido del audit log queda versionado como
+  `desktop-agent/contracts/audit-log-entry.schema.json` en el agente y como
+  `server/contracts/audit-log-entry.schema.json` en cloud.
+
+## Contrato de firma agente <-> cloud
+
+Decision 0.9.15: se mantiene HMAC SHA-256 sobre el cuerpo exacto del batch para
+no romper el canal vivo ni reescribir `cloud_sync.py` durante el RC. RFC 9421
+queda registrado como siguiente estandar candidato porque cubre componentes
+HTTP y canonicalizacion formal; no se adopta en 0.9.15 porque el contrato actual
+solo necesita autenticar el body JSON exacto que ya controla el agente y porque
+el servidor cloud debe aceptar el mismo header ya probado en laboratorio.
+
+- Header: `X-AriadGSM-Signature`.
+- Formato: `sha256=<hex-digest>`.
+- Algoritmo: `HMAC-SHA-256`.
+- Material firmado: bytes exactos del cuerpo HTTP enviado por el agente.
+- Secreto: `OPERATIVA_AGENT_KEY`, igual en agente local y cloud.
+- Comparacion servidor: constante en tiempo (`timingSafeEqual` en Node cuando
+  aplica; comparacion segura equivalente en Python tests).
+- Firma ausente: `401` con `{ "error": "signature_missing" }`.
+- Firma invalida: `401` con `{ "error": "signature_invalid" }`.
+- Rate limit cloud: por `agentToken`, base 60 req/min, configurable con
+  `ARIADGSM_CLOUD_SYNC_RATE_LIMIT_PER_MINUTE`.
+- Respuesta rate limit: `429` con header `Retry-After`.
 
 ## Rotacion de OPERATIVA_AGENT_KEY
 

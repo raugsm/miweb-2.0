@@ -100,11 +100,13 @@ def main() -> int:
                 "events": [],
             }
 
-            missing_status, _ = post_json(base_url, "/api/operativa-v2/cloud/sync", payload, token, None)
+            missing_status, missing_payload = post_json(base_url, "/api/operativa-v2/cloud/sync", payload, token, None)
             assert missing_status == 401, missing_status
+            assert missing_payload["error"] == "signature_missing", missing_payload
 
-            invalid_status, _ = post_json(base_url, "/api/operativa-v2/cloud/sync", payload, token, "sha256=bad")
+            invalid_status, invalid_payload = post_json(base_url, "/api/operativa-v2/cloud/sync", payload, token, "sha256=bad")
             assert invalid_status == 401, invalid_status
+            assert invalid_payload["error"] == "signature_invalid", invalid_payload
 
             ok_status, ok_payload = post_json(
                 base_url,

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ariadgsm.com/contracts/audit-log-entry.schema.json",
+  "title": "AriadGSM Cloud Sync Audit Log Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lote_id", "agent_id", "timestamp", "hash", "verdict"],
+  "properties": {
+    "lote_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["new", "duplicate", "rejected"]
+    },
+    "reason": {
+      "type": "string"
+    }
+  }
+}

@@ -15,7 +15,7 @@ const {
 } = require("./operativa-store");
 
 const originalCreateServer = http.createServer.bind(http);
-const WEB_HARDENING_VERSION = "0.9.10";
+const WEB_HARDENING_VERSION = "0.9.15";
 const SESSION_HEADER = "x-ariadgsm-session";
 const CSRF_HEADER = "x-ariadgsm-csrf";
 const SIGNATURE_HEADER = "x-ariadgsm-signature";
@@ -463,18 +463,26 @@ async function handleCloudSync(req, res, requestUrl) {
     return true;
   }
 
+  const signatureHeader = String(req.headers[SIGNATURE_HEADER] || "").trim();
+  if (!signatureHeader) {
+    appendRejectedCloudSyncAudit(req, rawBody, "rejected", "signature_missing");
+    sendJson(res, 401, { error: "signature_missing" });
+    return true;
+  }
+
   const rate = consumeCloudSyncRate(presentedToken);
   res.setHeader("X-RateLimit-Limit", String(CLOUD_RATE_LIMIT_PER_MINUTE));
   res.setHeader("X-RateLimit-Remaining", String(rate.remaining));
   if (!rate.allowed) {
     appendRejectedCloudSyncAudit(req, rawBody, "rejected", "rate_limited");
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((rate.resetAt - Date.now()) / 1000))));
     sendJson(res, 429, { error: "Rate limit excedido" });
     return true;
   }
 
-  if (!verifyAriadGsmSignature(rawBody, req.headers[SIGNATURE_HEADER], expectedToken)) {
-    appendRejectedCloudSyncAudit(req, rawBody, "rejected", "missing_or_invalid_signature");
-    sendJson(res, 401, { error: "Firma invalida" });
+  if (!verifyAriadGsmSignature(rawBody, signatureHeader, expectedToken)) {
+    appendRejectedCloudSyncAudit(req, rawBody, "rejected", "signature_invalid");
+    sendJson(res, 401, { error: "signature_invalid" });
     return true;
   }
 
