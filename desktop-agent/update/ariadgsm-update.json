@@ -1,8 +1,8 @@
 {
-  "version": "0.9.14",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.14.zip",
-  "sha256": "67968a23c7ce9a42ef89e0f7094e962752e656c62cbee3e27d2d212d8d7084fa",
+  "version": "0.9.15",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.15.zip",
+  "sha256": "cf18c2cc9d60a438918e0188d81375382657c5820bf89a2698b3d125f567a07f",
   "autoApply": true,
-  "notes": "Version 0.9.14 closes live layer handoff: Reader Core ingests recent messages per WhatsApp channel, Live Readiness keeps Reader/Window Reality/Trust fresh, and Hands can execute safe local navigation when Trust & Safety grants canHandsRun without allowing text/send actions.",
-  "publishedAt": "2026-04-29T01:40:00Z"
+  "notes": "Version 0.9.15 deploys the RC 0.9.2 web hardening into the live updater channel: session auth and double-submit CSRF for the local panel, strict CSP/security headers, SSE runtime state, default HTML escaping, and HMAC-signed Cloud Sync batches.",
+  "publishedAt": "2026-05-08T02:31:44Z"
 }
