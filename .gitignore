@@ -13,9 +13,14 @@ obj/
 node_modules/
 __pycache__/
 *.pyc
-scripts/visual-agent/visual-agent.config.json
-scripts/visual-agent/visual-agent.cloud.json
-scripts/visual-agent/*.secret.txt
+scripts/visual-agent/*.config.json
+!scripts/visual-agent/*.config.example.json
+scripts/visual-agent/*.cloud.json
+scripts/visual-agent/*.secret
+scripts/visual-agent/*.secret.*
+scripts/visual-agent/*.key
+scripts/visual-agent/*.pem
+scripts/visual-agent/.env*
 scripts/visual-agent/inbox/
 scripts/visual-agent/processed/
 scripts/visual-agent/failed/
