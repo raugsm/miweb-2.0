@@ -101,6 +101,26 @@ el servidor cloud debe aceptar el mismo header ya probado en laboratorio.
 6. Eliminar la clave anterior de variables de entorno, archivos secret y notas
    operativas.
 
+## Validacion end-to-end sin exponer secretos
+
+No validar Cloud Sync live con `curl` manual usando la clave en variables de
+entorno, argumentos de terminal, historial de shell o chats. Aunque el comando
+no imprima el valor, ese flujo aumenta el riesgo de fuga por historial,
+telemetria de herramientas o copia accidental.
+
+Procedimiento seguro:
+
+1. Mantener la clave solo en `scripts/visual-agent/visual-agent.config.json` y
+   en `OPERATIVA_AGENT_KEY` del entorno Render.
+2. Ejecutar el agente local 0.9.15 para que publique un lote de test real contra
+   `ariadgsm.com`.
+3. Validar en el servidor que el audit log append-only registro el lote con
+   verdict `new`.
+4. Repetir el lote desde el agente si se necesita validar idempotencia; el
+   servidor debe registrar verdict `duplicate`.
+5. No copiar la clave a terminales con historial persistente ni a herramientas
+   externas de prueba.
+
 ## Gates de validacion
 
 - `desktop-agent/tests/web_hardening_panel.py`: headers, token de arranque,
