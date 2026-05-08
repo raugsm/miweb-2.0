@@ -19,7 +19,7 @@ $PythonAgentScript = Join-Path $ScriptDir "agent-local.py"
 $VisualDebuggerScript = Join-Path $ScriptDir "visual-debugger.py"
 $EyesStreamScript = Join-Path $ScriptDir "eyes-stream.py"
 $BrowserReaderScript = Join-Path $ScriptDir "browser-accessibility-reader.ps1"
-$ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
+$ConfigPath = Join-Path $ScriptDir "visual-agent.config.json"
 $RuntimeDir = Join-Path $ScriptDir "runtime"
 $PidFile = Join-Path $RuntimeDir "agent-watch.pid"
 $StdoutLog = Join-Path $RuntimeDir "agent-watch.out.log"
@@ -119,7 +119,7 @@ function Test-AgentConfig {
   if (-not (Test-Path -LiteralPath $ConfigPath)) {
     return [pscustomobject]@{
       Configured = $false
-      Message = "Falta visual-agent.cloud.json"
+      Message = "Falta visual-agent.config.json"
     }
   }
 

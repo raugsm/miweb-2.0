@@ -2,7 +2,7 @@
 
 Estado: anexo operativo de endurecimiento para RC 0.9.2 sobre etapas cerradas 11, 14 y 15.
 Version objetivo de laboratorio: 0.9.10.
-Version desplegable del canal vivo: 0.9.15.
+Version desplegable del canal vivo: 0.9.16.
 
 Este archivo no abre una etapa nueva. Declara controles web minimos para que la
 prueba real supervisada de cabina completa no dependa solo de privacidad LLM,
@@ -21,9 +21,10 @@ idempotencia y evidencia A-F.
   headers.
 - Python official docs: ssl TLSVersion TLSv1_3 and hmac.
 - IETF RFC 9421: HTTP Message Signatures, considerado antes de mantener el
-  contrato HMAC simple para 0.9.15.
+  contrato HMAC simple en el canal 0.9.15/0.9.16.
 - Render docs: environment variables, deploy hooks and health checks.
 - hstspreload.org / Cloudflare HSTS preload requirements.
+- OWASP Secrets Management and Cryptographic Storage Cheat Sheets.
 - OpenAI safety guidance for output handling: model output rendered into HTML
   must be treated as untrusted text unless explicitly sanitized/escaped.
 
@@ -53,8 +54,8 @@ idempotencia y evidencia A-F.
 
 ### Cloud Sync y ariadgsm.com
 
-- `cloud_sync.py` firma el cuerpo exacto del batch con HMAC SHA-256 usando
-  `OPERATIVA_AGENT_KEY`.
+- `cloud_sync.py` firma el cuerpo exacto del batch con HMAC SHA-256 usando el
+  `agentToken` leido desde `scripts/visual-agent/visual-agent.config.json`.
 - El servidor verifica `X-AriadGSM-Signature: sha256=...` antes de procesar el
   batch. Sin firma o con firma invalida, responde `401`.
 - El servidor aplica rate limit por agent token, base 60 req/min, configurable
@@ -70,10 +71,11 @@ idempotencia y evidencia A-F.
 
 ## Contrato de firma agente <-> cloud
 
-Decision 0.9.15: se mantiene HMAC SHA-256 sobre el cuerpo exacto del batch para
-no romper el canal vivo ni reescribir `cloud_sync.py` durante el RC. RFC 9421
+Decision 0.9.16: se mantiene HMAC SHA-256 sobre el cuerpo exacto del batch para
+no romper el canal vivo; el cambio de 0.9.16 consolida la fuente local del
+secreto sin alterar el contrato wire. RFC 9421
 queda registrado como siguiente estandar candidato porque cubre componentes
-HTTP y canonicalizacion formal; no se adopta en 0.9.15 porque el contrato actual
+HTTP y canonicalizacion formal; no se adopta en 0.9.16 porque el contrato actual
 solo necesita autenticar el body JSON exacto que ya controla el agente y porque
 el servidor cloud debe aceptar el mismo header ya probado en laboratorio.
 
@@ -81,7 +83,8 @@ el servidor cloud debe aceptar el mismo header ya probado en laboratorio.
 - Formato: `sha256=<hex-digest>`.
 - Algoritmo: `HMAC-SHA-256`.
 - Material firmado: bytes exactos del cuerpo HTTP enviado por el agente.
-- Secreto: `OPERATIVA_AGENT_KEY`, igual en agente local y cloud.
+- Secreto: `agentToken` en `scripts/visual-agent/visual-agent.config.json`;
+  el mismo valor debe estar en Render como `OPERATIVA_AGENT_KEY`.
 - Comparacion servidor: constante en tiempo (`timingSafeEqual` en Node cuando
   aplica; comparacion segura equivalente en Python tests).
 - Firma ausente: `401` con `{ "error": "signature_missing" }`.
@@ -90,15 +93,46 @@ el servidor cloud debe aceptar el mismo header ya probado en laboratorio.
   `ARIADGSM_CLOUD_SYNC_RATE_LIMIT_PER_MINUTE`.
 - Respuesta rate limit: `429` con header `Retry-After`.
 
+## Single source of truth for agent secret
+
+Decision 0.9.16: la fuente local autorizada del secreto del agente es solo
+`scripts/visual-agent/visual-agent.config.json`, campo `agentToken`. El cloud
+desplegado conserva el mismo valor en Render como `OPERATIVA_AGENT_KEY`; esa
+variable es la copia operativa del servidor, no una segunda fuente local.
+
+Justificacion:
+
+- Es el menor cambio compatible con Python, PowerShell y Node: los scripts
+  apuntan al mismo JSON local y no requieren `dotenv`, keyring ni dependencias
+  nuevas en pleno RC.
+- Mantiene el secreto fuera de Git mediante `.gitignore` y evita que la clave se
+  duplique en `visual-agent.cloud.json`, archivos `.secret` o variables locales
+  persistentes.
+- Alinea el bloque con OWASP ASVS V8 y las guias OWASP de secrets management:
+  no hardcodear claves, no versionarlas, documentar rotacion y limitar copias.
+
+Reglas operativas:
+
+- `cloud_sync.py` resuelve el token desde
+  `scripts/visual-agent/visual-agent.config.json:agentToken`.
+- `visual-agent.cloud.json` y `railway-operativa-agent-key.secret.txt` quedan
+  como copias legacy no eliminadas en este bloque. La limpieza ocurre solo
+  despues de validacion live verde.
+- El fallback Railway queda apagado por defecto. Si Bryams confirma uso vivo de
+  Railway, se habilita temporalmente con `ARIADGSM_USE_RAILWAY_FALLBACK=true`;
+  sin esa variable, `cloud_sync.py` no lee el archivo legacy.
+
 ## Rotacion de OPERATIVA_AGENT_KEY
 
 1. Generar una nueva clave de al menos 32 bytes aleatorios.
-2. Configurar la nueva clave en el servidor cloud como `OPERATIVA_AGENT_KEY`.
-3. Configurar la misma clave en la maquina local del agente.
-4. Ejecutar `desktop-agent/tests/web_hardening_cloud_sync.py`.
-5. Revisar que los lotes nuevos queden con verdict `new` y que una firma vieja
+2. Escribirla solo en `scripts/visual-agent/visual-agent.config.json`, campo
+   `agentToken`.
+3. Bryams copia manualmente ese valor a Render como `OPERATIVA_AGENT_KEY`.
+4. Manual Deploy en Render.
+5. Ejecutar `desktop-agent/tests/web_hardening_cloud_sync.py`.
+6. Revisar que los lotes nuevos queden con verdict `new` y que una firma vieja
    reciba `401`.
-6. Eliminar la clave anterior de variables de entorno, archivos secret y notas
+7. Eliminar la clave anterior de variables de entorno, archivos secret y notas
    operativas.
 
 ## Validacion end-to-end sin exponer secretos
@@ -112,7 +146,7 @@ Procedimiento seguro:
 
 1. Mantener la clave solo en `scripts/visual-agent/visual-agent.config.json` y
    en `OPERATIVA_AGENT_KEY` del entorno Render.
-2. Ejecutar el agente local 0.9.15 para que publique un lote de test real contra
+2. Ejecutar el agente local 0.9.16 para que publique un lote de test real contra
    `ariadgsm.com`.
 3. Validar en el servidor que el audit log append-only registro el lote con
    verdict `new`.

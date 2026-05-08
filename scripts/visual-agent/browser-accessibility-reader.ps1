@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $ConfigPath) {
-  $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
+  $ConfigPath = Join-Path $ScriptDir "visual-agent.config.json"
 }
 $ReaderCoreScript = Join-Path $ScriptDir "reader_core.py"
 $RuntimeDir = Join-Path $ScriptDir "runtime"

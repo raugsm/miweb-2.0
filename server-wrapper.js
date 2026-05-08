@@ -15,7 +15,7 @@ const {
 } = require("./operativa-store");
 
 const originalCreateServer = http.createServer.bind(http);
-const WEB_HARDENING_VERSION = "0.9.15";
+const WEB_HARDENING_VERSION = "0.9.16";
 const SESSION_HEADER = "x-ariadgsm-session";
 const CSRF_HEADER = "x-ariadgsm-csrf";
 const SIGNATURE_HEADER = "x-ariadgsm-signature";

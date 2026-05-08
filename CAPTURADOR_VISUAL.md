@@ -4,7 +4,7 @@ Este capturador reconstruye el paso que ya habia llegado a funcionar: leer panta
 
 ## Estado
 
-- `ariadgsm.com` autoriza el `OPERATIVA_AGENT_KEY` de Railway.
+- `ariadgsm.com` autoriza la firma HMAC con `OPERATIVA_AGENT_KEY` configurado en Render y el `agentToken` local del agente.
 - La nube ya contiene eventos reales previos de `Lectura visual`, `visible_window` y `agent_status`.
 - En GitHub no hay otra rama con el capturador anterior; por eso se agrego un capturador nuevo local.
 - El nuevo script usa OCR nativo de Windows y divide el monitor ultrawide en 3 secciones: `wa-1`, `wa-2`, `wa-3`.

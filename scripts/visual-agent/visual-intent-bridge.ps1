@@ -30,7 +30,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $NavigatorScript = Join-Path $ScriptDir "visual-chat-navigator.ps1"
 $CaptureScript = Join-Path $ScriptDir "visual-screen-capture.ps1"
 if (-not $ConfigPath) {
-  $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
+  $ConfigPath = Join-Path $ScriptDir "visual-agent.config.json"
 }
 
 if ($Send) {

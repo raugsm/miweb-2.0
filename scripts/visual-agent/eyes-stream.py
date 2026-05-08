@@ -33,7 +33,7 @@ import reader_core
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-DEFAULT_CONFIG = SCRIPT_DIR / "visual-agent.cloud.json"
+DEFAULT_CONFIG = SCRIPT_DIR / "visual-agent.config.json"
 OCR_SCRIPT = SCRIPT_DIR / "visual-ocr-image.ps1"
 RUNTIME_DIR = SCRIPT_DIR / "runtime"
 EYES_DIR = RUNTIME_DIR / "eyes-stream"

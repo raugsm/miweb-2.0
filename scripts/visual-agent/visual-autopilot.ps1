@@ -36,7 +36,7 @@ $AutopilotStateFile = Join-Path $RuntimeDir "agent-autopilot.state.json"
 New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
 
 if (-not $ConfigPath) {
-  $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
+  $ConfigPath = Join-Path $ScriptDir "visual-agent.config.json"
 }
 
 Add-Type -AssemblyName System.Windows.Forms

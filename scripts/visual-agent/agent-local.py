@@ -31,7 +31,7 @@ STATE_FILE = RUNTIME_DIR / "agent-autopilot.state.json"
 CAPTURE_SCRIPT = SCRIPT_DIR / "visual-screen-capture.ps1"
 INTENT_BRIDGE_SCRIPT = SCRIPT_DIR / "visual-intent-bridge.ps1"
 VISUAL_AGENT_JS = SCRIPT_DIR / "visual-agent.js"
-DEFAULT_CONFIG = SCRIPT_DIR / "visual-agent.cloud.json"
+DEFAULT_CONFIG = SCRIPT_DIR / "visual-agent.config.json"
 
 
 def now_iso() -> str:

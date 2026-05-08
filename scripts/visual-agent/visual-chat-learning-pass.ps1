@@ -21,7 +21,7 @@ $RuntimeDir = Join-Path $ScriptDir "runtime"
 New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
 
 if (-not $ConfigPath) {
-  $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
+  $ConfigPath = Join-Path $ScriptDir "visual-agent.config.json"
 }
 
 $DefaultSkipLearningChatPatterns = @(

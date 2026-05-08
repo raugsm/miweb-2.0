@@ -17,7 +17,7 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-DEFAULT_CONFIG = SCRIPT_DIR / "visual-agent.cloud.json"
+DEFAULT_CONFIG = SCRIPT_DIR / "visual-agent.config.json"
 CAPTURE_SCRIPT = SCRIPT_DIR / "visual-screen-capture.ps1"
 REPORT_ROOT = SCRIPT_DIR / "runtime" / "visual-debugger"
 

@@ -45,7 +45,7 @@ desktop-agent\dist\AriadGSMAgent\AriadGSM Agent.exe
 
 ## Seguridad
 
-El launcher usa `scripts\visual-agent\visual-agent.cloud.json`, que esta ignorado por Git para no subir tokens.
+El launcher usa `scripts\visual-agent\visual-agent.config.json`, que esta ignorado por Git para no subir tokens.
 
 Nivel actual del agente:
 

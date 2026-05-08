@@ -12,7 +12,7 @@ Content-Type: application/json
 Authorization: Bearer TU_OPERATIVA_AGENT_KEY
 ```
 
-La variable recomendada en Railway es `OPERATIVA_AGENT_KEY`. El agente visual local usa ese mismo valor como `agentToken` para enviar eventos sin depender de la sesion del navegador.
+La variable recomendada en Render es `OPERATIVA_AGENT_KEY`. El agente visual local usa ese mismo valor como `agentToken` en `scripts/visual-agent/visual-agent.config.json` para enviar eventos sin depender de la sesion del navegador.
 
 ## Evento: mensaje de WhatsApp
 

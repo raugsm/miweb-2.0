@@ -14,6 +14,9 @@ from urllib import error, request
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "desktop-agent"))
+
+from ariadgsm_agent.cloud_sync import resolve_token
 
 
 def free_port() -> int:
@@ -64,7 +67,16 @@ def read_audit(data_dir: Path) -> list[dict]:
 
 
 def main() -> int:
-    token = "cloud-hardening-token"
+    token = "cloud-hardening-token-000000000000000000000000"
+    with TemporaryDirectory() as repo_tmp:
+        repo = Path(repo_tmp)
+        config_path = repo / "scripts" / "visual-agent" / "visual-agent.config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(json.dumps({"agentToken": token}), encoding="utf-8")
+        resolved_token, source = resolve_token(repo)
+        assert resolved_token == token
+        assert source == "scripts/visual-agent/visual-agent.config.json:agentToken"
+
     with TemporaryDirectory() as tmp:
         data_dir = Path(tmp)
         port = free_port()

@@ -1,8 +1,8 @@
 {
-  "version": "0.9.15",
-  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.15.zip",
-  "sha256": "cf18c2cc9d60a438918e0188d81375382657c5820bf89a2698b3d125f567a07f",
+  "version": "0.9.16",
+  "packageUrl": "https://raw.githubusercontent.com/raugsm/miweb-2.0/main/desktop-agent/update/releases/AriadGSMAgent-0.9.16.zip",
+  "sha256": "d46d4d1e29894b1b5114856b775d762e8576106e8a281a114973653e14efb9b1",
   "autoApply": true,
-  "notes": "Version 0.9.15 deploys the RC 0.9.2 web hardening into the live updater channel: session auth and double-submit CSRF for the local panel, strict CSP/security headers, SSE runtime state, default HTML escaping, and HMAC-signed Cloud Sync batches.",
-  "publishedAt": "2026-05-08T02:31:44Z"
+  "notes": "Version 0.9.16 consolidates the local OPERATIVA_AGENT_KEY source of truth in scripts/visual-agent/visual-agent.config.json, disables legacy Railway secret fallback by default, and keeps the RC 0.9.2 web hardening live in the updater channel.",
+  "publishedAt": "2026-05-08T04:10:39Z"
 }

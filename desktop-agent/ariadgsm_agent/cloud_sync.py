@@ -26,6 +26,11 @@ MAX_MESSAGES_PER_CONVERSATION = 24
 MAX_REVIEW_EVENTS = 50
 MAX_RETRY_ATTEMPTS = 3
 TRANSIENT_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
+VISUAL_AGENT_CONFIG_RELATIVE = Path("scripts") / "visual-agent" / "visual-agent.config.json"
+LEGACY_SECRET_RELATIVES = (
+    Path("scripts") / "visual-agent" / "railway-operativa-agent-key.secret.txt",
+    Path("desktop-agent") / "cloud-agent-token.secret.txt",
+)
 
 
 def utc_now() -> str:
@@ -184,20 +189,47 @@ def read_secret_file(path: Path) -> str:
     return ""
 
 
-def resolve_token(repo_root: Path) -> tuple[str, str]:
-    for name in ("ARIADGSM_CLOUD_TOKEN", "OPERATIVA_AGENT_KEY", "OPERATIVA_AGENT_TOKEN"):
-        value = os.environ.get(name, "").strip()
-        if value:
-            return value, f"env:{name}"
+def is_placeholder_token(value: str) -> bool:
+    clean = value.strip()
+    if not clean or len(clean) < 24:
+        return True
+    lowered = clean.lower()
+    placeholders = {
+        "cambia-esto-por-un-token-largo",
+        "reemplazar",
+        "placeholder",
+        "your_key_here",
+        "change_me",
+        "todo",
+        "xxx",
+    }
+    return lowered in placeholders or any(item in lowered for item in placeholders)
 
-    secret_paths = [
-        repo_root / "scripts" / "visual-agent" / "railway-operativa-agent-key.secret.txt",
-        repo_root / "desktop-agent" / "cloud-agent-token.secret.txt",
-    ]
-    for path in secret_paths:
+
+def read_visual_agent_config_token(repo_root: Path) -> tuple[str, str]:
+    path = repo_root / VISUAL_AGENT_CONFIG_RELATIVE
+    if not path.exists():
+        return "", ""
+    config = read_json(path)
+    token = text(config.get("agentToken")).strip()
+    if token and not is_placeholder_token(token):
+        return token, f"{VISUAL_AGENT_CONFIG_RELATIVE.as_posix()}:agentToken"
+    return "", ""
+
+
+def resolve_token(repo_root: Path) -> tuple[str, str]:
+    token, source = read_visual_agent_config_token(repo_root)
+    if token:
+        return token, source
+
+    if not bool_value(os.environ.get("ARIADGSM_USE_RAILWAY_FALLBACK"), False):
+        return "", ""
+
+    for relative_path in LEGACY_SECRET_RELATIVES:
+        path = repo_root / relative_path
         token = read_secret_file(path)
         if token:
-            return token, str(path.relative_to(repo_root))
+            return token, str(relative_path).replace("\\", "/")
     return "", ""
 
 
@@ -618,7 +650,7 @@ def build_state(
                 "Idempotencia activa para no duplicar mensajes si hay reintentos.",
                 "Token fuera del navegador y sin registro en archivos visibles.",
             ],
-            "queNecesitoDeBryams": [] if enabled and authenticated else ["Verificar OPERATIVA_AGENT_KEY o activar Cloud Sync."],
+            "queNecesitoDeBryams": [] if enabled and authenticated else ["Verificar scripts/visual-agent/visual-agent.config.json:agentToken y OPERATIVA_AGENT_KEY en Render."],
             "riesgos": [main_blocker] if main_blocker else [],
         },
     }

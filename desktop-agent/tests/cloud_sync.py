@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parent
 sys.path.insert(0, str(ROOT))
 
-from ariadgsm_agent.cloud_sync import run_cloud_sync_once
+from ariadgsm_agent.cloud_sync import resolve_token, run_cloud_sync_once
 from ariadgsm_agent.contracts import sample_event, validate_contract
 
 
@@ -190,6 +190,25 @@ def main() -> int:
         assert captured["payload"]["security"]["rawFramesUploaded"] is False
         assert captured["payload"]["security"]["hmacSignatureHeader"] == "X-AriadGSM-Signature"
         assert (runtime / "cloud-sync-ledger.json").exists()
+
+    with TemporaryDirectory() as repo_tmp:
+        repo = Path(repo_tmp)
+        token_fixture = "test-token-source-fixture-000000000000000000000000"
+        config_path = repo / "scripts" / "visual-agent" / "visual-agent.config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        write_json(config_path, {"agentToken": token_fixture, "cloudUrl": "https://ariadgsm.com"})
+        token, source = resolve_token(repo)
+        assert token == token_fixture
+        assert source == "scripts/visual-agent/visual-agent.config.json:agentToken"
+
+    with TemporaryDirectory() as repo_tmp:
+        repo = Path(repo_tmp)
+        legacy_path = repo / "scripts" / "visual-agent" / "railway-operativa-agent-key.secret.txt"
+        legacy_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_path.write_text("OPERATIVA_AGENT_KEY=test-legacy-token-0000000000000000\n", encoding="utf-8")
+        token, source = resolve_token(repo)
+        assert token == ""
+        assert source == ""
 
     print("cloud sync OK")
     return 0

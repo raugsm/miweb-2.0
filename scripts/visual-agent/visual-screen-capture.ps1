@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
 if (-not $ConfigPath) {
-  $ConfigPath = Join-Path $ScriptDir "visual-agent.cloud.json"
+  $ConfigPath = Join-Path $ScriptDir "visual-agent.config.json"
 }
 
 function Resolve-AgentPath {
